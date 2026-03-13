@@ -25,6 +25,10 @@ pnpm build:h5
 pnpm build:mp-weixin
 ```
 
+## 纹理图（未纳入 Git）
+
+项目需在 `static/textures/` 下放置水晶纹理 PNG（如 `crystal-pink.png`、`crystal-milky.png` 等），用于首页、材料与 3D 珠子展示。因体积较大未提交到仓库，请从设计资源获取或自备后放入该目录。
+
 ## 目录说明
 
 - `src/pages/design/` - 设计页（画布 + 材料区）
