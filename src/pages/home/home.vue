@@ -35,21 +35,20 @@ interface HomeData {
 const fallback: HomeData = {
 	logoText: '养个石头',
 	tiles: [
-		{ id: 'diy', label: 'DIY-CUSTOM', sub: '设计手串', image: '/static/textures/crystal-pink.png', path: '/pages/design/design' },
-		{ id: 'goods', label: 'DESIGN-PLAZA', sub: '设计广场', image: '/static/textures/crystal-milky.png', path: '/pages/goods/goods' },
+		{ id: 'diy', label: 'DIY-CUSTOM', sub: '设计手串', image: '', path: '/pages/design/design' },
+		{ id: 'goods', label: 'DESIGN-PLAZA', sub: '设计广场', image: '', path: '/pages/goods/goods' },
 	],
 	banners: [
-		{ id: 'b1', image: '/static/textures/crystal-agate.png', link: '', title: '添加客服 查看设计实物图！' },
-		{ id: 'b2', image: '/static/textures/crystal-milky.png', link: '/pages/design/design', title: '立即 DIY 手串' },
+		{ id: 'b1', image: '', link: '', title: '添加客服 查看设计实物图！' },
+		{ id: 'b2', image: '', link: '/pages/design/design', title: '立即 DIY 手串' },
 	],
 	designs: [
-		{ id: 'd1', title: '菩提蛋糕', author: '@吴烦恼', image: '/static/textures/crystal-white.png', cta: '查看实物' },
-		{ id: 'd2', title: '怒目绿龙', author: '@Oo', image: '/static/textures/crystal-deep-purple.png', cta: '查看实物' },
+		{ id: 'd1', title: '菩提蛋糕', author: '@吴烦恼', image: '', cta: '查看实物' },
+		{ id: 'd2', title: '怒目绿龙', author: '@Oo', image: '', cta: '查看实物' },
 	],
 };
 
 const data = ref<HomeData>(fallback);
-const logoImage = '/static/textures/crystal-white.png';
 
 onMounted(async () => {
 	try {
@@ -69,14 +68,13 @@ function go(path: string) {
 <template>
 	<view class="page">
 		<view class="logo-wrap">
-			<image class="logo-img" :src="logoImage" mode="aspectFit" />
 			<view class="logo-text">{{ data.logoText }}</view>
 			<view class="logo-sub">只做天然珠宝</view>
 		</view>
 
 		<view class="tile-row">
 			<view v-for="tile in data.tiles" :key="tile.id" class="tile" @tap="go(tile.path)">
-				<image class="tile-img" :src="tile.image" mode="aspectFit" />
+				<image v-if="tile.image" class="tile-img" :src="tile.image" mode="aspectFit" />
 				<view class="tile-label">{{ tile.label }}</view>
 				<view class="tile-sub">{{ tile.sub }}</view>
 			</view>
@@ -94,7 +92,7 @@ function go(path: string) {
 			>
 				<swiper-item v-for="b in data.banners" :key="b.id">
 					<view class="banner-item" @tap="go(b.link)">
-						<image class="banner-img" :src="b.image" mode="aspectFill" />
+						<image v-if="b.image" class="banner-img" :src="b.image" mode="aspectFill" />
 						<view v-if="b.title" class="banner-text">{{ b.title }}</view>
 					</view>
 				</swiper-item>
@@ -112,7 +110,7 @@ function go(path: string) {
 					<view class="design-author">{{ item.author }}</view>
 					<view class="design-cta">{{ item.cta }}</view>
 				</view>
-				<image class="design-img" :src="item.image" mode="aspectFit" />
+				<image v-if="item.image" class="design-img" :src="item.image" mode="aspectFit" />
 			</view>
 		</view>
 	</view>
@@ -130,12 +128,6 @@ function go(path: string) {
 .logo-wrap {
 	text-align: center;
 	padding: 40rpx 0 24rpx;
-}
-
-.logo-img {
-	width: 120rpx;
-	height: 120rpx;
-	margin: 0 auto 12rpx;
 }
 
 .logo-text {

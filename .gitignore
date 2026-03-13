@@ -7,6 +7,3 @@ dist
 !.env.example
 unpackage
 .hbuilderx
-
-# 纹理图较大，不提交到 Git，请自行放入或从设计资源获取
-static/textures/*.png

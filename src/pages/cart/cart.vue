@@ -11,7 +11,6 @@ interface CartItem {
 }
 
 const items = ref<CartItem[]>([]);
-const emptyImage = '/static/textures/crystal-agate.png';
 
 const total = computed(() => items.value.reduce((sum, item) => sum + item.price * item.qty, 0));
 
@@ -38,7 +37,6 @@ function goGoods() {
 		<view class="title">购物车</view>
 
 		<view v-if="items.length === 0" class="empty">
-			<image class="empty-img" :src="emptyImage" mode="aspectFit" />
 			<view class="empty-text">购物车没有订单哟</view>
 			<view class="empty-actions">
 				<button class="btn" @tap="goDesign">去定制</button>
@@ -83,11 +81,6 @@ function goGoods() {
 	align-items: center;
 	gap: 16rpx;
 	margin-top: 80rpx;
-}
-
-.empty-img {
-	width: 200rpx;
-	height: 200rpx;
 }
 
 .empty-text {

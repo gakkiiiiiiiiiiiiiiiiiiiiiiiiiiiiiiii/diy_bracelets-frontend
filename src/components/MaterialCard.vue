@@ -33,7 +33,7 @@ function showSpecPicker() {
 
 <template>
 	<view class="material-card" @click="showSpecPicker">
-		<view class="material-card__img-wrap">
+		<view v-if="imageSrc" class="material-card__img-wrap">
 			<image class="material-card__img" :src="imageSrc" mode="aspectFill" />
 		</view>
 		<view class="material-card__name">{{ material.name }}</view>
