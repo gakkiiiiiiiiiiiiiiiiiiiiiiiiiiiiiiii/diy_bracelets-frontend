@@ -1,0 +1,33 @@
+{
+	"name": "diy-bracelets",
+	"version": "1.0.0",
+	"type": "module",
+	"packageManager": "pnpm@9.7.1",
+	"scripts": {
+		"dev:h5": "npx uni -p h5",
+		"dev:mp-weixin": "npx uni -p mp-weixin",
+		"build:h5": "npx uni build -p h5",
+		"build:mp-weixin": "npx uni build -p mp-weixin"
+	},
+	"dependencies": {
+		"@dcloudio/uni-app": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/uni-app-vue": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/uni-components": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/uni-h5": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/uni-mp-weixin": "3.0.0-alpha-5000120260211001",
+		"pinia": "^2.1.7",
+		"three": "^0.169.0",
+		"threejs-miniprogram": "^0.0.8",
+		"vue": "^3.4.21"
+	},
+	"devDependencies": {
+		"@dcloudio/types": "^3.4.8",
+		"@dcloudio/uni-automator": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/uni-cli-shared": "3.0.0-alpha-5000120260211001",
+		"@dcloudio/vite-plugin-uni": "3.0.0-alpha-5000120260211001",
+		"@types/node": "^20.11.24",
+		"sass": "^1.72.0",
+		"typescript": "^5.4.2",
+		"vite": "^5.2.8"
+	}
+}

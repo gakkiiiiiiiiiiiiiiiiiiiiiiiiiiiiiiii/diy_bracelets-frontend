@@ -1,0 +1,30 @@
+/* Apple-style、PRD 与动画体系全局变量 */
+
+/* 色彩与布局 */
+$page-bg: #F5F5F7;
+$glass-bg: rgba(255, 255, 255, 0.8);
+$primary: #0071e3;
+$secondary-bg: #E5E5EA;
+$input-bg: #F2F2F7;
+$text-primary: #1d1d1f;
+$text-caption: #86868b;
+$hairline: rgba(0, 0, 0, 0.1);
+$radius-card: 24rpx;
+$radius-pill: 999px;
+
+/* 动画体系：品牌缓动曲线（克制、无夸张弹跳） */
+$ease-spring: cubic-bezier(0.25, 1, 0.5, 1);
+$ease-brand: cubic-bezier(0.25, 0.1, 0.25, 1);
+$ease-out: cubic-bezier(0, 0, 0.58, 1);
+$ease-in: cubic-bezier(0.42, 0, 1, 1);
+$ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+
+/* 动画体系：时长规范（ms） */
+$duration-press: 100ms;
+$duration-release: 150ms;
+$duration-state: 250ms;
+$duration-reflow: 320ms;
+$duration-enter: 350ms;
+$duration-exit: 260ms;
+$duration-price-bump: 180ms;
+$duration-price-return: 240ms;
