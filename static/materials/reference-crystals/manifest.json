@@ -1,0 +1,187 @@
+{
+  "source": "resources/reference-crystal-assets/source/crystal-beads-reference.png",
+  "textureSize": 1024,
+  "previewSize": 512,
+  "items": [
+    {
+      "slug": "yellow-crystal",
+      "name": "黄水晶",
+      "categoryId": "yellow",
+      "path": "frontend/static/materials/reference-crystals/yellow-crystal"
+    },
+    {
+      "slug": "golden-rutile",
+      "name": "金发晶",
+      "categoryId": "yellow",
+      "path": "frontend/static/materials/reference-crystals/golden-rutile"
+    },
+    {
+      "slug": "yellow-ase",
+      "name": "黄阿塞",
+      "categoryId": "yellow",
+      "path": "frontend/static/materials/reference-crystals/yellow-ase"
+    },
+    {
+      "slug": "yellow-tower",
+      "name": "黄塔晶",
+      "categoryId": "yellow",
+      "path": "frontend/static/materials/reference-crystals/yellow-tower"
+    },
+    {
+      "slug": "yellow-tiger-eye",
+      "name": "黄虎眼",
+      "categoryId": "yellow",
+      "path": "frontend/static/materials/reference-crystals/yellow-tiger-eye"
+    },
+    {
+      "slug": "red-garden-quartz",
+      "name": "红胶花",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/red-garden-quartz"
+    },
+    {
+      "slug": "pink-crystal",
+      "name": "粉水晶",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/pink-crystal"
+    },
+    {
+      "slug": "pink-phantom",
+      "name": "粉幽灵",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/pink-phantom"
+    },
+    {
+      "slug": "pink-ase",
+      "name": "粉阿塞",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/pink-ase"
+    },
+    {
+      "slug": "rose-stone",
+      "name": "蔷薇石",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/rose-stone"
+    },
+    {
+      "slug": "strawberry-crystal",
+      "name": "草莓晶",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/strawberry-crystal"
+    },
+    {
+      "slug": "rhodochrosite",
+      "name": "红纹石",
+      "categoryId": "pink-red",
+      "path": "frontend/static/materials/reference-crystals/rhodochrosite"
+    },
+    {
+      "slug": "starry-quartz",
+      "name": "满天星",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/starry-quartz"
+    },
+    {
+      "slug": "layered-green-phantom",
+      "name": "绿幽灵千层",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/layered-green-phantom"
+    },
+    {
+      "slug": "green-rutile",
+      "name": "绿发晶",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/green-rutile"
+    },
+    {
+      "slug": "prehnite",
+      "name": "葡萄石",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/prehnite"
+    },
+    {
+      "slug": "peridot",
+      "name": "橄榄石",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/peridot"
+    },
+    {
+      "slug": "green-phantom",
+      "name": "绿幽灵",
+      "categoryId": "green-white",
+      "path": "frontend/static/materials/reference-crystals/green-phantom"
+    },
+    {
+      "slug": "blue-moonstone",
+      "name": "蓝月光",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/blue-moonstone"
+    },
+    {
+      "slug": "aquamarine-ice",
+      "name": "海蓝宝冰种",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/aquamarine-ice"
+    },
+    {
+      "slug": "devil-blue",
+      "name": "魔鬼蓝",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/devil-blue"
+    },
+    {
+      "slug": "kyanite",
+      "name": "蓝晶石",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/kyanite"
+    },
+    {
+      "slug": "larimar",
+      "name": "海纹石",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/larimar"
+    },
+    {
+      "slug": "amazonite",
+      "name": "天河石",
+      "categoryId": "blue",
+      "path": "frontend/static/materials/reference-crystals/amazonite"
+    },
+    {
+      "slug": "bolivian-amethyst",
+      "name": "玻利维亚紫",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/bolivian-amethyst"
+    },
+    {
+      "slug": "lavender-amethyst",
+      "name": "薰衣草紫",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/lavender-amethyst"
+    },
+    {
+      "slug": "brazil-amethyst",
+      "name": "巴西紫",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/brazil-amethyst"
+    },
+    {
+      "slug": "kunzite-purple",
+      "name": "紫锂辉",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/kunzite-purple"
+    },
+    {
+      "slug": "purple-phantom",
+      "name": "紫幽灵",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/purple-phantom"
+    },
+    {
+      "slug": "uruguay-amethyst",
+      "name": "乌拉圭紫",
+      "categoryId": "purple",
+      "path": "frontend/static/materials/reference-crystals/uruguay-amethyst"
+    }
+  ]
+}

@@ -25,6 +25,10 @@ function copyDirSync(src: string, dest: string) {
 }
 
 const apiTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3008'
+const useWxCloudContainer = process.env.VITE_USE_WXCLOUD_CONTAINER !== 'false'
+const useMockApi =
+  process.env.VITE_USE_MOCK_API === 'true' ||
+  (!process.env.VITE_API_BASE && process.env.VITE_USE_MOCK_API !== 'false')
 
 export default defineConfig({
   server: {
@@ -43,8 +47,19 @@ export default defineConfig({
     },
   },
   define: {
+    __IS_DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
     // 构建时注入，供 H5/小程序共用，避免小程序端使用 import.meta.env 触发 Node url 模块
     __API_BASE__: JSON.stringify(process.env.VITE_API_BASE || ''),
+    __DEV_API_BASE__: JSON.stringify(process.env.VITE_PROXY_TARGET || apiTarget),
+    __USE_MOCK_API__: JSON.stringify(useMockApi),
+    __WXCLOUD_CONTAINER_ENV__: JSON.stringify(
+      useWxCloudContainer
+        ? process.env.VITE_WXCLOUD_CONTAINER_ENV || 'prod-4gmdxhajdbc36f11'
+        : '',
+    ),
+    __WXCLOUD_CONTAINER_SERVICE__: JSON.stringify(
+      useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || 'diy' : '',
+    ),
   },
   plugins: [
     // 优先注册，使 /static/ 请求先被处理（材料卡图片、3D 纹理）
@@ -85,9 +100,9 @@ export default defineConfig({
       },
     },
     uniPlugin(),
-    // 微信小程序构建/开发时复制 static 与 custom-tab-bar 到输出目录
+    // 构建时复制根 static 目录，保证 H5 与微信小程序都能访问 /static/* 材质贴图。
     {
-      name: 'copy-static-mp-weixin',
+      name: 'copy-runtime-static-assets',
       configureServer() {
         const devOut = path.resolve(__dirname, 'dist/dev/mp-weixin')
         if (fs.existsSync(devOut)) {
@@ -97,9 +112,10 @@ export default defineConfig({
         }
       },
       closeBundle() {
+        const h5BuildOutDir = path.resolve(__dirname, 'dist/build/h5')
         const outDir = path.resolve(__dirname, 'dist/dev/mp-weixin')
         const buildOutDir = path.resolve(__dirname, 'dist/build/mp-weixin')
-        for (const dir of [outDir, buildOutDir]) {
+        for (const dir of [h5BuildOutDir, outDir, buildOutDir]) {
           if (fs.existsSync(dir)) {
             copyDirSync(staticDir, path.join(dir, 'static'))
             if (fs.existsSync(customTabBarDir)) copyDirSync(customTabBarDir, path.join(dir, 'custom-tab-bar'))

@@ -3,12 +3,35 @@ const emit = defineEmits<{
   back: []
   reset: []
   saveToList: []
+  share: []
+  help: []
   secondary: []
   center: []
 }>()
 
+function goHome() {
+  uni.switchTab({
+    url: '/pages/home/home',
+    fail: () => {
+      uni.reLaunch({ url: '/pages/home/home' })
+    },
+  })
+}
+
+function canNavigateBack() {
+  try {
+    return getCurrentPages().length > 1
+  } catch {
+    return true
+  }
+}
+
 function onBack() {
-  uni.navigateBack({ fail: () => {} })
+  if (canNavigateBack()) {
+    uni.navigateBack({ fail: goHome })
+  } else {
+    goHome()
+  }
   emit('back')
 }
 
@@ -17,15 +40,13 @@ function onMore() {
     itemList: ['分享', '保存到我的设计', '重置设计', '使用帮助'],
     success: (res) => {
       if (res.tapIndex === 0) {
-        // #ifdef MP-WEIXIN
-        uni.showToast({ title: '请点击右上角分享', icon: 'none' })
-        // #endif
+        emit('share')
       } else if (res.tapIndex === 1) {
         emit('saveToList')
       } else if (res.tapIndex === 2) {
         emit('reset')
       } else if (res.tapIndex === 3) {
-        uni.showToast({ title: '使用帮助开发中', icon: 'none' })
+        emit('help')
       }
     },
   })
@@ -35,19 +56,21 @@ function onMore() {
 <template>
   <view class="nav-bar">
     <view class="nav-left">
-      <view class="nav-btn" @click="onBack">
-        <text class="nav-icon">‹</text>
+      <view class="nav-btn" @tap="onBack">
+        <text class="nav-icon nav-icon--back">‹</text>
       </view>
     </view>
     <view class="nav-title">养个石头</view>
-    <view class="nav-right">
-      <view class="nav-btn" @click="onMore">
+    <view class="nav-right nav-capsule">
+      <view class="nav-capsule__btn" @tap="onMore">
         <text class="nav-icon">⋯</text>
       </view>
-      <view class="nav-btn" @click="emit('secondary')">
+      <view class="nav-capsule__divider" />
+      <view class="nav-capsule__btn" @tap="emit('secondary')">
         <text class="nav-icon">−</text>
       </view>
-      <view class="nav-btn" @click="emit('center')">
+      <view class="nav-capsule__divider" />
+      <view class="nav-capsule__btn" @tap="emit('center')">
         <text class="nav-icon">⊙</text>
       </view>
     </view>
@@ -61,19 +84,21 @@ function onMore() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 88rpx;
-  padding: 0 24rpx;
-  padding-top: calc(88rpx + env(safe-area-inset-top));
+  height: 86rpx;
+  padding: 0 16rpx;
+  padding-top: calc(40rpx + env(safe-area-inset-top));
   position: relative;
   z-index: 10;
+  background: rgba(251, 251, 255, 0.86);
+  backdrop-filter: blur(14rpx);
+  flex-shrink: 0;
 }
 
 .nav-left,
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-  min-width: 160rpx;
+  min-width: 170rpx;
 }
 
 .nav-right {
@@ -82,21 +107,49 @@ function onMore() {
 
 .nav-title {
   font-weight: 700;
-  font-size: 36rpx;
-  letter-spacing: -0.02em;
-  color: u.$text-primary;
+  font-size: 34rpx;
+  letter-spacing: 0;
+  color: #26314f;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-shadow: 0 1rpx 0 rgba(255, 255, 255, 0.78);
 }
 
 .nav-btn {
-  width: 64rpx;
-  height: 64rpx;
+  width: 72rpx;
+  height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
+  background: transparent;
   transition: transform u.$duration-press u.$ease-out;
+}
+
+.nav-capsule {
+  width: 234rpx;
+  height: 64rpx;
+  min-width: 234rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(217, 222, 234, 0.9);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 6rpx 18rpx rgba(88, 96, 124, 0.1);
+  overflow: hidden;
+}
+
+.nav-capsule__btn {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-capsule__divider {
+  width: 1rpx;
+  height: 32rpx;
+  background: rgba(170, 178, 199, 0.55);
 }
 
 .nav-btn:active {
@@ -105,8 +158,14 @@ function onMore() {
 }
 
 .nav-icon {
-  font-size: 44rpx;
-  color: u.$text-primary;
+  font-size: 42rpx;
+  color: #26314f;
   line-height: 1;
+  font-weight: 700;
+}
+
+.nav-icon--back {
+  font-size: 68rpx;
+  font-weight: 300;
 }
 </style>

@@ -4,6 +4,14 @@ import type { BraceletBead, Material, MaterialSpec } from '@/types';
 import type { DesignCompositionRow } from '@/api';
 import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
 
+export type DesignSource = 'manual' | 'plaza' | 'saved' | 'draft' | 'order' | 'cart' | 'inspiration';
+
+interface ApplyDesignOptions {
+	source?: DesignSource;
+	handCircumferenceCm?: number | null;
+	hasUnavailableParts?: boolean;
+}
+
 /**
  * 根据珠子列表估算手链周长 (cm)
  * 逻辑：每颗珠子直径 size（mm），视为对长度做等价贡献 (size/10) cm，累加数量
@@ -21,6 +29,18 @@ function estimateCircumference(beads: BraceletBead[]): number {
 export const useDesignStore = defineStore('design', () => {
 	// 手链设计珠子数组，顺序即为摆放顺序
 	const braceletDesign = ref<BraceletBead[]>([]);
+	const designSource = ref<DesignSource>('manual');
+	const handCircumferenceCm = ref<number | null>(null);
+	const hasUnavailableParts = ref(false);
+	const lastBeadAction = ref<{
+		type: 'add' | 'replace' | 'remove' | 'clear' | 'apply';
+		materialId?: string;
+		name?: string;
+		image?: string;
+		size?: number;
+		price?: number;
+		at: number;
+	} | null>(null);
 
 	/**
 	 * 计算当前设计的总价
@@ -36,9 +56,10 @@ export const useDesignStore = defineStore('design', () => {
 	const circumference = computed(() => estimateCircumference(braceletDesign.value));
 
 	/**
-	 * 是否过短，手腕太小的警告
+	 * 珠子是否未达到可成串数量：真实小程序用「珠子数量不足」提示。
 	 */
-	const isHandTooSmall = computed(() => circumference.value > 0 && circumference.value < MIN_HAND_CIRCUMFERENCE_CM);
+	const isBeadCountInsufficient = computed(() => circumference.value < MIN_HAND_CIRCUMFERENCE_CM);
+	const isHandTooSmall = computed(() => isBeadCountInsufficient.value);
 
 	/**
 	 * 添加珠子到手链设计（可以指定数量，默认 1）
@@ -48,6 +69,7 @@ export const useDesignStore = defineStore('design', () => {
 	 */
 	function addBead(material: Material, spec: MaterialSpec, quantity = 1) {
 		// 当前已有珠子的数量，作为 orderIndex 基准
+		const wasEmpty = braceletDesign.value.length === 0;
 		const orderIndex = braceletDesign.value.length;
 		for (let i = 0; i < quantity; i++) {
 			braceletDesign.value.push({
@@ -62,6 +84,20 @@ export const useDesignStore = defineStore('design', () => {
 			});
 		}
 		refreshOrderIndex();
+		handCircumferenceCm.value = null;
+		if (wasEmpty) {
+			designSource.value = 'manual';
+			hasUnavailableParts.value = false;
+		}
+		lastBeadAction.value = {
+			type: 'add',
+			materialId: material.id,
+			name: material.name,
+			image: material.image,
+			size: spec.size,
+			price: spec.price,
+			at: Date.now(),
+		};
 	}
 
 	/**
@@ -69,8 +105,48 @@ export const useDesignStore = defineStore('design', () => {
 	 * @param id 珠子 id
 	 */
 	function removeBead(id: string) {
+		const removed = braceletDesign.value.find((b) => b.id === id);
 		braceletDesign.value = braceletDesign.value.filter((b) => b.id !== id);
 		refreshOrderIndex();
+		handCircumferenceCm.value = null;
+		if (!braceletDesign.value.length) {
+			designSource.value = 'manual';
+			hasUnavailableParts.value = false;
+		}
+		lastBeadAction.value = {
+			type: 'remove',
+			materialId: removed?.materialId,
+			name: removed?.name,
+			image: removed?.image,
+			size: removed?.size,
+			price: removed?.price,
+			at: Date.now(),
+		};
+	}
+
+	function replaceBead(id: string, material: Material, spec: MaterialSpec) {
+		const index = braceletDesign.value.findIndex((b) => b.id === id);
+		if (index < 0) return;
+		braceletDesign.value[index] = {
+			...braceletDesign.value[index],
+			materialId: material.id,
+			name: material.name,
+			image: material.image,
+			size: spec.size,
+			price: spec.price,
+			quantity: 1,
+		};
+		refreshOrderIndex();
+		handCircumferenceCm.value = null;
+		lastBeadAction.value = {
+			type: 'replace',
+			materialId: material.id,
+			name: material.name,
+			image: material.image,
+			size: spec.size,
+			price: spec.price,
+			at: Date.now(),
+		};
 	}
 
 	/**
@@ -78,6 +154,15 @@ export const useDesignStore = defineStore('design', () => {
 	 */
 	function clearDesign() {
 		braceletDesign.value = [];
+		designSource.value = 'manual';
+		handCircumferenceCm.value = null;
+		hasUnavailableParts.value = false;
+		lastBeadAction.value = { type: 'clear', at: Date.now() };
+	}
+
+	function clearLastBeadAction(at?: number) {
+		if (at != null && lastBeadAction.value?.at !== at) return;
+		lastBeadAction.value = null;
 	}
 
 	/**
@@ -106,7 +191,7 @@ export const useDesignStore = defineStore('design', () => {
 	 * 从设计广场「使用该设计」：用构成表覆盖当前手串
 	 * @param composition 设计构成（材料名、尺寸、单价、数量、图片）
 	 */
-	function applyDesignFromPlaza(composition: DesignCompositionRow[]) {
+	function applyDesignFromPlaza(composition: DesignCompositionRow[], options: ApplyDesignOptions = {}) {
 		const beads: BraceletBead[] = [];
 		let orderIndex = 0;
 		for (const row of composition) {
@@ -125,15 +210,26 @@ export const useDesignStore = defineStore('design', () => {
 			}
 		}
 		braceletDesign.value = beads;
+		designSource.value = options.source ?? 'plaza';
+		handCircumferenceCm.value = typeof options.handCircumferenceCm === 'number' ? options.handCircumferenceCm : null;
+		hasUnavailableParts.value = !!options.hasUnavailableParts;
+		lastBeadAction.value = { type: 'apply', at: Date.now() };
 	}
 
 	return {
 		braceletDesign, // 手链设计数据数组
+		designSource,
+		handCircumferenceCm,
+		hasUnavailableParts,
+		lastBeadAction,
+		clearLastBeadAction,
 		totalPrice, // 总价
 		circumference, // 总周长
+		isBeadCountInsufficient, // 珠子数量是否不足
 		isHandTooSmall, // 长度是否过短
 		addBead, // 添加珠子
 		removeBead, // 移除珠子
+		replaceBead, // 替换珠子
 		clearDesign, // 清空设计
 		reorderBeads, // 重排珠子顺序
 		applyDesignFromPlaza, // 从设计广场套用设计

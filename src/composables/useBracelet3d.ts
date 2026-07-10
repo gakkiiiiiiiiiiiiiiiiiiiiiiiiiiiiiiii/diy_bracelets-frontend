@@ -1,13 +1,15 @@
 import { ref, watch, onMounted, onUnmounted, nextTick, type Ref, type ComputedRef } from 'vue';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { BraceletBead } from '@/types';
-import { API_BASE } from '@/config';
+import { RESOLVED_API_BASE } from '@/config';
+import { getCrystalMaterialRenderConfig, type CrystalPhysicalMaterialConfig } from '@/data/crystalMaterials';
 
 /** 手串圆环：初始半径约等于视口宽度的 1/4，随珠子数量增加而增大 */
 const INITIAL_RING_RADIUS = 0.7;
-const MAX_RING_RADIUS = 1.2;
-const RING_GROWTH_PER_BEAD = 0.056;
-const RING_TUBE = 0.018;
+const MAX_RING_RADIUS = 1.08;
+const RING_GROWTH_PER_BEAD = 0.036;
+const RING_TUBE = 0.014;
 const BEAD_SCALE = 0.018;
 /** 拖出环半径+该余量外视为删除 */
 const DELETE_MARGIN = 0.5;
@@ -15,23 +17,76 @@ const DELETE_MARGIN = 0.5;
 function getRingRadius(beadCount: number): number {
 	return Math.min(INITIAL_RING_RADIUS + beadCount * RING_GROWTH_PER_BEAD, MAX_RING_RADIUS);
 }
-/** 动画体系：珠子添加 320–400ms，重排 320ms */
-const ADD_BEAD_DURATION_MS = 350;
-const REFLOW_DURATION_MS = 320;
+/** 动画体系：参考视频的“飞入-补位-收起”节奏 */
+const ADD_BEAD_DURATION_MS = 520;
+const REFLOW_DURATION_MS = 420;
+const REMOVE_BEAD_DURATION_MS = 340;
+const REPLACE_BEAD_DURATION_MS = 460;
 /** brand-ease 近似：平滑、无 overshoot（缓动函数，平滑动画过渡） */
 const easeBrand = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeInCubic = (t: number) => t * t * t;
+const easeOutBack = (t: number) => {
+	const c1 = 1.42;
+	const c3 = c1 + 1;
+	return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+const easePower3InOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const nowMs = () => Date.now();
 /** 旋转惯性衰减系数，停止阈值 */
 const INERTIA_DECAY = 0.96;
 const INERTIA_STOP = 0.0008;
 /** 水晶珠子：降亮度、冷色 tint，避免过曝 */
 const CRYSTAL_OPACITY = 0.9;
 const CRYSTAL_COLOR = 0xe0dce8;
-const RING_COLOR = 0xd5d2d8;
+const RING_COLOR = 0xe1dfe4;
 const BEAD_FLOAT_Y = 0.026;
+const SHADOW_TINT = 0x4e4958;
+const SHADOW_SLANT = -0.72;
+const CAMERA_DISTANCE_DEFAULT = 4.8;
+const CAMERA_DISTANCE_MIN = 3.1;
+const CAMERA_DISTANCE_MAX = 6.8;
+const PINCH_ZOOM_SPEED = 0.0045;
+const WHEEL_ZOOM_SPEED = 0.0022;
+const ADD_STAGGER_MS = 44;
+const IDLE_ROTATION_DELAY_MS = 760;
+const IDLE_ROTATION_SPEED = 0.0001;
+const BEAD_TEXTURE_SPIN = 0.00016;
+const BEAD_IDLE_FLOAT_Y = 0.018;
+const BEAD_IDLE_FLOAT_SPEED = 0.76;
+const BEAD_IDLE_SCALE = 0.008;
+const BRACELET_IDLE_BREATHE_Y = 0.016;
+const BRACELET_IDLE_BREATHE_SCALE = 0.006;
+const BRACELET_IDLE_BREATHE_SPEED = 0.58;
+const STAGE_GLOW_BASE_OPACITY = 0.16;
+const STAGE_REFLECTION_BASE_OPACITY = 0.07;
+const HIGHLIGHT_SWEEP_X = 0.16;
+const HIGHLIGHT_SWEEP_Z = 0.035;
+const INNER_GLOW_BASE_OPACITY = 0.095;
+const CAUSTIC_SWEEP_BASE_OPACITY = 0.18;
+const DRAG_LIFT_Y = 0.16;
+const DRAG_SCALE = 1.16;
+const VISUAL_LERP = 0.22;
+const RING_SCALE_LERP = 0.14;
+const BEAD_START_ANGLE = (5 * Math.PI) / 12;
+const LONG_PRESS_MS = 520;
+const LONG_PRESS_MOVE_TOLERANCE = 8;
+const POINTER_PICK_TOLERANCE = 46;
+const SINGLE_ROW_MAX = 5;
+const SINGLE_SLOT_SPACING_X = 0.56;
+const SINGLE_SLOT_SPACING_Z = 0.42;
+const SINGLE_DELETE_DISTANCE = 1.46;
+const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
+
+export type BraceletLayoutMode = 'bracelet' | 'single';
 
 export interface UseBracelet3dOptions {
 	onReorder?: (fromIndex: number, toIndex: number) => void;
 	onRemove?: (beadId: string) => void;
+	onSelect?: (beadId: string | null) => void;
+	selectedBeadId?: () => string | null;
+	onLongPress?: (beadId: string) => void;
+	layoutMode?: () => BraceletLayoutMode;
 }
 
 // 珠子网格结构（包含三维对象和珠子id）
@@ -39,11 +94,18 @@ interface BeadMesh {
 	mesh: THREE.Mesh;
 	root: THREE.Group;
 	beadId: string;
+	key: string;
 }
 
 // 新珠子加入时的动画结构
 interface AddAnimation {
 	mesh: THREE.Object3D;
+	fromX: number;
+	fromY: number;
+	fromZ: number;
+	toX: number;
+	toZ: number;
+	fromScale: number;
 	startTime: number;
 	duration: number;
 }
@@ -59,6 +121,36 @@ interface PositionAnimation {
 	duration: number;
 }
 
+interface RemoveAnimation {
+	mesh: THREE.Object3D;
+	fromX: number;
+	fromY: number;
+	fromZ: number;
+	toX: number;
+	toY: number;
+	toZ: number;
+	startTime: number;
+	duration: number;
+	disposeOnEnd: boolean;
+}
+
+interface CameraAnimation {
+	fromX: number;
+	fromY: number;
+	fromZ: number;
+	fromUpX: number;
+	fromUpY: number;
+	fromUpZ: number;
+	toX: number;
+	toY: number;
+	toZ: number;
+	toUpX: number;
+	toUpY: number;
+	toUpZ: number;
+	startTime: number;
+	duration: number;
+}
+
 /**
  * useBracelet3d 3D手串渲染与交互hook
  * @param containerRef - 绑定canvas父级元素的ref
@@ -70,13 +162,16 @@ export function useBracelet3d(
 	beads: ComputedRef<BraceletBead[]>,
 	options?: UseBracelet3dOptions,
 ) {
-	const { onReorder, onRemove } = options ?? {};
+	const { onReorder, onRemove, onSelect, selectedBeadId, onLongPress } = options ?? {};
 	// 仅 Y 轴旋转（手串绕竖直轴转）
 	const rotationY = ref(0);
 	// 视角：俯视 / 侧面
-	const viewMode = ref<'top' | 'side'>('top');
+	const viewMode = ref<'top' | 'side'>('side');
+	const cameraDistance = ref(CAMERA_DISTANCE_DEFAULT);
 	// 是否正在拖拽
 	const isDragging = ref(false);
+	const isBeadDragging = ref(false);
+	const isBeadDeleteTarget = ref(false);
 	// 拖拽起始信息
 	const dragStart = ref({ x: 0, y: 0, rotY: 0 });
 	// 惯性旋转速度（仅 Y 轴）
@@ -96,15 +191,25 @@ export function useBracelet3d(
 	const addAnimations: AddAnimation[] = [];
 	// 位置动画队列（珠子重排）
 	const positionAnimations: PositionAnimation[] = [];
+	const removeAnimations: RemoveAnimation[] = [];
+	let cameraAnimation: CameraAnimation | null = null;
 	// 动画帧id
 	let rafId = 0;
 	// 指针是否按下（用于旋转）
 	let pointerDown = false;
+	let isPinching = false;
+	let pinchStartDistance = 0;
+	let pinchStartZoom = CAMERA_DISTANCE_DEFAULT;
 	// 正在拖拽的珠子 id（用于排序/删除）
 	let draggingBeadId: string | null = null;
 	let dragBeadFromIndex = 0;
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressBeadId: string | null = null;
+	let longPressStartX = 0;
+	let longPressStartY = 0;
 	// 是否已初始化
 	let inited = false;
+	let lastBeadsSnapshot: BraceletBead[] = [];
 	// 射线与平面（用于拾取与投影）
 	const raycaster = new THREE.Raycaster();
 	const mouseNDC = new THREE.Vector2();
@@ -118,28 +223,167 @@ export function useBracelet3d(
 	const textureCache = new Map<string, THREE.Texture>();
 	let shadowGradientTexture: THREE.CanvasTexture | null = null;
 	let highlightBandTexture: THREE.CanvasTexture | null = null;
+	let sparkleTexture: THREE.CanvasTexture | null = null;
+	let stageGlowTexture: THREE.CanvasTexture | null = null;
+	let stageReflectionTexture: THREE.CanvasTexture | null = null;
+	let centerTransparencyTexture: THREE.DataTexture | null = null;
+	let environmentTexture: THREE.Texture | null = null;
+	let pmremGenerator: THREE.PMREMGenerator | null = null;
+	let showcaseSurfaceGroup: THREE.Group | null = null;
+	let stageGlowMesh: THREE.Mesh | null = null;
+	let stageReflectionMesh: THREE.Mesh | null = null;
+	let targetRingRadius = getRingRadius(beads.value.length);
+	let targetRingOpacity = 0.72;
+	let lastInteractionTime = nowMs();
+	let lastFrameTime = nowMs();
 
-	/** 参考图：阴影更贴地、略偏左下，边缘非常柔和 */
+	function getLayoutMode(): BraceletLayoutMode {
+		return options?.layoutMode?.() ?? 'bracelet';
+	}
+
+	function isSingleLayout(): boolean {
+		return getLayoutMode() === 'single';
+	}
+
+	function beadContentKey(bead: BraceletBead) {
+		return [bead.materialId, bead.image, bead.name, bead.size, bead.price].join('|');
+	}
+
+	function beadsSignature(list: BraceletBead[]) {
+		return list.map((b) => `${b.id}:${beadContentKey(b)}`).join('~');
+	}
+
+	function snapshotBeads(list: BraceletBead[]) {
+		return list.map((b) => ({ ...b }));
+	}
+
+	function setObjectOpacity(object: THREE.Object3D, opacity: number) {
+		object.traverse((child) => {
+			const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+			const materials = Array.isArray(material) ? material : material ? [material] : [];
+			materials.forEach((mat) => {
+				const transparentMaterial = mat as THREE.Material & { opacity?: number; transparent?: boolean; userData: Record<string, unknown> };
+				if (transparentMaterial.opacity == null) return;
+				if (transparentMaterial.userData.baseOpacity == null) {
+					transparentMaterial.userData.baseOpacity = transparentMaterial.opacity;
+				}
+				transparentMaterial.transparent = true;
+				transparentMaterial.opacity = Number(transparentMaterial.userData.baseOpacity) * opacity;
+			});
+		});
+	}
+
+	function disposeObject(object: THREE.Object3D) {
+		object.traverse((child) => {
+			const geometry = (child as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+			const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+			geometry?.dispose?.();
+			if (Array.isArray(material)) material.forEach((m) => m.dispose());
+			else material?.dispose?.();
+		});
+	}
+
+	function noteInteraction() {
+		lastInteractionTime = nowMs();
+	}
+
+	function setDraggedAppearance(beadId: string | null, active: boolean) {
+		if (!beadId) return;
+		const entry = beadMeshMap.get(beadId);
+		if (!entry) return;
+		entry.root.userData.dragActive = active;
+		entry.root.userData.dragDelete = false;
+	}
+
+	function setBeadDragState(active: boolean, deleteTarget = false) {
+		isBeadDragging.value = active;
+		isBeadDeleteTarget.value = active && deleteTarget;
+	}
+
+	function createCrystalMaterial(
+		params: Partial<THREE.MeshPhysicalMaterialParameters> = {},
+		config?: Partial<CrystalPhysicalMaterialConfig> | null,
+	) {
+		const usesBaseColorMap = !!params.map;
+		const material = new THREE.MeshPhysicalMaterial({
+			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
+			transparent: true,
+			opacity: config?.opacity ?? 0.82,
+			roughness: config?.roughness ?? 0.13,
+			metalness: config?.metalness ?? 0.0,
+			transmission: config?.transmission ?? 0.78,
+			thickness: config?.thickness ?? 0.62,
+			clearcoat: config?.clearcoat ?? 0.94,
+			clearcoatRoughness: config?.clearcoatRoughness ?? 0.08,
+			reflectivity: config?.reflectivity ?? 0.72,
+			ior: config?.ior ?? 1.18,
+			envMapIntensity: config?.envMapIntensity ?? 0.92,
+			attenuationColor: new THREE.Color(config?.attenuationColor ?? 0xded8ea),
+			attenuationDistance: config?.attenuationDistance ?? 2.8,
+			emissive: new THREE.Color(0xffffff),
+			emissiveIntensity: 0.004,
+			...params,
+		});
+		const normalScale = config?.normalScale ?? 0.55;
+		material.normalScale.set(normalScale, normalScale);
+		return material;
+	}
+
+	function getCenterTransparencyTexture(): THREE.DataTexture {
+		if (centerTransparencyTexture) return centerTransparencyTexture;
+		const size = 64;
+		const data = new Uint8Array(size * size * 4);
+		for (let y = 0; y < size; y += 1) {
+			for (let x = 0; x < size; x += 1) {
+				const nx = (x / (size - 1)) * 2 - 1;
+				const ny = (y / (size - 1)) * 2 - 1;
+				const distance = Math.min(1, Math.sqrt(nx * nx + ny * ny));
+				const edgeWeight = Math.pow(distance, 1.4);
+				const alpha = Math.round(122 + edgeWeight * 133);
+				const idx = (y * size + x) * 4;
+				data[idx] = 255;
+				data[idx + 1] = 255;
+				data[idx + 2] = 255;
+				data[idx + 3] = alpha;
+			}
+		}
+		centerTransparencyTexture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+		centerTransparencyTexture.needsUpdate = true;
+		centerTransparencyTexture.wrapS = centerTransparencyTexture.wrapT = THREE.ClampToEdgeWrapping;
+		return centerTransparencyTexture;
+	}
+
+	/** 参考图：阴影是左下方向的柔和拖尾，而不是规则圆斑 */
 	function getShadowGradientTexture(): THREE.CanvasTexture | null {
 		if (shadowGradientTexture) return shadowGradientTexture;
 		if (typeof document === 'undefined') return null;
-		const size = 128;
+		const size = 192;
 		const canvas = document.createElement('canvas');
 		canvas.width = size;
 		canvas.height = size;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return null;
-		const cx = size / 2;
-		const r = size / 2;
-		const gradient = ctx.createRadialGradient(cx, cx, 0, cx, cx, r);
-		gradient.addColorStop(0, 'rgba(66, 62, 72, 0.125)');
-		gradient.addColorStop(0.14, 'rgba(62, 58, 68, 0.085)');
-		gradient.addColorStop(0.34, 'rgba(56, 52, 62, 0.038)');
-		gradient.addColorStop(0.62, 'rgba(48, 44, 54, 0.012)');
-		gradient.addColorStop(0.84, 'rgba(40, 36, 46, 0.003)');
-		gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-		ctx.fillStyle = gradient;
-		ctx.fillRect(0, 0, size, size);
+		ctx.clearRect(0, 0, size, size);
+		ctx.translate(size / 2, size / 2);
+		ctx.rotate(SHADOW_SLANT);
+		ctx.scale(1, 0.72);
+
+		const farGlow = ctx.createRadialGradient(-18, 16, 14, -10, 22, 92);
+		farGlow.addColorStop(0, 'rgba(84, 80, 94, 0.072)');
+		farGlow.addColorStop(0.22, 'rgba(76, 72, 86, 0.046)');
+		farGlow.addColorStop(0.52, 'rgba(64, 60, 72, 0.016)');
+		farGlow.addColorStop(0.82, 'rgba(56, 52, 62, 0.004)');
+		farGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+		ctx.fillStyle = farGlow;
+		ctx.fillRect(-110, -92, 220, 184);
+
+		const coreGlow = ctx.createRadialGradient(14, -8, 0, 18, -6, 58);
+		coreGlow.addColorStop(0, 'rgba(88, 84, 98, 0.052)');
+		coreGlow.addColorStop(0.24, 'rgba(78, 74, 88, 0.03)');
+		coreGlow.addColorStop(0.58, 'rgba(64, 60, 72, 0.008)');
+		coreGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+		ctx.fillStyle = coreGlow;
+		ctx.fillRect(-90, -74, 180, 148);
 		shadowGradientTexture = new THREE.CanvasTexture(canvas);
 		shadowGradientTexture.needsUpdate = true;
 		return shadowGradientTexture;
@@ -156,15 +400,134 @@ export function useBracelet3d(
 		if (!ctx) return null;
 		const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
 		gradient.addColorStop(0, 'rgba(255,255,255,0)');
-		gradient.addColorStop(0.2, 'rgba(255,255,255,0.1)');
-		gradient.addColorStop(0.5, 'rgba(255,255,255,0.9)');
-		gradient.addColorStop(0.8, 'rgba(255,255,255,0.1)');
+		gradient.addColorStop(0.18, 'rgba(255,255,255,0.08)');
+		gradient.addColorStop(0.5, 'rgba(255,255,255,0.82)');
+		gradient.addColorStop(0.82, 'rgba(255,255,255,0.08)');
 		gradient.addColorStop(1, 'rgba(255,255,255,0)');
 		ctx.fillStyle = gradient;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		highlightBandTexture = new THREE.CanvasTexture(canvas);
 		highlightBandTexture.needsUpdate = true;
 		return highlightBandTexture;
+	}
+
+	function getSparkleTexture(): THREE.CanvasTexture | null {
+		if (sparkleTexture) return sparkleTexture;
+		if (typeof document === 'undefined') return null;
+		const size = 96;
+		const canvas = document.createElement('canvas');
+		canvas.width = size;
+		canvas.height = size;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return null;
+		const center = size / 2;
+		const glow = ctx.createRadialGradient(center, center, 0, center, center, center);
+		glow.addColorStop(0, 'rgba(255,255,255,0.98)');
+		glow.addColorStop(0.22, 'rgba(255,255,255,0.78)');
+		glow.addColorStop(0.42, 'rgba(255,255,255,0.24)');
+		glow.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = glow;
+		ctx.fillRect(0, 0, size, size);
+		ctx.strokeStyle = 'rgba(255,255,255,0.52)';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.moveTo(center - 26, center);
+		ctx.lineTo(center + 26, center);
+		ctx.moveTo(center, center - 26);
+		ctx.lineTo(center, center + 26);
+		ctx.stroke();
+		sparkleTexture = new THREE.CanvasTexture(canvas);
+		sparkleTexture.needsUpdate = true;
+		return sparkleTexture;
+	}
+
+	function getStageGlowTexture(): THREE.CanvasTexture | null {
+		if (stageGlowTexture) return stageGlowTexture;
+		if (typeof document === 'undefined') return null;
+		const canvas = document.createElement('canvas');
+		canvas.width = 384;
+		canvas.height = 224;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return null;
+		const glow = ctx.createRadialGradient(188, 110, 12, 188, 112, 174);
+		glow.addColorStop(0, 'rgba(87, 82, 99, 0.2)');
+		glow.addColorStop(0.28, 'rgba(111, 106, 128, 0.09)');
+		glow.addColorStop(0.62, 'rgba(146, 141, 160, 0.028)');
+		glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+		ctx.fillStyle = glow;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		stageGlowTexture = new THREE.CanvasTexture(canvas);
+		stageGlowTexture.needsUpdate = true;
+		return stageGlowTexture;
+	}
+
+	function getStageReflectionTexture(): THREE.CanvasTexture | null {
+		if (stageReflectionTexture) return stageReflectionTexture;
+		if (typeof document === 'undefined') return null;
+		const canvas = document.createElement('canvas');
+		canvas.width = 320;
+		canvas.height = 96;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return null;
+		const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+		gradient.addColorStop(0, 'rgba(255,255,255,0)');
+		gradient.addColorStop(0.34, 'rgba(255,255,255,0.34)');
+		gradient.addColorStop(0.5, 'rgba(255,255,255,0.72)');
+		gradient.addColorStop(0.66, 'rgba(255,255,255,0.34)');
+		gradient.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.fillStyle = gradient;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		const fade = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		fade.addColorStop(0, 'rgba(255,255,255,0)');
+		fade.addColorStop(0.5, 'rgba(255,255,255,1)');
+		fade.addColorStop(1, 'rgba(255,255,255,0)');
+		ctx.globalCompositeOperation = 'destination-in';
+		ctx.fillStyle = fade;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		ctx.globalCompositeOperation = 'source-over';
+		stageReflectionTexture = new THREE.CanvasTexture(canvas);
+		stageReflectionTexture.needsUpdate = true;
+		return stageReflectionTexture;
+	}
+
+	function createShowcaseSurface() {
+		showcaseSurfaceGroup = new THREE.Group();
+		const glowTexture = getStageGlowTexture();
+		stageGlowMesh = new THREE.Mesh(
+			new THREE.PlaneGeometry(2.85, 1.65),
+			new THREE.MeshBasicMaterial({
+				map: glowTexture ?? undefined,
+				color: glowTexture ? 0xffffff : 0xd9d5e2,
+				transparent: true,
+				opacity: STAGE_GLOW_BASE_OPACITY,
+				depthWrite: false,
+			}),
+		);
+		stageGlowMesh.rotation.x = -Math.PI / 2;
+		stageGlowMesh.position.set(-0.1, -0.092, 0.08);
+		stageGlowMesh.renderOrder = -3;
+		stageGlowMesh.userData.baseOpacity = STAGE_GLOW_BASE_OPACITY;
+		showcaseSurfaceGroup.add(stageGlowMesh);
+
+		const reflectionTexture = getStageReflectionTexture();
+		stageReflectionMesh = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.92, 0.34),
+			new THREE.MeshBasicMaterial({
+				map: reflectionTexture ?? undefined,
+				color: 0xffffff,
+				transparent: true,
+				opacity: STAGE_REFLECTION_BASE_OPACITY,
+				depthWrite: false,
+				blending: THREE.AdditiveBlending,
+			}),
+		);
+		stageReflectionMesh.rotation.x = -Math.PI / 2;
+		stageReflectionMesh.rotation.z = -0.06;
+		stageReflectionMesh.position.set(0.12, -0.082, -0.08);
+		stageReflectionMesh.renderOrder = -2;
+		stageReflectionMesh.userData.baseOpacity = STAGE_REFLECTION_BASE_OPACITY;
+		showcaseSurfaceGroup.add(stageReflectionMesh);
+		scene.add(showcaseSurfaceGroup);
 	}
 
 	/**
@@ -174,19 +537,135 @@ export function useBracelet3d(
 	 */
 	function angleForIndex(i: number, total: number) {
 		if (total <= 0) return 0;
-		// 平均分布在环上，起点为顶部
-		return (i / total) * Math.PI * 2 - Math.PI / 2;
+		return BEAD_START_ANGLE + (i / total) * Math.PI * 2;
+	}
+
+	function singleSlotForIndex(index: number, total: number) {
+		const columns = Math.min(Math.max(total, 1), SINGLE_ROW_MAX);
+		const rows = Math.max(1, Math.ceil(total / SINGLE_ROW_MAX));
+		const row = Math.floor(index / SINGLE_ROW_MAX);
+		const col = index % SINGLE_ROW_MAX;
+		const rowCount = row === rows - 1 ? total - row * SINGLE_ROW_MAX || columns : columns;
+		const visibleColumns = Math.max(rowCount, 1);
+		const centeredCol = col - (visibleColumns - 1) / 2;
+		const x =
+			centeredCol * SINGLE_SLOT_SPACING_X +
+			(row % 2 === 1 ? SINGLE_SLOT_SPACING_X * 0.16 : 0) +
+			Math.sin((index + 1) * 1.73) * 0.035;
+		const z =
+			(row - (rows - 1) / 2) * SINGLE_SLOT_SPACING_Z +
+			Math.cos((col / Math.max(visibleColumns - 1, 1)) * Math.PI) * 0.08 +
+			Math.sin(index * 0.91) * 0.025;
+		return { x, z, angle: 0, ringRadius: 0 };
+	}
+
+	function slotForIndex(index: number, total: number) {
+		if (isSingleLayout()) return singleSlotForIndex(index, total);
+		const angle = angleForIndex(index, total);
+		const ringRadius = getRingRadius(total);
+		return {
+			x: ringRadius * Math.cos(angle),
+			z: ringRadius * Math.sin(angle),
+			angle,
+			ringRadius,
+		};
+	}
+
+	function indexForProjectedPoint(x: number, z: number, angle: number, total: number): number {
+		if (total <= 0) return 0;
+		if (!isSingleLayout()) return angleToIndex(angle, total);
+		let nearestIndex = 0;
+		let nearestDistance = Number.POSITIVE_INFINITY;
+		for (let i = 0; i < total; i += 1) {
+			const slot = singleSlotForIndex(i, total);
+			const distance = Math.hypot(x - slot.x, z - slot.z);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestIndex = i;
+			}
+		}
+		return nearestIndex;
+	}
+
+	function getDeleteDistance() {
+		return isSingleLayout() ? SINGLE_DELETE_DISTANCE : getRingRadius(beads.value.length) + DELETE_MARGIN;
 	}
 
 	/** 解析纹理 URL：优先用后端 API 基地址拼接；否则 H5 下 / 开头转同源绝对 URL */
 	function resolveTextureUrl(url: string): string {
 		if (url.startsWith('http')) return url;
-		if (API_BASE && url.startsWith('/')) {
-			const base = API_BASE.replace(/\/$/, '');
+		if (url.startsWith('/static/')) return url;
+		if (RESOLVED_API_BASE && url.startsWith('/')) {
+			const base = RESOLVED_API_BASE.replace(/\/$/, '');
 			return base + url;
 		}
 		if (typeof window !== 'undefined' && url.startsWith('/')) return window.location.origin + url;
 		return url;
+	}
+
+	function getAltTextureUrl(url: string): string | null {
+		if (url.startsWith('/static/')) return url.slice(7);
+		if (url.startsWith('/')) return '/static' + url;
+		return null;
+	}
+
+	function configureTexture(tex: THREE.Texture, isColor = false) {
+		tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+		if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
+		tex.needsUpdate = true;
+		return tex;
+	}
+
+	function deriveTextureUrls(imageUrl: string) {
+		const match = imageUrl.match(/^(.*)-basecolor\.(png|jpe?g|webp)$/i);
+		if (!match) return { map: imageUrl };
+		const prefix = match[1];
+		return {
+			map: imageUrl,
+			roughnessMap: `${prefix}-roughness.png`,
+			normalMap: `${prefix}-normal.png`,
+			alphaMap: `${prefix}-alpha.png`,
+		};
+	}
+
+	function getTextureUrlsForBead(bead: BraceletBead, imageUrl: string) {
+		return getCrystalMaterialRenderConfig(bead.materialId)?.maps ?? deriveTextureUrls(imageUrl);
+	}
+
+	function loadTextureAsset(
+		url: string,
+		options: { isColor?: boolean; optional?: boolean } = {},
+		onDone?: (tex: THREE.Texture | null) => void,
+		isRetry = false,
+	) {
+		const cached = textureCache.get(url);
+		if (cached) {
+			onDone?.(cached);
+			return;
+		}
+		if (url.startsWith('http')) textureLoader.setCrossOrigin('anonymous');
+		textureLoader.load(
+			resolveTextureUrl(url),
+			(tex) => {
+				configureTexture(tex, options.isColor);
+				textureCache.set(url, tex);
+				onDone?.(tex);
+			},
+			undefined,
+			() => {
+				if (!isRetry) {
+					const alt = getAltTextureUrl(url);
+					if (alt) {
+						loadTextureAsset(alt, options, (tex) => {
+							if (tex) textureCache.set(url, tex);
+							onDone?.(tex);
+						}, true);
+						return;
+					}
+				}
+				onDone?.(null);
+			},
+		);
 	}
 
 	/**
@@ -196,46 +675,86 @@ export function useBracelet3d(
 	 * @param total - 总数
 	 */
 	function createBeadMesh(bead: BraceletBead, index: number, total: number) {
-		const angle = angleForIndex(index, total);
-		const ringR = getRingRadius(total);
-		const x = ringR * Math.cos(angle);
-		const z = ringR * Math.sin(angle);
-		const radius = bead.size * BEAD_SCALE;
-		const geometry = new THREE.SphereGeometry(radius, 20, 20);
+		const { x, z } = slotForIndex(index, total);
+		const radius = bead.size * BEAD_SCALE * (isSingleLayout() ? SINGLE_BEAD_PREVIEW_SCALE : 1);
+		const geometry = new THREE.SphereGeometry(radius, 32, 32);
 		const imageUrl = bead.image?.trim();
-		const hasTexture = !!(imageUrl && (imageUrl.startsWith('http') || imageUrl.startsWith('/')));
+		const renderConfig = getCrystalMaterialRenderConfig(bead.materialId);
+		const textureUrls = imageUrl ? getTextureUrlsForBead(bead, imageUrl) : renderConfig?.maps;
+		const hasTexture = !!(textureUrls?.map && (textureUrls.map.startsWith('http') || textureUrls.map.startsWith('/')));
 		// 水晶质感：透光、折射、柔和高光（参考图：半透、冷色、柔和反光）
-		const material = new THREE.MeshPhysicalMaterial({
-			color: CRYSTAL_COLOR,
-			transparent: true,
-			opacity: CRYSTAL_OPACITY,
-			roughness: 0.18,
-			metalness: 0.0,
-			transmission: 0.68,
-			thickness: 0.85,
-			clearcoat: 1,
-			clearcoatRoughness: 0.15,
-			reflectivity: 0.7,
-			ior: 1.22,
-		});
+		const centerTransparencyMap = getCenterTransparencyTexture();
+		const material = createCrystalMaterial({ alphaMap: centerTransparencyMap }, renderConfig?.material);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
 		mesh.userData = { beadId: bead.id };
-		// 参考图：阴影贴近珠子、偏左下，中心更轻，边缘更散
+		const glowColor = new THREE.Color(renderConfig?.material?.attenuationColor ?? renderConfig?.material?.color ?? CRYSTAL_COLOR)
+			.lerp(new THREE.Color(0xffffff), 0.34);
+		const innerGlowMaterial = new THREE.MeshBasicMaterial({
+			color: glowColor,
+			transparent: true,
+			opacity: INNER_GLOW_BASE_OPACITY,
+			depthWrite: false,
+			blending: THREE.AdditiveBlending,
+		});
+		innerGlowMaterial.userData.baseOpacity = INNER_GLOW_BASE_OPACITY;
+		const innerGlow = new THREE.Mesh(
+			new THREE.SphereGeometry(radius * 0.82, 24, 24),
+			innerGlowMaterial,
+		);
+		innerGlow.position.set(radius * 0.04, BEAD_FLOAT_Y + radius * 0.03, -radius * 0.04);
+		innerGlow.renderOrder = 2;
+		// 参考图：阴影是顺着左下方向被拉开的柔焦投影
 		const shadowGroup = new THREE.Group();
 		const gradientTex = getShadowGradientTexture();
-		const shadowMat = new THREE.MeshBasicMaterial({
-			map: gradientTex ?? undefined,
-			transparent: true,
-			opacity: gradientTex ? 0.92 : 0.06,
-			depthWrite: false,
-			color: gradientTex ? 0xffffff : 0x3a3644,
-		});
-		const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(radius * 1.26, 44), shadowMat);
+		const shadowMesh = new THREE.Mesh(
+			new THREE.PlaneGeometry(radius * 3.55, radius * 2.65),
+			new THREE.MeshBasicMaterial({
+				map: gradientTex ?? undefined,
+				transparent: true,
+				opacity: gradientTex ? 0.22 : 0.02,
+				depthWrite: false,
+				color: gradientTex ? 0xffffff : SHADOW_TINT,
+			}),
+		);
+		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.22 : 0.02;
 		shadowMesh.rotation.x = -Math.PI / 2;
-		shadowMesh.scale.set(1.16, 0.9, 1);
-		shadowMesh.position.set(-radius * 0.38, -radius * 1.02, radius * 0.2);
+		shadowMesh.rotation.z = SHADOW_SLANT;
+		shadowMesh.position.set(-radius * 0.56, -radius * 1.05, radius * 0.22);
 		shadowGroup.add(shadowMesh);
+		const selectionGroup = new THREE.Group();
+		const selectionGlowMaterial = new THREE.MeshBasicMaterial({
+			color: 0xff6f82,
+			transparent: true,
+			opacity: 0,
+			depthWrite: false,
+			depthTest: false,
+			blending: THREE.AdditiveBlending,
+		});
+		selectionGlowMaterial.userData.baseOpacity = 0.11;
+		const selectionGlow = new THREE.Mesh(
+			new THREE.CircleGeometry(radius * 1.55, 48),
+			selectionGlowMaterial,
+		);
+		selectionGlow.rotation.x = -Math.PI / 2;
+		selectionGlow.position.set(0, BEAD_FLOAT_Y + radius * 0.11, 0);
+		const selectionRingMaterial = new THREE.MeshBasicMaterial({
+			color: 0xff6175,
+			transparent: true,
+			opacity: 0,
+			depthWrite: false,
+			depthTest: false,
+		});
+		selectionRingMaterial.userData.baseOpacity = 0.42;
+		const selectionRing = new THREE.Mesh(
+			new THREE.RingGeometry(radius * 1.12, radius * 1.27, 64),
+			selectionRingMaterial,
+		);
+		selectionRing.rotation.x = -Math.PI / 2;
+		selectionRing.position.set(0, BEAD_FLOAT_Y + radius * 0.18, 0);
+		selectionGroup.add(selectionGlow);
+		selectionGroup.add(selectionRing);
+		selectionGroup.visible = false;
 		const highlightGroup = new THREE.Group();
 		const highlightBandTex = getHighlightBandTexture();
 		const highlightGlow = new THREE.Mesh(
@@ -244,98 +763,139 @@ export function useBracelet3d(
 				map: highlightBandTex ?? undefined,
 				color: 0xffffff,
 				transparent: true,
-				opacity: highlightBandTex ? 0.34 : 0.14,
+				opacity: highlightBandTex ? 0.28 : 0.12,
 				depthWrite: false,
 				blending: THREE.AdditiveBlending,
 			}),
 		);
+		(highlightGlow.material as THREE.MeshBasicMaterial).userData.baseOpacity = highlightBandTex ? 0.28 : 0.12;
 		highlightGlow.rotation.x = -Math.PI / 2;
 		highlightGlow.rotation.z = -0.08;
-		highlightGlow.position.set(0, BEAD_FLOAT_Y + radius * 0.78, radius * 0.04);
+		highlightGlow.position.set(0, BEAD_FLOAT_Y + radius * 0.82, radius * 0.03);
 		const highlightCore = new THREE.Mesh(
 			new THREE.PlaneGeometry(radius * 1.66, radius * 0.08),
 			new THREE.MeshBasicMaterial({
 				color: 0xffffff,
 				transparent: true,
-				opacity: 0.42,
+				opacity: 0.34,
 				depthWrite: false,
 				blending: THREE.AdditiveBlending,
 			}),
 		);
+		(highlightCore.material as THREE.MeshBasicMaterial).userData.baseOpacity = 0.34;
 		highlightCore.rotation.x = -Math.PI / 2;
 		highlightCore.rotation.z = -0.08;
-		highlightCore.position.set(0, BEAD_FLOAT_Y + radius * 0.82, radius * 0.045);
+		highlightCore.position.set(0, BEAD_FLOAT_Y + radius * 0.86, radius * 0.04);
 		highlightGroup.add(highlightGlow);
 		highlightGroup.add(highlightCore);
+		const causticGroup = new THREE.Group();
+		const causticBands = [
+			{ x: -0.18, z: -0.04, width: 0.34, height: 1.52, opacity: CAUSTIC_SWEEP_BASE_OPACITY, tilt: 0.58 },
+			{ x: 0.22, z: 0.08, width: 0.18, height: 1.1, opacity: 0.095, tilt: 0.58 },
+		];
+		for (const band of causticBands) {
+			const bandMesh = new THREE.Mesh(
+				new THREE.PlaneGeometry(radius * band.width, radius * band.height),
+				new THREE.MeshBasicMaterial({
+					color: 0xffffff,
+					transparent: true,
+					opacity: band.opacity,
+					depthWrite: false,
+					depthTest: false,
+					blending: THREE.AdditiveBlending,
+				}),
+			);
+			(bandMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = band.opacity;
+			bandMesh.rotation.x = -Math.PI / 2;
+			bandMesh.rotation.z = band.tilt;
+			bandMesh.position.set(radius * band.x, BEAD_FLOAT_Y + radius * 1.02, radius * band.z);
+			bandMesh.renderOrder = 3;
+			causticGroup.add(bandMesh);
+		}
+		const sparkleGroup = new THREE.Group();
+		const sparkleTex = getSparkleTexture();
+		const sparklePoints = [
+			{ x: -0.34, z: -0.26, size: 0.38, opacity: 0.34 },
+			{ x: 0.2, z: -0.15, size: 0.24, opacity: 0.24 },
+			{ x: 0.42, z: 0.28, size: 0.2, opacity: 0.18 },
+		];
+		for (const point of sparklePoints) {
+			const sparkle = new THREE.Mesh(
+				new THREE.PlaneGeometry(radius * point.size, radius * point.size),
+				new THREE.MeshBasicMaterial({
+					map: sparkleTex ?? undefined,
+					color: 0xffffff,
+					transparent: true,
+					opacity: point.opacity,
+					depthWrite: false,
+					depthTest: false,
+					blending: THREE.AdditiveBlending,
+				}),
+			);
+			sparkle.rotation.x = -Math.PI / 2;
+			sparkle.position.set(radius * point.x, BEAD_FLOAT_Y + radius * 1.04, radius * point.z);
+			sparkle.userData.baseOpacity = point.opacity;
+			sparkle.userData.phase = point.x * 7 + point.z * 5;
+			sparkleGroup.add(sparkle);
+		}
 		const root = new THREE.Group();
 		root.position.set(x, 0, z);
 		root.add(shadowGroup);
+		root.add(selectionGroup);
 		root.add(highlightGroup);
+		root.add(sparkleGroup);
 		root.add(mesh);
+		root.add(innerGlow);
+		root.add(causticGroup);
+		root.userData = {
+			highlightGroup,
+			innerGlow,
+			causticGroup,
+			selectionGroup,
+			sparkleGroup,
+			shadowGroup,
+			phase: index * 0.73,
+			radius,
+			dragActive: false,
+			dragDelete: false,
+			selectionStrength: 0,
+		};
 
-		if (hasTexture && imageUrl) {
-			const cacheKey = imageUrl;
-			const cached = textureCache.get(cacheKey);
-			if (cached) {
-				const matWithMap = new THREE.MeshPhysicalMaterial({
-					map: cached,
-					color: CRYSTAL_COLOR,
+		if (hasTexture && textureUrls) {
+			loadTextureAsset(textureUrls.map, { isColor: true }, (map) => {
+				if (!mesh.parent || !map) return;
+				const optionalEntries = [
+					['roughnessMap', textureUrls.roughnessMap],
+					['normalMap', textureUrls.normalMap],
+					['alphaMap', textureUrls.alphaMap],
+				] as const;
+				const loadedParams: Partial<THREE.MeshPhysicalMaterialParameters> = {
+					map,
+					alphaMap: centerTransparencyMap,
 					transparent: true,
-					opacity: CRYSTAL_OPACITY,
-					roughness: 0.18,
-					metalness: 0.0,
-					transmission: 0.68,
-					thickness: 0.85,
-					clearcoat: 1,
-					clearcoatRoughness: 0.15,
-					reflectivity: 0.7,
-					ior: 1.22,
-				});
-				(material as THREE.Material).dispose();
-				mesh.material = matWithMap;
-			} else {
-				if (imageUrl.startsWith('http')) textureLoader.setCrossOrigin('anonymous');
-				const tryLoad = (url: string, isRetry = false) => {
-					const fullUrl = url.startsWith('http') ? url : resolveTextureUrl(url);
-					textureLoader.load(
-						fullUrl,
-						(tex: THREE.Texture) => {
-							if (!mesh.parent) return;
-							tex.colorSpace = THREE.SRGBColorSpace;
-							tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-							tex.needsUpdate = true;
-							textureCache.set(cacheKey, tex);
-							const matWithMap = new THREE.MeshPhysicalMaterial({
-								map: tex,
-								color: CRYSTAL_COLOR,
-								transparent: true,
-								opacity: CRYSTAL_OPACITY,
-								roughness: 0.18,
-								metalness: 0.0,
-								transmission: 0.68,
-								thickness: 0.85,
-								clearcoat: 1,
-								clearcoatRoughness: 0.15,
-								reflectivity: 0.7,
-								ior: 1.22,
-							});
-							(material as THREE.Material).dispose();
-							mesh.material = matWithMap;
-						},
-						undefined,
-						() => {
-							if (isRetry) return;
-							const alt = imageUrl.startsWith('/static/')
-								? imageUrl.slice(7)
-								: imageUrl.startsWith('/')
-									? '/static' + imageUrl
-									: null;
-							if (alt) tryLoad(alt, true);
-						},
-					);
 				};
-				tryLoad(imageUrl);
-			}
+				let pending = optionalEntries.filter(([, url]) => !!url).length;
+				if (pending === 0) {
+					(material as THREE.Material).dispose();
+					mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material);
+					return;
+				}
+				for (const [slot, url] of optionalEntries) {
+					if (!url) continue;
+					loadTextureAsset(url, { optional: true }, (tex) => {
+						if (tex) {
+							if (slot === 'roughnessMap') loadedParams.roughnessMap = tex;
+							if (slot === 'normalMap') loadedParams.normalMap = tex;
+							if (slot === 'alphaMap') loadedParams.alphaMap = tex;
+						}
+						pending -= 1;
+						if (pending === 0 && mesh.parent) {
+							(material as THREE.Material).dispose();
+							mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material);
+						}
+					});
+				}
+			});
 		}
 		return { mesh, root };
 	}
@@ -347,40 +907,82 @@ export function useBracelet3d(
 	 */
 	function updateBeads(newBeads: BraceletBead[], oldBeads: BraceletBead[] = []) {
 		if (!braceletGroup) return;
+		noteInteraction();
 		const oldIds = new Set(oldBeads.map((b) => b.id));
 		const newIds = new Set(newBeads.map((b) => b.id));
+		const updateTime = nowMs();
+		let addOrdinal = 0;
 
 		// 移除被删掉的mesh
 		for (const id of beadMeshMap.keys()) {
 			if (!newIds.has(id)) {
 				const { root } = beadMeshMap.get(id)!;
-				braceletGroup.remove(root);
-				root.traverse((child) => {
-					const geometry = (child as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
-					const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
-					geometry?.dispose?.();
-					if (Array.isArray(material)) material.forEach((m) => m.dispose());
-					else material?.dispose?.();
+				const dist = Math.sqrt(root.position.x ** 2 + root.position.z ** 2) || 1;
+				const push = 0.42;
+				removeAnimations.push({
+					mesh: root,
+					fromX: root.position.x,
+					fromY: root.position.y,
+					fromZ: root.position.z,
+					toX: root.position.x + (root.position.x / dist) * push,
+					toY: root.position.y + 0.16,
+					toZ: root.position.z + (root.position.z / dist) * push,
+					startTime: nowMs(),
+					duration: REMOVE_BEAD_DURATION_MS,
+					disposeOnEnd: true,
 				});
 				beadMeshMap.delete(id);
 			}
 		}
 
 		// 添加或调整移动中的珠子
-		const ringR = getRingRadius(newBeads.length);
+		const layoutMode = getLayoutMode();
+		const ringR = layoutMode === 'single' ? 0.74 : getRingRadius(newBeads.length);
 		newBeads.forEach((bead, index) => {
 			const total = newBeads.length;
-			const angle = angleForIndex(index, total);
-			const x = ringR * Math.cos(angle);
-			const z = ringR * Math.sin(angle);
+			const { x, z } = slotForIndex(index, total);
 
 			if (beadMeshMap.has(bead.id)) {
 				// 正在被拖拽的珠子不更新位置，由拖拽逻辑控制
 				if (bead.id === draggingBeadId) return;
 				// 更新已存在珠子的动画和缩放几何体
-				const { mesh, root } = beadMeshMap.get(bead.id)!;
+				const entry = beadMeshMap.get(bead.id)!;
+				const { mesh, root } = entry;
 				const curX = root.position.x;
 				const curZ = root.position.z;
+				const nextKey = beadContentKey(bead);
+				if (entry.key !== nextKey) {
+					const oldRoot = root;
+					const replacement = createBeadMesh(bead, index, total);
+					replacement.root.position.set(curX, 0, curZ);
+					replacement.root.scale.setScalar(0.48);
+					braceletGroup.add(replacement.root);
+					beadMeshMap.set(bead.id, { ...replacement, beadId: bead.id, key: nextKey });
+					removeAnimations.push({
+						mesh: oldRoot,
+						fromX: curX,
+						fromY: oldRoot.position.y,
+						fromZ: curZ,
+						toX: curX,
+						toY: -0.05,
+						toZ: curZ,
+						startTime: nowMs(),
+						duration: Math.round(REPLACE_BEAD_DURATION_MS * 0.58),
+						disposeOnEnd: true,
+					});
+					addAnimations.push({
+						mesh: replacement.root,
+						fromX: curX,
+						fromY: 0.08,
+						fromZ: curZ,
+						toX: x,
+						toZ: z,
+						fromScale: 0.48,
+						startTime: nowMs() + 80,
+						duration: REPLACE_BEAD_DURATION_MS,
+					});
+					return;
+				}
 				// 位置有变化时，触发动画平滑过渡
 				if (Math.abs(curX - x) > 1e-5 || Math.abs(curZ - z) > 1e-5) {
 					positionAnimations.push({
@@ -389,32 +991,45 @@ export function useBracelet3d(
 						fromZ: curZ,
 						toX: x,
 						toZ: z,
-						startTime: performance.now(),
+						startTime: nowMs(),
 						duration: REFLOW_DURATION_MS,
 					});
 				} else {
 					root.position.set(x, 0, z);
 				}
 				// 更新珠子大小（与 createBeadMesh 一致：半径为 bead.size * BEAD_SCALE）
-				const radius = bead.size * BEAD_SCALE;
+				const radius = bead.size * BEAD_SCALE * (isSingleLayout() ? SINGLE_BEAD_PREVIEW_SCALE : 1);
+				root.userData.radius = radius;
 				mesh.scale.setScalar(1);
 				mesh.geometry.dispose();
-				mesh.geometry = new THREE.SphereGeometry(radius, 20, 20);
+				mesh.geometry = new THREE.SphereGeometry(radius, 32, 32);
 				return;
 			}
 
 			// 新珠子，先 scale=0
 			const { mesh, root } = createBeadMesh(bead, index, total);
-			root.scale.set(0, 0, 0);
+			const fromX = layoutMode === 'single' ? x * 0.2 : x * 0.12;
+			const fromZ = layoutMode === 'single' ? 1.04 : ringR + 1.08;
+			const startDelay = oldIds.size === 0 ? index * ADD_STAGGER_MS : addOrdinal * Math.round(ADD_STAGGER_MS * 0.72);
+			addOrdinal += 1;
+			root.position.set(fromX, 0.24, fromZ);
+			root.scale.setScalar(0.18);
 			braceletGroup.add(root); /* 只加入手串 group，不加入 scene */
-			beadMeshMap.set(bead.id, { mesh, root, beadId: bead.id });
+			beadMeshMap.set(bead.id, { mesh, root, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
 				mesh: root,
-				startTime: performance.now(),
+				fromX,
+				fromY: 0.24,
+				fromZ,
+				toX: x,
+				toZ: z,
+				fromScale: 0.18,
+				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
 			});
 		});
-		if (ringMesh) ringMesh.scale.setScalar(ringR);
+		targetRingRadius = ringR;
+		targetRingOpacity = layoutMode === 'single' ? 0 : 0.72;
 	}
 
 	/**
@@ -428,28 +1043,113 @@ export function useBracelet3d(
 		camera.updateProjectionMatrix();
 	}
 
+	function clampCameraDistance(next: number) {
+		return Math.min(CAMERA_DISTANCE_MAX, Math.max(CAMERA_DISTANCE_MIN, next));
+	}
+
+	function getTouchDistance(touches: TouchList | Touch[]) {
+		if (touches.length < 2) return 0;
+		const dx = touches[0].clientX - touches[1].clientX;
+		const dy = touches[0].clientY - touches[1].clientY;
+		return Math.hypot(dx, dy);
+	}
+
+	function setCameraDistance(next: number) {
+		cameraDistance.value = clampCameraDistance(next);
+		cameraAnimation = null;
+		applyCameraView();
+	}
+
+	function getCameraPose(mode: 'top' | 'side') {
+		return mode === 'top'
+			? {
+					x: 0,
+					y: cameraDistance.value,
+					z: 0,
+					upX: 0,
+					upY: 0,
+					upZ: -1,
+				}
+			: {
+					x: 0.28,
+					y: 1.48,
+					z: cameraDistance.value * 0.94,
+					upX: 0,
+					upY: 1,
+					upZ: 0,
+				};
+	}
+
 	/** 根据当前视角设置相机位置与朝向 */
 	function applyCameraView() {
 		if (!camera) return;
-		if (viewMode.value === 'top') {
-			camera.position.set(0, 4, 0);
-			camera.up.set(0, 0, -1);
-		} else {
-			camera.position.set(0, 0.5, 4);
-			camera.up.set(0, 1, 0);
-		}
+		const pose = getCameraPose(viewMode.value);
+		camera.position.set(pose.x, pose.y, pose.z);
+		camera.up.set(pose.upX, pose.upY, pose.upZ);
 		camera.lookAt(0, 0, 0);
 	}
 
 	/** 切换俯视 / 侧面视角 */
 	function setViewMode(mode: 'top' | 'side') {
+		if (viewMode.value === mode) return;
 		viewMode.value = mode;
-		applyCameraView();
+		if (!camera) {
+			applyCameraView();
+			return;
+		}
+		const pose = getCameraPose(mode);
+		cameraAnimation = {
+			fromX: camera.position.x,
+			fromY: camera.position.y,
+			fromZ: camera.position.z,
+			fromUpX: camera.up.x,
+			fromUpY: camera.up.y,
+			fromUpZ: camera.up.z,
+			toX: pose.x,
+			toY: pose.y,
+			toZ: pose.z,
+			toUpX: pose.upX,
+			toUpY: pose.upY,
+			toUpZ: pose.upZ,
+			startTime: nowMs(),
+			duration: 560,
+		};
 	}
 
 	/** 获取所有珠子 mesh（用于射线检测） */
 	function getBeadMeshes(): THREE.Mesh[] {
 		return Array.from(beadMeshMap.values()).map((b) => b.mesh);
+	}
+
+	function findBeadIdAtPointer(clientX: number, clientY: number): string | null {
+		const meshes = getBeadMeshes();
+		if (!meshes.length || !camera || !canvasEl) return null;
+		pointerToNDC(clientX, clientY);
+		raycaster.setFromCamera(mouseNDC, camera);
+		const hits = raycaster.intersectObjects(meshes, false);
+		if (hits.length > 0 && hits[0].object instanceof THREE.Mesh) {
+			const beadId = hits[0].object.userData?.beadId as string | undefined;
+			if (beadId) return beadId;
+		}
+
+		const rect = canvasEl.getBoundingClientRect();
+		const projected = new THREE.Vector3();
+		let nearestId: string | null = null;
+		let nearestDistance = Number.POSITIVE_INFINITY;
+		beadMeshMap.forEach(({ root, beadId }) => {
+			root.updateWorldMatrix(true, false);
+			root.getWorldPosition(projected);
+			projected.project(camera);
+			if (projected.z < -1 || projected.z > 1) return;
+			const screenX = rect.left + ((projected.x + 1) / 2) * rect.width;
+			const screenY = rect.top + ((1 - projected.y) / 2) * rect.height;
+			const distance = Math.hypot(clientX - screenX, clientY - screenY);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestId = beadId;
+			}
+		});
+		return nearestDistance <= POINTER_PICK_TOLERANCE ? nearestId : null;
 	}
 
 	/** 将指针坐标转为 NDC [-1,1] */
@@ -465,7 +1165,7 @@ export function useBracelet3d(
 	/** 将角度（弧度，与 angleForIndex 一致）转为槽位索引 */
 	function angleToIndex(angle: number, total: number): number {
 		if (total <= 0) return 0;
-		let t = (angle + Math.PI / 2) / (2 * Math.PI);
+		let t = (angle - BEAD_START_ANGLE) / (2 * Math.PI);
 		if (t < 0) t += 1;
 		let idx = Math.round(t * total) % total;
 		if (idx < 0) idx += total;
@@ -494,16 +1194,24 @@ export function useBracelet3d(
 	/**
 	 * 动画主循环
 	 */
-	function tick(now: number) {
+	function tick() {
 		if (!inited || !scene || !camera || !renderer || !braceletGroup) return;
+		const now = nowMs();
+		const deltaMs = Math.min(34, Math.max(0, now - lastFrameTime || 16));
+		lastFrameTime = now;
 
 		// 处理珠子添加动画
 		const toRemove: number[] = [];
 		addAnimations.forEach((anim, idx) => {
 			const elapsed = now - anim.startTime;
-			const t = Math.min(1, elapsed / anim.duration);
-			const eased = easeBrand(t);
-			anim.mesh.scale.setScalar(eased);
+			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
+			const move = easeOutCubic(t);
+			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);
+			const lift = Math.sin(Math.PI * Math.min(1, t)) * 0.16;
+			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * move;
+			anim.mesh.position.y = anim.fromY * (1 - move) + lift;
+			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * move;
+			anim.mesh.scale.setScalar(Math.max(0.01, scale));
 			if (t >= 1) toRemove.push(idx);
 		});
 		// 删除已结束动画
@@ -513,13 +1221,52 @@ export function useBracelet3d(
 		const posToRemove: number[] = [];
 		positionAnimations.forEach((anim, idx) => {
 			const elapsed = now - anim.startTime;
-			const t = Math.min(1, elapsed / anim.duration);
+			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
 			const eased = easeBrand(t);
+			const lift = Math.sin(Math.PI * t) * 0.055;
 			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * eased;
+			anim.mesh.position.y = lift;
 			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * eased;
 			if (t >= 1) posToRemove.push(idx);
 		});
 		posToRemove.reverse().forEach((idx) => positionAnimations.splice(idx, 1));
+
+		const removeToFinalize: number[] = [];
+		removeAnimations.forEach((anim, idx) => {
+			const elapsed = now - anim.startTime;
+			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
+			const move = easeInCubic(t);
+			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * move;
+			anim.mesh.position.y = anim.fromY + (anim.toY - anim.fromY) * move;
+			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * move;
+			anim.mesh.scale.setScalar(Math.max(0.01, 1 - easeOutCubic(t) * 0.88));
+			setObjectOpacity(anim.mesh, 1 - easeOutCubic(t));
+			if (t >= 1) removeToFinalize.push(idx);
+		});
+		removeToFinalize.reverse().forEach((idx) => {
+			const anim = removeAnimations[idx];
+			braceletGroup.remove(anim.mesh);
+			if (anim.disposeOnEnd) disposeObject(anim.mesh);
+			removeAnimations.splice(idx, 1);
+		});
+
+		if (cameraAnimation) {
+			const elapsed = now - cameraAnimation.startTime;
+			const t = Math.min(1, Math.max(0, elapsed / cameraAnimation.duration));
+			const eased = easePower3InOut(t);
+			camera.position.set(
+				cameraAnimation.fromX + (cameraAnimation.toX - cameraAnimation.fromX) * eased,
+				cameraAnimation.fromY + (cameraAnimation.toY - cameraAnimation.fromY) * eased,
+				cameraAnimation.fromZ + (cameraAnimation.toZ - cameraAnimation.fromZ) * eased,
+			);
+			camera.up.set(
+				cameraAnimation.fromUpX + (cameraAnimation.toUpX - cameraAnimation.fromUpX) * eased,
+				cameraAnimation.fromUpY + (cameraAnimation.toUpY - cameraAnimation.fromUpY) * eased,
+				cameraAnimation.fromUpZ + (cameraAnimation.toUpZ - cameraAnimation.fromUpZ) * eased,
+			);
+			camera.lookAt(0, 0, 0);
+			if (t >= 1) cameraAnimation = null;
+		}
 
 		// 松手后仅 Y 轴惯性
 		if (!pointerDown && !draggingBeadId) {
@@ -529,6 +1276,151 @@ export function useBracelet3d(
 			} else {
 				rotationVelocityY = 0;
 			}
+		}
+		if (
+			!pointerDown &&
+			!draggingBeadId &&
+			!isPinching &&
+			!isSingleLayout() &&
+			Math.abs(rotationVelocityY) <= INERTIA_STOP &&
+			beads.value.length > 0 &&
+			now - lastInteractionTime > IDLE_ROTATION_DELAY_MS
+		) {
+			rotationY.value += IDLE_ROTATION_SPEED * deltaMs;
+		}
+
+		const scaleAnimated = new Set<THREE.Object3D>([
+			...addAnimations.map((anim) => anim.mesh),
+			...removeAnimations.map((anim) => anim.mesh),
+		]);
+		const positionAnimated = new Set<THREE.Object3D>([
+			...addAnimations.map((anim) => anim.mesh),
+			...positionAnimations.map((anim) => anim.mesh),
+			...removeAnimations.map((anim) => anim.mesh),
+		]);
+		const currentSelectedBeadId = selectedBeadId?.() ?? null;
+		beadMeshMap.forEach(({ mesh, root, beadId }, _, map) => {
+			const isSelected = beadId === currentSelectedBeadId;
+			const phase = Number(root.userData.phase ?? map.size) + now * 0.0011;
+			const radius = Number(root.userData.radius ?? 0.14);
+			const idleWave = Math.sin(phase * BEAD_IDLE_FLOAT_SPEED);
+			const idleLift = (idleWave + 1) * 0.5 * BEAD_IDLE_FLOAT_Y;
+			const idleScale = 1 + Math.sin(phase * 0.64) * BEAD_IDLE_SCALE;
+			mesh.rotation.y += BEAD_TEXTURE_SPIN * deltaMs;
+			mesh.rotation.x = Math.sin(phase) * 0.025;
+			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
+			const highlightGroup = root.userData.highlightGroup as THREE.Group | undefined;
+			if (highlightGroup) {
+				highlightGroup.position.x = Math.sin(phase * 0.42) * radius * HIGHLIGHT_SWEEP_X;
+				highlightGroup.position.z = Math.cos(phase * 0.38) * radius * HIGHLIGHT_SWEEP_Z;
+				highlightGroup.rotation.z = -0.025 + Math.sin(phase * 0.78) * 0.045;
+				highlightGroup.scale.x = 1 + Math.sin(phase * 0.66) * 0.045;
+				highlightGroup.children.forEach((child: any, childIndex: number) => {
+					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+					if (!material) return;
+					const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity ?? 0.18);
+					material.userData.baseOpacity = baseOpacity;
+					material.opacity = baseOpacity * (0.82 + Math.sin(phase * 0.72 + childIndex * 0.9) * 0.16);
+				});
+			}
+			const innerGlow = root.userData.innerGlow as THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | undefined;
+			if (innerGlow?.material) {
+				const baseOpacity = Number(innerGlow.material.userData.baseOpacity ?? INNER_GLOW_BASE_OPACITY);
+				innerGlow.material.opacity = baseOpacity * (0.78 + Math.sin(phase * 0.92) * 0.16);
+				innerGlow.scale.setScalar(1 + Math.sin(phase * 0.7) * 0.035);
+			}
+			const causticGroup = root.userData.causticGroup as THREE.Group | undefined;
+			if (causticGroup) {
+				causticGroup.position.x = Math.sin(phase * 0.52) * radius * 0.2;
+				causticGroup.position.z = Math.cos(phase * 0.48) * radius * 0.08;
+				causticGroup.rotation.z = Math.sin(phase * 0.5) * 0.08;
+				causticGroup.children.forEach((child: any, childIndex: number) => {
+					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+					if (!material) return;
+					const baseOpacity = Number(material.userData.baseOpacity ?? CAUSTIC_SWEEP_BASE_OPACITY);
+					material.opacity = baseOpacity * (0.62 + Math.sin(phase * 0.98 + childIndex * 1.4) * 0.28);
+				});
+			}
+			const sparkleGroup = root.userData.sparkleGroup as THREE.Group | undefined;
+			sparkleGroup?.children.forEach((child: any, childIndex: number) => {
+				const sparkleMesh = child as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+				const material = sparkleMesh.material;
+				const pulse = 0.68 + Math.sin(phase * 1.4 + childIndex * 1.7) * 0.32;
+				material.opacity = Number(sparkleMesh.userData.baseOpacity ?? 0.22) * pulse;
+				sparkleMesh.scale.setScalar(0.92 + pulse * 0.18);
+			});
+			const shadowGroup = root.userData.shadowGroup as THREE.Group | undefined;
+			if (shadowGroup) {
+				const shadowLift = root.userData.dragActive ? 1 : isSelected ? 0.68 : idleLift / BEAD_IDLE_FLOAT_Y;
+				shadowGroup.scale.setScalar(1 + shadowLift * 0.05);
+				shadowGroup.children.forEach((child: any) => {
+					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+					if (!material) return;
+					const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity ?? 0.06);
+					material.userData.baseOpacity = baseOpacity;
+					material.opacity = baseOpacity * (1 - shadowLift * 0.24);
+				});
+			}
+			const selectionGroup = root.userData.selectionGroup as THREE.Group | undefined;
+			if (selectionGroup) {
+				const targetStrength = root.userData.dragActive || isSelected ? 1 : 0;
+				const currentStrength = Number(root.userData.selectionStrength ?? 0);
+				const nextStrength = currentStrength + (targetStrength - currentStrength) * 0.28;
+				root.userData.selectionStrength = nextStrength;
+				selectionGroup.visible = nextStrength > 0.02;
+				selectionGroup.scale.setScalar(0.94 + nextStrength * 0.14 + Math.sin(phase * 1.8) * 0.025 * nextStrength);
+				selectionGroup.children.forEach((child: any, childIndex: number) => {
+					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+					if (!material) return;
+					const baseOpacity = Number(material.userData.baseOpacity ?? 0.1);
+					const pulse = 0.86 + Math.sin(phase * 1.35 + childIndex * 1.3) * 0.14;
+					material.opacity = baseOpacity * nextStrength * pulse;
+				});
+			}
+			if (!scaleAnimated.has(root)) {
+				const targetScale = root.userData.dragActive ? DRAG_SCALE : isSelected ? 1.06 * idleScale : idleScale;
+				const nextScale = root.scale.x + (targetScale - root.scale.x) * VISUAL_LERP;
+				root.scale.setScalar(nextScale);
+			}
+			if (!positionAnimated.has(root)) {
+				const targetY = root.userData.dragActive ? DRAG_LIFT_Y : isSelected ? 0.045 + idleLift * 0.45 : idleLift;
+				root.position.y += (targetY - root.position.y) * VISUAL_LERP;
+			}
+		});
+		if (ringMesh) {
+			const nextRingRadius = ringMesh.scale.x + (targetRingRadius - ringMesh.scale.x) * RING_SCALE_LERP;
+			ringMesh.scale.setScalar(nextRingRadius);
+			const material = ringMesh.material as THREE.MeshPhysicalMaterial;
+			material.opacity += (targetRingOpacity - material.opacity) * 0.18;
+			ringMesh.visible = material.opacity > 0.012;
+		}
+
+		const idleReady =
+			!pointerDown &&
+			!draggingBeadId &&
+			!isPinching &&
+			Math.abs(rotationVelocityY) <= INERTIA_STOP &&
+			beads.value.length > 0 &&
+			now - lastInteractionTime > IDLE_ROTATION_DELAY_MS;
+		const breathePhase = now * 0.001 * BRACELET_IDLE_BREATHE_SPEED;
+		const breatheWave = idleReady ? Math.sin(breathePhase) : 0;
+		const targetGroupY = idleReady ? BRACELET_IDLE_BREATHE_Y * (0.62 + breatheWave * 0.38) : 0;
+		const targetGroupScale = idleReady ? 1 + breatheWave * BRACELET_IDLE_BREATHE_SCALE : 1;
+		braceletGroup.position.y += (targetGroupY - braceletGroup.position.y) * 0.08;
+		const nextGroupScale = braceletGroup.scale.x + (targetGroupScale - braceletGroup.scale.x) * 0.08;
+		braceletGroup.scale.setScalar(nextGroupScale);
+		const stagePresence = beads.value.length > 0 ? 1 : 0.34;
+		if (showcaseSurfaceGroup) {
+			showcaseSurfaceGroup.scale.setScalar(1 + (nextGroupScale - 1) * 0.68);
+		}
+		if (stageGlowMesh) {
+			const material = stageGlowMesh.material as THREE.MeshBasicMaterial;
+			material.opacity = STAGE_GLOW_BASE_OPACITY * stagePresence * (0.92 + (breatheWave + 1) * 0.04);
+		}
+		if (stageReflectionMesh) {
+			const material = stageReflectionMesh.material as THREE.MeshBasicMaterial;
+			material.opacity = STAGE_REFLECTION_BASE_OPACITY * stagePresence * (0.86 + (breatheWave + 1) * 0.09);
+			stageReflectionMesh.position.x = 0.12 + Math.sin(breathePhase * 0.72) * 0.018;
 		}
 
 		// 仅 Y 轴旋转
@@ -543,28 +1435,65 @@ export function useBracelet3d(
 	/**
 	 * 鼠标/触摸 按下事件：优先检测是否点中珠子（拖拽排序/删除），否则旋转手串
 	 */
+	function clearLongPressTimer() {
+		if (longPressTimer) clearTimeout(longPressTimer);
+		longPressTimer = null;
+		longPressBeadId = null;
+	}
+
+	function startLongPressTimer(beadId: string, clientX: number, clientY: number) {
+		if (!onLongPress) return;
+		clearLongPressTimer();
+		longPressBeadId = beadId;
+		longPressStartX = clientX;
+		longPressStartY = clientY;
+		longPressTimer = setTimeout(() => {
+			const targetBeadId = longPressBeadId;
+			if (!targetBeadId || targetBeadId !== draggingBeadId) return;
+			setDraggedAppearance(targetBeadId, false);
+			draggingBeadId = null;
+			pointerDown = false;
+			isDragging.value = false;
+			setBeadDragState(false);
+			if (braceletGroup) updateBeads(beads.value, beads.value);
+			onLongPress(targetBeadId);
+			clearLongPressTimer();
+		}, LONG_PRESS_MS);
+	}
+
+	function cancelLongPressIfMoved(clientX: number, clientY: number) {
+		if (!longPressTimer) return;
+		const dx = clientX - longPressStartX;
+		const dy = clientY - longPressStartY;
+		if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_TOLERANCE) {
+			clearLongPressTimer();
+		}
+	}
+
 	function onPointerDown(e: PointerEvent | Touch) {
+		if ('pointerType' in e && e.pointerType === 'touch') return;
+		noteInteraction();
 		const clientX = (e as { clientX: number }).clientX;
 		const clientY = (e as { clientY: number }).clientY;
-		const meshes = getBeadMeshes();
-		if (meshes.length > 0 && (onReorder || onRemove)) {
-			pointerToNDC(clientX, clientY);
-			raycaster.setFromCamera(mouseNDC, camera);
-			const hits = raycaster.intersectObjects(meshes, false);
-			if (hits.length > 0 && hits[0].object instanceof THREE.Mesh) {
-				const beadId = (hits[0].object as THREE.Mesh).userData?.beadId as string | undefined;
-				if (beadId) {
-					draggingBeadId = beadId;
-					dragBeadFromIndex = beads.value.findIndex((b) => b.id === beadId);
-					if (dragBeadFromIndex < 0) draggingBeadId = null;
-					else {
-						isDragging.value = true;
-						dragStart.value = { x: clientX, y: clientY, rotY: rotationY.value };
-						return;
-					}
+		if (onReorder || onRemove || onLongPress) {
+			const beadId = findBeadIdAtPointer(clientX, clientY);
+			if (beadId) {
+				draggingBeadId = beadId;
+				onSelect?.(beadId);
+				dragBeadFromIndex = beads.value.findIndex((b) => b.id === beadId);
+				if (dragBeadFromIndex < 0) draggingBeadId = null;
+				else {
+					setDraggedAppearance(beadId, true);
+					isDragging.value = true;
+					setBeadDragState(true);
+					dragStart.value = { x: clientX, y: clientY, rotY: rotationY.value };
+					startLongPressTimer(beadId, clientX, clientY);
+					return;
 				}
 			}
 		}
+		clearLongPressTimer();
+		setBeadDragState(false);
 		pointerDown = true;
 		isDragging.value = true;
 		dragStart.value = { x: clientX, y: clientY, rotY: rotationY.value };
@@ -574,17 +1503,23 @@ export function useBracelet3d(
 	 * 鼠标/触摸 移动事件
 	 */
 	function onPointerMove(e: PointerEvent | Touch) {
+		if ('pointerType' in e && e.pointerType === 'touch') return;
+		noteInteraction();
 		const clientX = (e as { clientX: number }).clientX;
 		const clientY = (e as { clientY: number }).clientY;
+		cancelLongPressIfMoved(clientX, clientY);
 		if (draggingBeadId && braceletGroup) {
 			const proj = projectPointerToRingPlane(clientX, clientY);
 			const meshEntry = beadMeshMap.get(draggingBeadId);
 			if (meshEntry) {
 				meshEntry.root.position.set(proj.x, 0, proj.z);
-				const deleteRadius = getRingRadius(beads.value.length) + DELETE_MARGIN;
+				const deleteRadius = getDeleteDistance();
+				const deleteTarget = proj.distance > deleteRadius;
+				meshEntry.root.userData.dragDelete = deleteTarget;
+				setBeadDragState(true, deleteTarget);
 				if (proj.distance <= deleteRadius && onReorder) {
 					const total = beads.value.length;
-					const toIndex = angleToIndex(proj.angle, total);
+					const toIndex = indexForProjectedPoint(proj.x, proj.z, proj.angle, total);
 					if (toIndex !== dragBeadFromIndex && toIndex >= 0 && toIndex < total) {
 						onReorder(dragBeadFromIndex, toIndex);
 						dragBeadFromIndex = toIndex;
@@ -604,26 +1539,91 @@ export function useBracelet3d(
 	 * 鼠标/触摸 松开事件：环外视为删除；未删除且未改序时珠子回原位
 	 */
 	function onPointerUp() {
+		noteInteraction();
+		clearLongPressTimer();
 		if (draggingBeadId) {
+			const releasedBeadId = draggingBeadId;
+			setDraggedAppearance(releasedBeadId, false);
 			const meshEntry = beadMeshMap.get(draggingBeadId);
 			if (meshEntry) {
 				const dist = Math.sqrt(meshEntry.root.position.x ** 2 + meshEntry.root.position.z ** 2);
-				const deleteRadius = getRingRadius(beads.value.length) + DELETE_MARGIN;
+				const deleteRadius = getDeleteDistance();
 				// 珠子拖到环外即视为删除
 				if (dist > deleteRadius && onRemove) {
 					onRemove(draggingBeadId);
 					draggingBeadId = null;
 					pointerDown = false;
 					isDragging.value = false;
+					setBeadDragState(false);
 					return;
 				}
 			}
-			// 未删除：先清空拖拽标记再强制同步，使该珠子参与位置更新并动画回槽位
+					// 未删除：先清空拖拽标记再强制同步，使该珠子参与位置更新并动画回槽位
 			draggingBeadId = null;
+			setBeadDragState(false);
+			onSelect?.(null);
 			if (braceletGroup) updateBeads(beads.value, beads.value);
 		}
 		pointerDown = false;
 		isDragging.value = false;
+		if (!draggingBeadId) setBeadDragState(false);
+	}
+
+	function onTouchStart(e: TouchEvent) {
+		e.preventDefault();
+		if (e.touches.length >= 2) {
+			if (draggingBeadId) onPointerUp();
+			pointerDown = false;
+			isPinching = true;
+			pinchStartDistance = getTouchDistance(e.touches);
+			pinchStartZoom = cameraDistance.value;
+			return;
+		}
+		if (e.touches.length === 1) {
+			isPinching = false;
+			onPointerDown(e.touches[0]);
+		}
+	}
+
+	function onTouchMove(e: TouchEvent) {
+		e.preventDefault();
+		if (isPinching && e.touches.length >= 2) {
+			const distance = getTouchDistance(e.touches);
+			if (pinchStartDistance > 0 && distance > 0) {
+				const delta = pinchStartDistance - distance;
+				setCameraDistance(pinchStartZoom + delta * PINCH_ZOOM_SPEED);
+			}
+			return;
+		}
+		if (e.touches.length === 1) onPointerMove(e.touches[0]);
+	}
+
+	function onTouchEnd(e: TouchEvent) {
+		if (isPinching) {
+			if (e.touches.length >= 2) {
+				pinchStartDistance = getTouchDistance(e.touches);
+				pinchStartZoom = cameraDistance.value;
+				return;
+			}
+			isPinching = false;
+			if (e.touches.length === 1) {
+				pointerDown = true;
+				isDragging.value = true;
+				dragStart.value = {
+					x: e.touches[0].clientX,
+					y: e.touches[0].clientY,
+					rotY: rotationY.value,
+				};
+				return;
+			}
+		}
+		onPointerUp();
+	}
+
+	function onWheel(e: WheelEvent) {
+		e.preventDefault();
+		noteInteraction();
+		setCameraDistance(cameraDistance.value + e.deltaY * WHEEL_ZOOM_SPEED);
 	}
 
 	/**
@@ -638,32 +1638,41 @@ export function useBracelet3d(
 
 		// 创建threejs基本对象
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xebe8f0);
+		scene.background = new THREE.Color(0xffffff);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
 
-		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 		renderer.setSize(width, height);
 		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping;
+		renderer.toneMappingExposure = 0.82;
+		pmremGenerator = new THREE.PMREMGenerator(renderer);
+		environmentTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
+		scene.environment = environmentTexture;
 
-		// 灯光：整体压暗，避免过曝；主光左上前，补光与轮廓减弱
-		const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+		// 灯光：低环境光保留通透层次，左上柔主光塑造参考图里的实拍高光。
+		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 0.65);
-		key.position.set(-2.2, 2.8, 2.0);
+		const key = new THREE.DirectionalLight(0xffffff, 1.08);
+		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xebe8f0, 0.28);
-		fill.position.set(2.0, 1.2, 1.5);
+		const fill = new THREE.DirectionalLight(0xeaf2ff, 0.24);
+		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
-		const rim = new THREE.PointLight(0xffffff, 0.25, 8);
-		rim.position.set(0, 1.5, 1.0);
+		const rim = new THREE.PointLight(0xffffff, 0.44, 8);
+		rim.position.set(0.7, 2.6, 1.7);
 		scene.add(rim);
+		const glow = new THREE.PointLight(0xf3f0fb, 0.08, 6);
+		glow.position.set(-0.9, 0.9, 1.8);
+		scene.add(glow);
 
 		// 创建手串Group（珠子/环都放到group中场景里只加group）
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
+		createShowcaseSurface();
 		/* 珠子和圆环都只加到手串 group，不往 scene 直接加珠子，保证添加的珠子只在手串上 */
 
 		// 创建圆环 mesh（几何半径 1，用 scale 控制实际半径）
@@ -671,20 +1680,25 @@ export function useBracelet3d(
 		const ringMat = new THREE.MeshPhysicalMaterial({
 			color: RING_COLOR,
 			transparent: true,
-			opacity: 0.88,
-			roughness: 0.28,
+			opacity: 0.72,
+			roughness: 0.34,
 			metalness: 0.02,
-			transmission: 0.32,
-			clearcoat: 0.65,
-			clearcoatRoughness: 0.18,
+			transmission: 0.24,
+			clearcoat: 0.58,
+			clearcoatRoughness: 0.22,
 		});
 		ringMesh = new THREE.Mesh(ringGeom, ringMat);
 		ringMesh.rotation.x = -Math.PI / 2;
-		ringMesh.scale.setScalar(getRingRadius(beads.value.length));
+		targetRingRadius = isSingleLayout() ? 0.74 : getRingRadius(beads.value.length);
+		targetRingOpacity = isSingleLayout() ? 0 : 0.72;
+		ringMesh.scale.setScalar(targetRingRadius);
+		(ringMesh.material as THREE.MeshPhysicalMaterial).opacity = targetRingOpacity;
+		ringMesh.visible = targetRingOpacity > 0;
 		braceletGroup.add(ringMesh);
 
 		// 启动初始珠子渲染
 		updateBeads(beads.value, []);
+		lastBeadsSnapshot = snapshotBeads(beads.value);
 
 		// 禁用用户选择和默认手势，绑定交互事件
 		canvas.style.touchAction = 'none';
@@ -694,25 +1708,11 @@ export function useBracelet3d(
 		canvas.addEventListener('pointermove', onPointerMove as EventListener);
 		canvas.addEventListener('pointerup', onPointerUp);
 		canvas.addEventListener('pointerleave', onPointerUp);
-		// 绑定移动端touch事件，转发为pointer操作
-		canvas.addEventListener(
-			'touchstart',
-			(e) => {
-				e.preventDefault();
-				if (e.touches.length) onPointerDown(e.touches[0]);
-			},
-			{ passive: false },
-		);
-		canvas.addEventListener(
-			'touchmove',
-			(e) => {
-				e.preventDefault();
-				if (e.touches.length) onPointerMove(e.touches[0]);
-			},
-			{ passive: false },
-		);
-		canvas.addEventListener('touchend', onPointerUp);
-		canvas.addEventListener('touchcancel', onPointerUp);
+		canvas.addEventListener('wheel', onWheel, { passive: false });
+		canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+		canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+		canvas.addEventListener('touchend', onTouchEnd);
+		canvas.addEventListener('touchcancel', onTouchEnd);
 
 		// 标记已初始化，启动动画循环
 		inited = true;
@@ -739,6 +1739,7 @@ export function useBracelet3d(
 	 */
 	function dispose() {
 		inited = false;
+		clearLongPressTimer();
 		cancelAnimationFrame(rafId);
 		rafId = 0;
 		resizeObserver?.disconnect();
@@ -749,6 +1750,11 @@ export function useBracelet3d(
 			canvasEl.removeEventListener('pointermove', onPointerMove as EventListener);
 			canvasEl.removeEventListener('pointerup', onPointerUp);
 			canvasEl.removeEventListener('pointerleave', onPointerUp);
+			canvasEl.removeEventListener('wheel', onWheel);
+			canvasEl.removeEventListener('touchstart', onTouchStart);
+			canvasEl.removeEventListener('touchmove', onTouchMove);
+			canvasEl.removeEventListener('touchend', onTouchEnd);
+			canvasEl.removeEventListener('touchcancel', onTouchEnd);
 		}
 		// 释放所有mesh与缓存纹理
 		beadMeshMap.forEach(({ root }) => {
@@ -767,8 +1773,32 @@ export function useBracelet3d(
 		shadowGradientTexture = null;
 		highlightBandTexture?.dispose();
 		highlightBandTexture = null;
+		sparkleTexture?.dispose();
+		sparkleTexture = null;
+		stageGlowTexture?.dispose();
+		stageGlowTexture = null;
+		stageReflectionTexture?.dispose();
+		stageReflectionTexture = null;
+		centerTransparencyTexture?.dispose();
+		centerTransparencyTexture = null;
+		environmentTexture?.dispose();
+		environmentTexture = null;
+		showcaseSurfaceGroup?.traverse((child) => {
+			const geometry = (child as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+			const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+			geometry?.dispose?.();
+			if (Array.isArray(material)) material.forEach((m) => m.dispose());
+			else material?.dispose?.();
+		});
+		showcaseSurfaceGroup = null;
+		stageGlowMesh = null;
+		stageReflectionMesh = null;
+		pmremGenerator?.dispose();
+		pmremGenerator = null;
 		addAnimations.length = 0;
 		positionAnimations.length = 0;
+		removeAnimations.length = 0;
+		cameraAnimation = null;
 		// 释放环mesh内存
 		ringMesh?.geometry?.dispose();
 		(ringMesh?.material as THREE.Material)?.dispose();
@@ -778,12 +1808,22 @@ export function useBracelet3d(
 
 	// 监听beads数据变化，重建/重排珠子
 	watch(
-		beads,
-		(newBeads, oldBeads) => {
+		() => beadsSignature(beads.value),
+		() => {
 			if (!inited || !braceletGroup) return;
-			updateBeads(newBeads, oldBeads || []);
+			updateBeads(beads.value, lastBeadsSnapshot);
+			lastBeadsSnapshot = snapshotBeads(beads.value);
 		},
-		{ deep: true },
+	);
+
+	watch(
+		() => options?.layoutMode?.() ?? 'bracelet',
+		() => {
+			if (!inited || !braceletGroup) return;
+			rotationY.value = 0;
+			rotationVelocityY = 0;
+			updateBeads(beads.value, beads.value);
+		},
 	);
 
 	/**
@@ -842,7 +1882,11 @@ export function useBracelet3d(
 	return {
 		rotationY,
 		viewMode,
+		cameraDistance,
 		setViewMode,
+		setCameraDistance,
 		isDragging,
+		isBeadDragging,
+		isBeadDeleteTarget,
 	};
 }

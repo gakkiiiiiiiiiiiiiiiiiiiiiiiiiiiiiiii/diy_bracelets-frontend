@@ -11,6 +11,7 @@ withDefaults(
 
 <template>
   <view class="info-tag" :class="[`info-tag--${type}`, { 'info-tag--shake': shake && type === 'warn' }]">
+    <view v-if="type === 'notice'" class="info-tag__mark" aria-hidden="true" />
     <text class="info-tag__label">{{ label }}</text>
   </view>
 </template>
@@ -19,20 +20,26 @@ withDefaults(
 @use '@/uni.scss' as u;
 
 .info-tag {
-  padding: 12rpx 24rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
+  height: 56rpx;
+  padding: 0 20rpx;
+  border-radius: 14rpx;
+  font-size: 28rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8rpx 22rpx rgba(83, 90, 116, 0.13);
   transition: transform u.$duration-state u.$ease-brand, opacity u.$duration-state u.$ease-out;
 }
 
 .info-tag--default {
-  background: u.$secondary-bg;
-  color: u.$text-primary;
+  background: rgba(242, 244, 250, 0.88);
+  color: #7f879a;
 }
 
 .info-tag--warn {
-  background: rgba(200, 80, 80, 0.12);
-  color: #a63d3d;
+  background: rgba(255, 246, 234, 0.9);
+  color: #98704b;
 }
 
 .info-tag--warn.info-tag--shake {
@@ -40,17 +47,38 @@ withDefaults(
 }
 
 .info-tag--primary {
-  background: rgba(0, 113, 227, 0.12);
-  color: u.$primary;
+  background: rgba(210, 232, 239, 0.82);
+  color: #3c6d7e;
 }
 
 .info-tag--notice {
-  background: #ff3b30;
+  background: linear-gradient(135deg, #ff5e73 0%, #d9485f 100%);
   color: #fff;
+  border-radius: 16rpx;
+  border-color: rgba(255, 255, 255, 0.38);
+  box-shadow: 0 10rpx 22rpx rgba(210, 80, 100, 0.28);
 }
 
 .info-tag__label {
-  font-weight: 400;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.info-tag__mark {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  border: 3rpx solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.info-tag__mark::before {
+  content: '?';
 }
 
 @keyframes info-tag-shake {

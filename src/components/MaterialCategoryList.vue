@@ -1,7 +1,23 @@
 <script setup lang="ts">
+import { computed, watchEffect } from 'vue'
 import { useMaterialsStore } from '@/stores/materials'
+import { useDesignStore } from '@/stores/design'
 
 const materialsStore = useMaterialsStore()
+const designStore = useDesignStore()
+
+const visibleCategories = computed(() => {
+  const hasUsedMaterials = designStore.braceletDesign.length > 0
+  return materialsStore.categories.filter((cat) => cat.id !== 'in-use' || hasUsedMaterials)
+})
+
+watchEffect(() => {
+  if (!visibleCategories.value.length) return
+  const visible = visibleCategories.value.some((cat) => cat.id === materialsStore.currentCategoryId)
+  if (!visible) {
+    materialsStore.setCategory(visibleCategories.value[0].id)
+  }
+})
 
 function selectCategory(id: string) {
   materialsStore.setCategory(id)
@@ -11,11 +27,11 @@ function selectCategory(id: string) {
 <template>
   <scroll-view class="category-list" scroll-y>
     <view
-      v-for="cat in materialsStore.categories"
+      v-for="cat in visibleCategories"
       :key="cat.id"
       class="category-item"
       :class="{ 'category-item--active': materialsStore.currentCategoryId === cat.id }"
-      @click="selectCategory(cat.id)"
+      @tap="selectCategory(cat.id)"
     >
       <text class="category-item__name">{{ cat.name }}</text>
     </view>
@@ -26,46 +42,66 @@ function selectCategory(id: string) {
 @use '@/uni.scss' as u;
 
 .category-list {
-  width: 160rpx;
+  width: 132rpx;
   flex-shrink: 0;
   height: 100%;
-  padding: 8rpx 0;
+  padding: 0;
   box-sizing: border-box;
+  background: linear-gradient(180deg, #f3f5fb 0%, #fff8f5 100%);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.category-list::-webkit-scrollbar,
+.category-list :deep(.uni-scroll-view::-webkit-scrollbar) {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .category-item {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  padding: 28rpx 16rpx;
-  margin: 6rpx 0;
-  border-radius: 999rpx;
-  background: #fff;
-  border-left: 4rpx solid transparent;
+  height: 86rpx;
+  padding: 0 10rpx 0 10rpx;
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  border-left: 6rpx solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background u.$duration-state u.$ease-brand, border-color u.$duration-state u.$ease-brand;
 }
 
-/* 选中：浅灰底 + 左侧深色竖条 */
+/* 选中：源小程序式白底 + 左侧红色竖条 */
 .category-item--active {
-  background: #f0f0f0;
-  border-left-color: #8e8e93;
+  background: rgba(255, 255, 255, 0.94);
+  border-left-color: #f04452;
+  box-shadow: inset -1rpx 0 0 rgba(226, 229, 236, 0.9);
 }
 
 .category-item--active .category-item__name {
-  color: u.$text-primary;
-  font-weight: 500;
+  color: #26314f;
+  font-weight: 800;
 }
 
 /* 未选中 hover（H5）：浅灰背景，无左侧条 */
 .category-item:not(.category-item--active):hover {
-  background: #f5f5f5;
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .category-item__name {
-  font-size: 28rpx;
-  color: u.$text-primary;
+  max-width: 100%;
+  font-size: 24rpx;
+  color: #8b92a4;
   text-align: center;
-  font-weight: 400;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .category-item:active {

@@ -3,10 +3,6 @@
 
 <template>
   <view class="app">
-    <!-- Apple-style 极光背景光球，固定于底层 -->
-    <view class="orb orb-1" />
-    <view class="orb orb-2" />
-    <view class="orb orb-3" />
   </view>
 </template>
 
@@ -14,7 +10,7 @@
 @use '@/uni.scss' as u;
 
 page {
-  background: u.$page-bg;
+  background: #f8f9fd;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'PingFang SC', 'Helvetica Neue', sans-serif;
   color: u.$text-primary;
 }
@@ -25,60 +21,56 @@ page {
   overflow: hidden;
 }
 
-
-/* 极光光球 - 固定定位、大模糊、缓慢浮动 */
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-  width: 55vw;
-  height: 55vw;
-  filter: blur(80px);
-  animation: orb-float 15s ease-in-out infinite;
-}
-
-.orb-1 {
-  background: radial-gradient(circle, rgba(162, 210, 255, 0.4), transparent 70%);
-  top: -20%;
-  left: -10%;
-  animation-delay: 0s;
-}
-
-.orb-2 {
-  background: radial-gradient(circle, rgba(200, 180, 255, 0.3), transparent 70%);
-  top: 30%;
-  right: -15%;
-  animation-delay: -5s;
-}
-
-.orb-3 {
-  background: radial-gradient(circle, rgba(180, 220, 255, 0.25), transparent 70%);
-  bottom: -10%;
-  left: 20%;
-  animation-delay: -10s;
-}
-
-@keyframes orb-float {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(3%, 3%) scale(1.05);
-  }
-  66% {
-    transform: translate(-2%, -2%) scale(0.98);
-  }
-}
-
-/* H5 隐藏原生 tabBar 时为内容留出底部空间 */
+/* H5 keeps the native tabBar visible to match the mini-program shell. */
 /* #ifdef H5 */
+html,
+body,
+page,
+uni-page,
+uni-page-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+page::-webkit-scrollbar,
+uni-page::-webkit-scrollbar,
+uni-page-body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .uni-tabbar-bottom {
-  display: none !important;
+  display: flex !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 90 !important;
+  min-height: calc(58px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(18, 20, 28, 0.06) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 -10px 22px rgba(18, 20, 28, 0.06);
+  backdrop-filter: blur(12px);
 }
 page {
-  padding-bottom: 60px;
+  padding-bottom: calc(58px + env(safe-area-inset-bottom));
+}
+
+uni-app:has(.app-subpage) uni-tabbar,
+uni-app:has(.app-subpage) .uni-tabbar-bottom {
+  display: none !important;
+}
+
+uni-page-body:has(> .app-subpage) {
+  padding-bottom: 0 !important;
+}
+
+body:has(uni-page-body > .app-subpage) page {
+  padding-bottom: 0 !important;
 }
 /* #endif */
 </style>

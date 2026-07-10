@@ -28,6 +28,14 @@ export interface Material {
   specs: MaterialSpec[]
 }
 
+/** 材料规格卡：真实小程序的卡片粒度是“材料 + 单个规格” */
+export interface MaterialSpecCard {
+  id: string
+  material: Material
+  spec: MaterialSpec
+  usedCount?: number
+}
+
 /** 分类 */
 export interface MaterialCategory {
   id: string

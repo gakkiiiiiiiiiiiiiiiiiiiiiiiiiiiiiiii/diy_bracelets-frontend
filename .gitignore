@@ -7,3 +7,6 @@ dist
 !.env.example
 unpackage
 .hbuilderx
+.playwright-cli
+output
+test-results

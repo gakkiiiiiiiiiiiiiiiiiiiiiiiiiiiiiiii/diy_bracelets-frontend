@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, type Ref } from 'vue';
 import { useDesignStore } from '@/stores/design';
 import { useUIStore } from '@/stores/ui';
+import type { BraceletBead } from '@/types';
 // #ifdef H5
 import { useBracelet3d } from '@/composables/useBracelet3d';
 // #endif
@@ -9,99 +10,180 @@ import { useBracelet3d } from '@/composables/useBracelet3d';
 import { useBracelet3dMp } from '@/composables/useBracelet3dMp';
 // #endif
 
+const props = withDefaults(
+	defineProps<{
+		viewMode?: 'top' | 'side';
+		mode?: 'bracelet' | 'single';
+	}>(),
+	{ viewMode: 'side', mode: 'bracelet' },
+);
+const emit = defineEmits<{
+	beadPreview: [beadId: string];
+}>();
+
 // 使用手链设计相关的 Pinia store
 const designStore = useDesignStore();
 // 使用 UI 状态相关的 Pinia store
 const uiStore = useUIStore();
 
-// 计算属性：当前设计的珠子数组（reactive 响应式）
-const beads = computed(() => designStore.braceletDesign);
+function createPreviewBeads(rows: Array<[string, string, string, number]>, prefix: string): BraceletBead[] {
+	return rows.map(([materialId, name, slug, size], index) => ({
+		id: `${prefix}-${index}`,
+		materialId: String(materialId),
+		name: String(name),
+		image: `/static/materials/reference-crystals/${slug}/${slug}-preview.png`,
+		size: Number(size),
+		price: 0,
+		quantity: 1,
+		orderIndex: index,
+	}));
+}
+
+const emptyBraceletStageBeads = createPreviewBeads([
+	['ref-blue-moonstone', '蓝月光', 'blue-moonstone', 10],
+	['ref-aquamarine-ice', '海蓝宝冰种', 'aquamarine-ice', 9],
+	['ref-yellow-crystal', '黄水晶', 'yellow-crystal', 10],
+	['ref-golden-rutile', '金发晶', 'golden-rutile', 9],
+	['ref-strawberry-crystal', '草莓晶', 'strawberry-crystal', 10],
+	['ref-rose-stone', '蔷薇石', 'rose-stone', 9],
+	['ref-green-phantom', '绿幽灵', 'green-phantom', 10],
+	['ref-prehnite', '葡萄石', 'prehnite', 9],
+	['ref-larimar', '海纹石', 'larimar', 10],
+	['ref-amazonite', '天河石', 'amazonite', 9],
+	['ref-bolivian-amethyst', '玻利维亚紫', 'bolivian-amethyst', 10],
+	['ref-uruguay-amethyst', '乌拉圭紫', 'uruguay-amethyst', 9],
+], 'empty-bracelet-stage');
+
+const emptySingleStageBeads = createPreviewBeads([
+	['ref-strawberry-crystal', '草莓晶', 'strawberry-crystal', 12],
+	['ref-blue-moonstone', '蓝月光', 'blue-moonstone', 10],
+	['ref-uruguay-amethyst', '乌拉圭紫', 'uruguay-amethyst', 12],
+], 'empty-single-stage');
+
+// 计算属性：当前设计的珠子数组（reactive 响应式）；空设计时显示 3D 预览珠阵。
+const hasActualBeads = computed(() => designStore.braceletDesign.length > 0);
+const emptyStageBeads = computed(() => (props.mode === 'single' ? emptySingleStageBeads : emptyBraceletStageBeads));
+const emptyTitle = computed(() => (props.mode === 'single' ? '3D 单珠' : '3D DIY'));
+const emptySub = computed(() => (props.mode === 'single' ? '挑选第一颗散珠' : '等待第一颗水晶'));
+const beads = computed(() => (hasActualBeads.value ? designStore.braceletDesign : emptyStageBeads.value));
+let rendererBeadDragging: Ref<boolean> | null = null;
+let rendererBeadDeleteTarget: Ref<boolean> | null = null;
+
+function withActualBeads(callback: () => void) {
+	if (!hasActualBeads.value) return;
+	callback();
+}
 
 // #ifdef H5
 // 3D 画布容器 DOM 元素绑定（仅 H5 下生效），传入拖拽排序与拖出删除回调
 const canvas3dContainer = ref<HTMLElement | null>(null);
-const { viewMode, setViewMode } = useBracelet3d(canvas3dContainer, beads, {
-	onReorder: (from, to) => designStore.reorderBeads(from, to),
+const h5Renderer = useBracelet3d(canvas3dContainer, beads, {
+	layoutMode: () => props.mode,
+	onReorder: (from, to) => withActualBeads(() => designStore.reorderBeads(from, to)),
+	onSelect: (id) => uiStore.setSelectedBeadId(hasActualBeads.value ? id : null),
+	selectedBeadId: () => (hasActualBeads.value ? uiStore.selectedBeadId : null),
+	onLongPress: (id) => withActualBeads(() => emit('beadPreview', id)),
 	onRemove: (id) => {
+		if (!hasActualBeads.value) return;
 		designStore.removeBead(id);
 		uiStore.setSelectedBeadId(null);
 	},
 });
+rendererBeadDragging = h5Renderer.isBeadDragging;
+rendererBeadDeleteTarget = h5Renderer.isBeadDeleteTarget;
+const { setViewMode } = h5Renderer;
+
+watch(
+	() => props.viewMode,
+	(mode) => setViewMode(mode),
+	{ immediate: true },
+);
 // #endif
 
 // #ifdef MP-WEIXIN
 // 微信小程序端 3D（threejs-miniprogram），支持拖拽排序与拖出删除
 const mp3d = useBracelet3dMp('#bracelet-gl', beads, {
-	onReorder: (from, to) => designStore.reorderBeads(from, to),
+	layoutMode: () => props.mode,
+	onReorder: (from, to) => withActualBeads(() => designStore.reorderBeads(from, to)),
+	onSelect: (id) => uiStore.setSelectedBeadId(hasActualBeads.value ? id : null),
+	selectedBeadId: () => (hasActualBeads.value ? uiStore.selectedBeadId : null),
+	onLongPress: (id) => withActualBeads(() => emit('beadPreview', id)),
 	onRemove: (id) => {
+		if (!hasActualBeads.value) return;
 		designStore.removeBead(id);
 		uiStore.setSelectedBeadId(null);
 	},
 });
+rendererBeadDragging = mp3d.isBeadDragging;
+rendererBeadDeleteTarget = mp3d.isBeadDeleteTarget;
+
+watch(
+	() => props.viewMode,
+	(mode) => mp3d.setViewMode(mode),
+	{ immediate: true },
+);
 // #endif
+
+const dragHintVisible = computed(() => hasActualBeads.value && props.mode === 'bracelet' && Boolean(rendererBeadDragging?.value));
+const dragDeleteActive = computed(() => Boolean(rendererBeadDeleteTarget?.value));
+const dragHintTitle = computed(() => (dragDeleteActive.value ? '松手删除' : '拖出圈外删除'));
+const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取消' : '拖回圆圈可调整顺序'));
 </script>
 
 <template>
 	<view class="canvas-wrap">
+		<view class="canvas-stage">
 		<!-- #ifdef H5 -->
-		<view class="canvas-3d">
-			<view ref="canvas3dContainer" class="canvas-3d__gl" />
-			<view class="canvas-3d-hint">拖拽旋转手串</view>
-			<view class="canvas-3d-view-toggle">
-				<!-- <view
-					class="view-toggle-btn"
-					:class="{ 'view-toggle-btn--active': viewMode === 'top' }"
-					@click="setViewMode('top')"
-				>
-					俯视
-				</view> -->
-				<!-- <view
-					class="view-toggle-btn"
-					:class="{ 'view-toggle-btn--active': viewMode === 'side' }"
-					@click="setViewMode('side')"
-				>
-					侧面
-				</view> -->
-			</view>
-			<view class="canvas-center canvas-center--overlay">
+			<view class="canvas-3d" :class="{ 'canvas-3d--empty': !hasActualBeads, 'canvas-3d--single': mode === 'single' }">
+				<view ref="canvas3dContainer" class="canvas-3d__gl" />
+				<view class="canvas-center canvas-center--overlay">
 				<text class="canvas-brand">养个石头</text>
 				<text class="canvas-sub">MineStone</text>
 			</view>
-		</view>
-		<!-- #endif -->
+				<view v-if="!hasActualBeads" class="canvas-empty-mark">
+					<text class="canvas-empty-mark__title">{{ emptyTitle }}</text>
+					<text class="canvas-empty-mark__sub">{{ emptySub }}</text>
+				</view>
+				<view
+					v-if="dragHintVisible"
+					class="drag-delete-hint"
+					:class="{ 'drag-delete-hint--delete': dragDeleteActive }"
+				>
+					<text class="drag-delete-hint__title">{{ dragHintTitle }}</text>
+					<text class="drag-delete-hint__sub">{{ dragHintSub }}</text>
+				</view>
+			</view>
+			<!-- #endif -->
 
 		<!-- #ifdef MP-WEIXIN -->
 		<view
 			class="canvas-3d canvas-3d--mp"
+			:class="{ 'canvas-3d--empty': !hasActualBeads, 'canvas-3d--single': mode === 'single' }"
 			@touchstart="mp3d.onTouchStart"
 			@touchmove="mp3d.onTouchMove"
 			@touchend="mp3d.onTouchEnd"
 			@touchcancel="mp3d.onTouchCancel"
 		>
 			<canvas id="bracelet-gl" type="webgl" class="canvas-3d__gl canvas-3d__gl-mp" />
-			<view class="canvas-3d-hint">拖拽旋转手串</view>
-			<view class="canvas-3d-view-toggle" @touchstart.stop>
-				<!-- <view
-					class="view-toggle-btn"
-					:class="{ 'view-toggle-btn--active': mp3d.viewMode?.value === 'top' }"
-					@tap.stop="mp3d.setViewMode('top')"
+			<cover-view class="canvas-center canvas-center--overlay canvas-center--mp">
+				<cover-view class="canvas-brand">养个石头</cover-view>
+				<cover-view class="canvas-sub">MineStone</cover-view>
+			</cover-view>
+				<cover-view v-if="!hasActualBeads" class="canvas-empty-mark canvas-empty-mark--mp">
+					<cover-view class="canvas-empty-mark__title">{{ emptyTitle }}</cover-view>
+					<cover-view class="canvas-empty-mark__sub">{{ emptySub }}</cover-view>
+				</cover-view>
+				<cover-view
+					v-if="dragHintVisible"
+					class="drag-delete-hint drag-delete-hint--mp"
+					:class="{ 'drag-delete-hint--delete': dragDeleteActive }"
 				>
-					俯视
-				</view>
-				<view
-					class="view-toggle-btn"
-					:class="{ 'view-toggle-btn--active': mp3d.viewMode?.value === 'side' }"
-					@tap.stop="mp3d.setViewMode('side')"
-				>
-					侧面
-				</view> -->
+					<cover-view class="drag-delete-hint__title">{{ dragHintTitle }}</cover-view>
+					<cover-view class="drag-delete-hint__sub">{{ dragHintSub }}</cover-view>
+				</cover-view>
 			</view>
-			<view class="canvas-center canvas-center--overlay">
-				<text class="canvas-brand">养个石头</text>
-				<text class="canvas-sub">MineStone</text>
-			</view>
+			<!-- #endif -->
 		</view>
-		<!-- #endif -->
 	</view>
 </template>
 
@@ -112,25 +194,32 @@ const mp3d = useBracelet3dMp('#bracelet-gl', beads, {
 .canvas-wrap {
 	position: relative;
 	width: 100%;
-	aspect-ratio: 1;
+	height: 100%;
 	margin: 0 auto;
+}
+
+.canvas-stage {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
 }
 
 /* 3D 展示区样式（H5 专用） */
 .canvas-3d {
 	position: absolute;
-	inset: 0;
-	border-radius: 28rpx;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	border-radius: 0;
 	overflow: hidden;
-	background: radial-gradient(
-		circle at 50% 32%,
-		rgba(255, 255, 255, 0.96) 0%,
-		rgba(248, 246, 250, 0.92) 42%,
-		rgba(239, 237, 241, 0.98) 100%
-	);
-	box-shadow:
-		inset 0 1rpx 0 rgba(255, 255, 255, 0.95),
-		0 22rpx 48rpx rgba(170, 165, 175, 0.14);
+	background: #fff;
+	box-shadow: none;
+}
+
+.canvas-3d--empty {
+	background: #fbfcff;
 }
 
 /* 3D gl 画布容器 */
@@ -149,49 +238,15 @@ const mp3d = useBracelet3dMp('#bracelet-gl', beads, {
 	border-radius: inherit;
 }
 
-/* 3D 操作提示（底部居中） */
-.canvas-3d-hint {
-	position: absolute;
-	bottom: 16rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	font-size: 22rpx;
-	color: u.$text-caption;
-	pointer-events: none;
-}
-
-/* 3D 视角切换：俯视 / 侧面 */
-.canvas-3d-view-toggle {
-	position: absolute;
-	top: 16rpx;
-	right: 16rpx;
-	display: flex;
-	gap: 8rpx;
-	z-index: 2;
-}
-
-.view-toggle-btn {
-	padding: 10rpx 20rpx;
-	border-radius: 999rpx;
-	font-size: 22rpx;
-	color: u.$text-caption;
-	background: u.$glass-bg;
-	border: 1px solid u.$hairline;
-	transition:
-		background 0.2s,
-		color 0.2s;
-}
-
-.view-toggle-btn--active {
-	color: u.$primary;
-	background: rgba(255, 255, 255, 0.95);
-	border-color: u.$primary;
-}
-
 .canvas-center--overlay {
 	pointer-events: none;
 	filter: drop-shadow(0 4rpx 10rpx rgba(191, 186, 196, 0.22));
 }
+
+.canvas-center--mp {
+	width: 220rpx;
+}
+
 
 /* 内层中心品牌文本定位（3D  overlay 内使用） */
 .canvas-center {
@@ -205,20 +260,122 @@ const mp3d = useBracelet3dMp('#bracelet-gl', beads, {
 	pointer-events: none;
 }
 
+.canvas-3d--single .canvas-center {
+	top: 57%;
+	opacity: 0.72;
+}
+
 /* 品牌主标题样式 */
 .canvas-brand {
 	font-weight: 700;
-	font-size: 28rpx;
-	letter-spacing: -0.02em;
-	color: #b7b1bc;
+	font-size: 30rpx;
+	letter-spacing: 0;
+	color: rgba(149, 156, 177, 0.54);
 	text-shadow: 0 1rpx 0 rgba(255, 255, 255, 0.9);
 }
 
 /* 品牌副标题样式 */
 .canvas-sub {
-	font-size: 20rpx;
-	color: #c3bec8;
+	font-size: 22rpx;
+	font-weight: 700;
+	color: rgba(149, 156, 177, 0.54);
 	opacity: 0.95;
+	margin-top: 0;
+}
+
+.canvas-empty-mark {
+	position: absolute;
+	left: 50%;
+	top: calc(50% + 96rpx);
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: none;
+}
+
+.canvas-3d--single .canvas-empty-mark {
+	top: calc(57% + 62rpx);
+}
+
+.canvas-empty-mark--mp {
+	width: 260rpx;
+}
+
+.canvas-empty-mark__title {
+	color: rgba(34, 40, 56, 0.86);
+	font-size: 24rpx;
+	font-weight: 900;
+	line-height: 1.2;
+}
+
+.canvas-empty-mark__sub {
+	margin-top: 6rpx;
+	color: rgba(111, 119, 137, 0.72);
+	font-size: 21rpx;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.drag-delete-hint {
+	position: absolute;
+	left: 50%;
+	bottom: 34rpx;
+	transform: translateX(-50%);
+	min-width: 238rpx;
+	padding: 14rpx 22rpx;
+	border-radius: 999rpx;
+	background: rgba(20, 24, 34, 0.86);
+	box-shadow:
+		0 18rpx 42rpx rgba(18, 22, 34, 0.18),
+		inset 0 1rpx 0 rgba(255, 255, 255, 0.18);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	pointer-events: none;
+	z-index: 12;
+	animation: drag-hint-in 0.16s ease-out both;
+}
+
+.drag-delete-hint--mp {
+	width: 286rpx;
+	box-sizing: border-box;
+}
+
+.drag-delete-hint--delete {
+	background: rgba(225, 39, 59, 0.92);
+	box-shadow:
+		0 18rpx 42rpx rgba(225, 39, 59, 0.24),
+		inset 0 1rpx 0 rgba(255, 255, 255, 0.2);
+}
+
+.drag-delete-hint__title {
+	color: #fff;
+	font-size: 24rpx;
+	font-weight: 900;
+	line-height: 1.15;
+	text-align: center;
+	white-space: nowrap;
+}
+
+.drag-delete-hint__sub {
 	margin-top: 4rpx;
+	color: rgba(255, 255, 255, 0.78);
+	font-size: 18rpx;
+	font-weight: 800;
+	line-height: 1.15;
+	text-align: center;
+	white-space: nowrap;
+}
+
+@keyframes drag-hint-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, 8rpx) scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, 0) scale(1);
+	}
 }
 </style>

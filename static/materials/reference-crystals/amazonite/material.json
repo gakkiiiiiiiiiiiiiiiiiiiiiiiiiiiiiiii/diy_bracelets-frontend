@@ -1,0 +1,18 @@
+{
+  "slug": "amazonite",
+  "name": "天河石",
+  "color": 3844020,
+  "attenuationColor": 3844020,
+  "attenuationDistance": 2.4,
+  "opacity": 0.96,
+  "roughness": 0.28,
+  "metalness": 0,
+  "transmission": 0.28,
+  "thickness": 0.85,
+  "clearcoat": 0.95,
+  "clearcoatRoughness": 0.1,
+  "reflectivity": 0.7,
+  "ior": 1.22,
+  "envMapIntensity": 0.85,
+  "normalScale": 0.55
+}

@@ -1,0 +1,18 @@
+{
+  "slug": "blue-moonstone",
+  "name": "蓝月光",
+  "color": 11581896,
+  "attenuationColor": 11581896,
+  "attenuationDistance": 2.4,
+  "opacity": 0.9,
+  "roughness": 0.17,
+  "metalness": 0,
+  "transmission": 0.72,
+  "thickness": 0.85,
+  "clearcoat": 0.95,
+  "clearcoatRoughness": 0.1,
+  "reflectivity": 0.7,
+  "ior": 1.22,
+  "envMapIntensity": 0.85,
+  "normalScale": 0.55
+}

@@ -1,38 +1,197 @@
 import type { Material, MaterialCategory } from '@/types';
-import { API_BASE } from '@/config';
+import {
+  API_BASE,
+  DEV_API_BASE,
+  IS_DEV,
+  IS_MP_WEIXIN,
+  RESOLVED_API_BASE,
+  USE_MOCK_API,
+  USE_WXCLOUD_CONTAINER,
+  WXCLOUD_CONTAINER_ENV,
+  WXCLOUD_CONTAINER_SERVICE,
+} from '@/config';
 
-const base = (API_BASE || '').replace(/\/$/, '');
+const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
+let wxCloudInited = false;
 
-/** 请求 URL：base 为空时用相对路径 path（H5 开发时代理转发）；base 有值时拼完整地址（小程序需配置完整域名） */
-function request<T>(
+declare const wx: any;
+
+type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type UniRequestMethod = 'GET' | 'POST' | 'DELETE' | 'OPTIONS' | 'HEAD' | 'PUT' | 'TRACE' | 'CONNECT';
+
+export class MockApiFallbackError extends Error {
+  readonly isMockApiFallback = true;
+
+  constructor(path: string) {
+    super(`Mock API fallback for ${path}`);
+    this.name = 'MockApiFallbackError';
+  }
+}
+
+export function isMockApiFallbackError(err: unknown): err is MockApiFallbackError {
+  return !!err && typeof err === 'object' && (err as MockApiFallbackError).isMockApiFallback === true;
+}
+
+function normalizeResponseData<T>(data: unknown): T {
+  return (typeof data === 'string' ? JSON.parse(data) : data) as T;
+}
+
+function getAuthHeader(): Record<string, string> {
+  const token =
+    uni.getStorageSync('token') ||
+    uni.getStorageSync('accessToken') ||
+    uni.getStorageSync('Authorization');
+
+  if (!token) return {};
+  const tokenText = String(token);
+  return {
+    Authorization: tokenText.startsWith('Bearer ') ? tokenText : `Bearer ${tokenText}`,
+  };
+}
+
+function ensureWxCloudInit() {
+  if (wxCloudInited) return;
+  const wxApi = typeof wx !== 'undefined' ? wx : undefined;
+  if (!wxApi?.cloud?.init) return;
+  wxApi.cloud.init({
+    env: WXCLOUD_CONTAINER_ENV,
+  });
+  wxCloudInited = true;
+}
+
+function requestByWxCloudContainer<T>(
   path: string,
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
+  method: ApiMethod,
   body?: object,
 ): Promise<T> {
-  const url = path.startsWith('http') ? path : base ? `${base}${path}` : path;
+  ensureWxCloudInit();
+
   return new Promise((resolve, reject) => {
-    uni.request({
-      url,
+    const wxApi = typeof wx !== 'undefined' ? wx : undefined;
+    if (!wxApi?.cloud?.callContainer) {
+      reject(new Error('当前微信小程序环境不支持 wx.cloud.callContainer'));
+      return;
+    }
+
+    wxApi.cloud.callContainer({
+      config: {
+        env: WXCLOUD_CONTAINER_ENV,
+      },
+      path,
       method,
-      data: body,
-      header:
-        method !== 'GET' && body != null
-          ? { 'Content-Type': 'application/json' }
-          : undefined,
-      success: (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+      data: method === 'GET' ? '' : body ?? {},
+      header: {
+        'X-WX-SERVICE': WXCLOUD_CONTAINER_SERVICE,
+        'content-type': 'application/json',
+        ...getAuthHeader(),
+      },
+      success: (res: any) => {
+        const statusCode = res?.statusCode ?? 200;
+        if (statusCode >= 200 && statusCode < 300) {
           try {
-            const data =
-              typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
-            resolve(data as T);
+            resolve(normalizeResponseData<T>(res.data));
           } catch (e) {
             reject(new Error('接口返回非 JSON'));
           }
         } else {
-          reject(new Error(`API ${path} ${res.statusCode}`));
+          console.warn('[api] wx.cloud.callContainer failed with non-2xx status', {
+            path,
+            statusCode,
+            data: res?.data,
+          });
+          reject(new Error(`API ${path} ${statusCode}`));
         }
       },
-      fail: (err) => reject(err),
+      fail: (err: unknown) => {
+        console.warn('[api] wx.cloud.callContainer transport failed', {
+          path,
+          env: WXCLOUD_CONTAINER_ENV,
+          service: WXCLOUD_CONTAINER_SERVICE,
+          err,
+        });
+        reject(err);
+      },
+    });
+  });
+}
+
+/** 请求 URL：base 为空时用相对路径 path（H5 开发时代理转发）；base 有值时拼完整地址（小程序需配置完整域名） */
+function request<T>(
+  path: string,
+  method: ApiMethod = 'GET',
+  body?: object,
+): Promise<T> {
+  if (USE_WXCLOUD_CONTAINER && !path.startsWith('http')) {
+    return requestByWxCloudContainer<T>(path, method, body);
+  }
+
+  if (USE_MOCK_API && path.startsWith('/api/')) {
+    return Promise.reject(new MockApiFallbackError(path));
+  }
+
+  if (!base && !IS_MP_WEIXIN && !IS_DEV && path.startsWith('/api/')) {
+    console.warn('[api] request skipped: missing API base in H5 build, using mock fallback', {
+      path,
+      apiBase: API_BASE,
+    });
+    return Promise.reject(new Error(`API base is not configured for ${path}`));
+  }
+
+  if (!base && IS_MP_WEIXIN && path.startsWith('/')) {
+    const err = new Error(
+      '微信小程序端不能请求相对路径 /api。请配置 VITE_WXCLOUD_CONTAINER_ENV/VITE_WXCLOUD_CONTAINER_SERVICE 使用云托管，或配置 VITE_API_BASE。',
+    );
+    console.warn('[api] request skipped: missing absolute API base for mp-weixin', {
+      path,
+      apiBase: API_BASE,
+      devApiBase: DEV_API_BASE,
+    });
+    return Promise.reject(err);
+  }
+
+  const url = path.startsWith('http') ? path : base ? `${base}${path}` : path;
+  const uniMethod: UniRequestMethod = method === 'PATCH' ? 'POST' : method;
+  const header =
+    method !== 'GET' && body != null
+      ? { 'Content-Type': 'application/json', ...getAuthHeader() }
+      : getAuthHeader();
+  if (method === 'PATCH') header['X-HTTP-Method-Override'] = 'PATCH';
+
+  return new Promise((resolve, reject) => {
+    uni.request({
+      url,
+      method: uniMethod,
+      data: body,
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(normalizeResponseData<T>(res.data));
+          } catch (e) {
+            reject(new Error('接口返回非 JSON'));
+          }
+        } else {
+          const err = new Error(`API ${path} ${res.statusCode}`);
+          console.warn('[api] request failed with non-2xx status', {
+            path,
+            url,
+            statusCode: res.statusCode,
+            data: res.data,
+          });
+          reject(err);
+        }
+      },
+      fail: (err) => {
+        console.warn('[api] request transport failed', {
+          path,
+          url,
+          err,
+          hint: IS_MP_WEIXIN
+            ? '请检查微信开发者工具是否关闭“校验合法域名”，或 VITE_API_BASE 是否为已配置的 https 合法域名。'
+            : '请检查后端地址与本地代理配置。',
+        });
+        reject(err);
+      },
     });
   });
 }
@@ -77,6 +236,10 @@ export interface HomeBanner {
   image: string;
   link: string;
   title?: string;
+  subtitle?: string;
+  variant?: 'notice' | 'rabbit' | 'image' | 'service';
+  badge?: string;
+  bullets?: string[];
 }
 
 export interface HomeDesign {
@@ -127,6 +290,8 @@ export interface DesignDetail {
   images: string[] | null;
   usageCount: number;
   composition: DesignCompositionRow[];
+  handCircumferenceCm?: number;
+  hasUnavailableParts?: boolean;
 }
 
 export interface CartItem {
@@ -135,6 +300,13 @@ export interface CartItem {
   image: string;
   price: number;
   qty: number;
+  type?: string;
+  spec?: string;
+  /** 用户定制目标手围，单位 cm */
+  handCircumferenceCm?: number;
+  /** 当前珠子估算成串长度，单位 cm */
+  estimatedCircumferenceCm?: number;
+  composition?: DesignCompositionRow[];
 }
 
 export interface CartData {

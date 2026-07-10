@@ -3,19 +3,36 @@
 		{
 			"path": "pages/home/home",
 			"style": {
-				"navigationBarTitleText": "养个石头"
+				"navigationStyle": "custom",
+				"navigationBarTitleText": ""
 			}
 		},
 		{
 			"path": "pages/goods/goods",
 			"style": {
-				"navigationBarTitleText": "设计广场"
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "好物"
 			}
 		},
 		{
 			"path": "pages/goods/detail/detail",
 			"style": {
-				"navigationBarTitleText": "设计详情"
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "商品详情"
+			}
+		},
+		{
+			"path": "pages/goods/search/search",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "产品搜索"
+			}
+		},
+		{
+			"path": "pages/design/entry",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": ""
 			}
 		},
 		{
@@ -26,15 +43,94 @@
 			}
 		},
 		{
+			"path": "pages/plaza/plaza",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "设计广场"
+			}
+		},
+		{
 			"path": "pages/cart/cart",
 			"style": {
+				"navigationStyle": "custom",
 				"navigationBarTitleText": "购物车"
+			}
+		},
+		{
+			"path": "pages/checkout/checkout",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "提交订单"
 			}
 		},
 		{
 			"path": "pages/profile/profile",
 			"style": {
-				"navigationBarTitleText": "个人中心"
+				"navigationStyle": "custom",
+				"navigationBarTitleText": ""
+			}
+		},
+		{
+			"path": "pages/profile/details",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "个人资料"
+			}
+		},
+		{
+			"path": "pages/profile/coupons",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "优惠券与口令兑换"
+			}
+		},
+		{
+			"path": "pages/profile/favorites",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "收藏灵感"
+			}
+		},
+		{
+			"path": "pages/profile/address",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "我的收货地址"
+			}
+		},
+		{
+			"path": "pages/profile/help",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "帮助中心"
+			}
+		},
+		{
+			"path": "pages/profile/purchase-notes",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "水晶购买须知"
+			}
+		},
+		{
+			"path": "pages/profile/terms",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "条款和条件"
+			}
+		},
+		{
+			"path": "pages/orders/list",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "我的订单"
+			}
+		},
+		{
+			"path": "pages/orders/detail",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "订单详情"
 			}
 		},
 		{
@@ -65,15 +161,15 @@
 			},
 			{
 				"pagePath": "pages/goods/goods",
-				"text": "设计广场",
+				"text": "好物",
 				"iconPath": "static/tabbar/goods.png",
 				"selectedIconPath": "static/tabbar/goods-active.png"
 			},
 			{
 				"pagePath": "pages/design/design",
 				"text": "DIY",
-				"iconPath": "static/tabbar/diy.png",
-				"selectedIconPath": "static/tabbar/diy-active.png"
+				"iconPath": "static/tabbar/diy-center.png",
+				"selectedIconPath": "static/tabbar/diy-center.png"
 			},
 			{
 				"pagePath": "pages/cart/cart",
