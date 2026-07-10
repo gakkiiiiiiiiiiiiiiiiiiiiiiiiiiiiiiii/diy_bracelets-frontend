@@ -42,7 +42,7 @@ interface HomeData {
 const data = ref<HomeData>(mockHomeData);
 const supportOpen = ref(false);
 const activeBannerIndex = ref(1);
-const statText = '累计已有531,043条手串设计，在养个石头上诞生';
+const statText = '累计已有531,061条手串设计，在养个石头上诞生';
 const serviceId = 'YGS-STONE';
 const QR_GRID_SIZE = 25;
 const QR_CELL_SIZE = 18;

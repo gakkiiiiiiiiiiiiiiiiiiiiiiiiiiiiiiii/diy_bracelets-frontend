@@ -38,6 +38,7 @@ export const shopGoodsCategories: ShopGoodsCategory[] = [
 		image: `${shopRoot}/rabbit-category-thumb.png`,
 		description: '丝状内含物清晰的手串与散珠',
 		visual: 'bracelet',
+		showOnGoodsHome: false,
 	},
 	{
 		id: 'services',

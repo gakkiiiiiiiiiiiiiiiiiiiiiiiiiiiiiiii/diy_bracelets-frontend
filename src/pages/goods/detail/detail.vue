@@ -30,6 +30,7 @@ const materialsStore = useMaterialsStore();
 const savedStore = useSavedDesignsStore();
 const selectedSize = ref('');
 const buyQty = ref(1);
+const productNote = ref('');
 const checkoutAddresses = ref<CheckoutAddress[]>([]);
 const supportOpen = ref(false);
 const serviceId = 'YGS-STONE';
@@ -47,7 +48,8 @@ const productTotalPrice = computed(() => Number(((product.value?.price || 0) * b
 const productTotalPriceText = computed(() => productTotalPrice.value.toFixed(1));
 const selectedAddress = computed(() => defaultCheckoutAddress(checkoutAddresses.value));
 const freightText = computed(() => (selectedAddress.value ? '(包邮) 0.0' : '(包邮) 0.0'));
-const productBuySubText = computed(() => (selectedAddress.value ? '立即结算' : '请选择地址'));
+const productBuySubText = computed(() => (selectedAddress.value ? '立即结算' : '请先选择地址'));
+const productNoteCount = computed(() => productNote.value.length);
 const addressSummaryText = computed(() =>
 	selectedAddress.value ? `${selectedAddress.value.region} ${selectedAddress.value.detail}` : '',
 );
@@ -135,6 +137,7 @@ async function fetchDetail() {
 		detail.value = null;
 		selectedSize.value = localProduct.sizes[0] ?? '';
 		buyQty.value = 1;
+		productNote.value = '';
 		return;
 	}
 	loading.value = true;
@@ -302,7 +305,7 @@ function addProductToCart() {
 function buyNow() {
 	const item = productCartItem();
 	if (!item) return;
-	saveCheckoutDraft('buy-now', [item], [item.id]);
+	saveCheckoutDraft('buy-now', [item], [item.id], productNote.value);
 	if (!selectedAddress.value) {
 		uni.showToast({ title: '请先添加收货地址', icon: 'none' });
 		setTimeout(() => {
@@ -453,6 +456,18 @@ function goBack() {
 					<view class="address-sub">立即添加收货地址</view>
 				</view>
 				<view class="address-arrow">›</view>
+			</view>
+			<view class="shop-note-section">
+				<view class="shop-note-head">
+					<view class="shop-note-title">备注</view>
+					<view class="shop-note-count">{{ productNoteCount }}/45</view>
+				</view>
+				<input
+					v-model="productNote"
+					class="shop-note-input"
+					maxlength="45"
+					placeholder="选填、给商家留言"
+				/>
 			</view>
 			<view class="shop-footer">
 				<view class="footer-mini" @tap="contactService">
@@ -917,14 +932,25 @@ function goBack() {
 }
 
 .shop-address-card {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 20rpx;
 	margin: 22rpx 32rpx 0;
 	min-height: 112rpx;
 	padding: 20rpx 0;
-	border-bottom: 1rpx solid #f0f0f2;
 	box-sizing: border-box;
+}
+
+.shop-address-card::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -2rpx;
+	height: 5rpx;
+	background: repeating-linear-gradient(135deg, #df6a70 0 5rpx, transparent 5rpx 10rpx);
+	opacity: 0.72;
 }
 
 .shop-address-card:active {
@@ -991,6 +1017,45 @@ function goBack() {
 	font-weight: 700;
 	line-height: 1;
 	flex-shrink: 0;
+}
+
+.shop-note-section {
+	padding: 42rpx 32rpx 50rpx;
+	background: #fff;
+	box-sizing: border-box;
+}
+
+.shop-note-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+
+.shop-note-title {
+	color: #22252d;
+	font-size: 29rpx;
+	font-weight: 900;
+	line-height: 1.2;
+}
+
+.shop-note-count {
+	color: #a0a3aa;
+	font-size: 24rpx;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.shop-note-input {
+	width: 100%;
+	height: 60rpx;
+	margin-top: 12rpx;
+	padding: 0;
+	color: #22252d;
+	font-size: 27rpx;
+	font-weight: 700;
+	line-height: 60rpx;
+	box-sizing: border-box;
 }
 
 .shop-detail-card {

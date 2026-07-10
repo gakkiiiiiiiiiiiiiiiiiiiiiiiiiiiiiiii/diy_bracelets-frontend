@@ -130,6 +130,10 @@ function designSubText() {
 }
 
 function go(entry: ProfileEntry) {
+	if (entry.id === 'help') {
+		openSupportQr();
+		return;
+	}
 	if (entry.path) {
 		uni.navigateTo({ url: entry.path });
 	}
@@ -542,7 +546,7 @@ function qrCellDark(row: number, col: number) {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding-top: calc(366rpx + env(safe-area-inset-top));
+	padding-top: calc(294rpx + env(safe-area-inset-top));
 	background: rgba(0, 0, 0, 0.72);
 	box-sizing: border-box;
 }
@@ -556,11 +560,11 @@ function qrCellDark(row: number, col: number) {
 
 .support-qr-card {
 	position: relative;
-	width: 642rpx;
-	height: 642rpx;
-	margin-top: 34rpx;
+	width: 570rpx;
+	height: 570rpx;
+	margin-top: 20rpx;
 	background: #fff;
-	padding: 24rpx;
+	padding: 20rpx;
 	box-sizing: border-box;
 }
 
@@ -644,7 +648,7 @@ function qrCellDark(row: number, col: number) {
 	width: 56rpx;
 	height: 56rpx;
 	line-height: 50rpx;
-	margin-top: 70rpx;
+	margin-top: 18rpx;
 	border: 6rpx solid #fff;
 	border-radius: 50%;
 	color: #fff;

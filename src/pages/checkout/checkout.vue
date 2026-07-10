@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import type { CartItem } from '@/api';
@@ -85,13 +85,36 @@ const couponSheetSubText = computed(() => {
 	return `${usableCoupons.value.length} 张可用，${unusableCount} 张未达门槛`;
 });
 
-onShow(() => {
+onShow(loadCheckoutState);
+
+onMounted(() => {
+	// #ifdef H5
+	window.addEventListener('hashchange', syncCheckoutStateFromHash);
+	syncCheckoutStateFromHash();
+	// #endif
+});
+
+onBeforeUnmount(() => {
+	// #ifdef H5
+	window.removeEventListener('hashchange', syncCheckoutStateFromHash);
+	// #endif
+});
+
+function syncCheckoutStateFromHash() {
+	// #ifdef H5
+	if (!window.location.hash.startsWith('#/pages/checkout/checkout')) return;
+	// #endif
+	loadCheckoutState();
+}
+
+function loadCheckoutState() {
 	if (submittedOrder.value) return;
 	const nextDraft = loadCheckoutDraft();
 	const nextSignature = getDraftSignature(nextDraft);
 	if (nextSignature !== draftSignature.value) {
 		selectedCouponId.value = null;
 		skipCoupon.value = false;
+		note.value = nextDraft?.note || '';
 	}
 	draftSignature.value = nextSignature;
 	draft.value = nextDraft;
@@ -99,7 +122,7 @@ onShow(() => {
 	coupons.value = loadCoupons();
 	couponSheetOpen.value = false;
 	normalizeSelectedCoupon();
-});
+}
 
 function loadCoupons(): CouponRecord[] {
 	try {
@@ -133,7 +156,9 @@ function formatDate(iso: string) {
 }
 
 function getDraftSignature(nextDraft: CheckoutDraft | null) {
-	return nextDraft?.items.map((item) => `${item.id}:${item.qty}:${item.price}`).join('|') || '';
+	if (!nextDraft) return '';
+	const itemsSignature = nextDraft.items.map((item) => `${item.id}:${item.qty}:${item.price}`).join('|');
+	return `${nextDraft.id}|${itemsSignature}`;
 }
 
 function couponExpireTime(coupon: CouponRecord) {

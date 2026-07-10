@@ -18,6 +18,7 @@ export interface CheckoutDraft {
 	source: CheckoutSource;
 	items: CartItem[];
 	selectedIds: string[];
+	note?: string;
 	createdAt: string;
 }
 
@@ -33,12 +34,18 @@ export function cloneCartItem(item: CartItem): CartItem {
 	};
 }
 
-export function saveCheckoutDraft(source: CheckoutSource, items: CartItem[], selectedIds: string[] = []) {
+export function saveCheckoutDraft(
+	source: CheckoutSource,
+	items: CartItem[],
+	selectedIds: string[] = [],
+	note = '',
+) {
 	const draft: CheckoutDraft = {
 		id: `checkout-${Date.now()}`,
 		source,
 		items: items.map(cloneCartItem),
 		selectedIds: selectedIds.length ? selectedIds : items.map((item) => item.id),
+		note: note.trim(),
 		createdAt: new Date().toISOString(),
 	};
 	uni.setStorageSync(CHECKOUT_DRAFT_KEY, JSON.stringify(draft));

@@ -44,8 +44,8 @@ function openCategory(category: ShopGoodsCategory) {
 	<view class="page">
 		<!-- #ifdef H5 -->
 		<MiniProgramCapsule />
-		<view class="goods-nav-title">好物</view>
 		<!-- #endif -->
+		<view class="goods-nav-title">好物</view>
 		<view class="search" @tap="openSearch">
 			<view class="search-icon">
 				<view class="search-lens" />
@@ -61,26 +61,12 @@ function openCategory(category: ShopGoodsCategory) {
 				:class="{ 'category-row--skeleton': loading }"
 				@tap="!loading && openCategory(category)"
 			>
-				<view class="category-img" :class="`category-img--${category.visual || 'bracelet'}`">
-					<template v-if="category.visual === 'bracelet'">
-						<image class="bracelet-photo" :src="category.image" mode="aspectFill" />
-					</template>
-					<view v-else class="mascot">
-						<view class="mascot-head">
-							<view class="mascot-eye mascot-eye--left" />
-							<view class="mascot-eye mascot-eye--right" />
-							<view class="mascot-mouth" />
-						</view>
-						<view v-if="category.visual === 'mascot-cup'" class="mascot-cup">
-							<view class="cup-body" />
-							<view class="cup-handle" />
-						</view>
-						<view v-else class="mascot-pick">
-							<view class="pick-handle" />
-							<view class="pick-head" />
-							<view class="soil soil-a" />
-							<view class="soil soil-b" />
-						</view>
+				<view class="category-img" aria-hidden="true">
+					<view class="category-symbol">
+						<view class="category-symbol__dot category-symbol__dot--left" />
+						<view class="category-symbol__dot category-symbol__dot--right" />
+						<view class="category-symbol__ridge category-symbol__ridge--left" />
+						<view class="category-symbol__ridge category-symbol__ridge--right" />
 					</view>
 				</view>
 				<view class="category-body">
@@ -105,13 +91,8 @@ function openCategory(category: ShopGoodsCategory) {
 .page {
 	min-height: 100vh;
 	background: #fff;
-	padding: 22rpx 22rpx 132rpx;
+	padding: calc(148rpx + env(safe-area-inset-top)) 22rpx 132rpx;
 	box-sizing: border-box;
-}
-
-/* #ifdef H5 */
-.page {
-	padding-top: calc(148rpx + env(safe-area-inset-top));
 }
 
 .goods-nav-title {
@@ -126,7 +107,6 @@ function openCategory(category: ShopGoodsCategory) {
 	line-height: 1;
 	white-space: nowrap;
 }
-/* #endif */
 
 .search {
 	width: 100%;
@@ -190,7 +170,7 @@ function openCategory(category: ShopGoodsCategory) {
 }
 
 .category-row {
-	height: 258rpx;
+	height: 226rpx;
 	display: flex;
 	align-items: center;
 	gap: 24rpx;
@@ -206,147 +186,53 @@ function openCategory(category: ShopGoodsCategory) {
 	position: relative;
 	width: 186rpx;
 	height: 186rpx;
-	border-radius: 7rpx;
-	background: #fff8df;
 	flex-shrink: 0;
-	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.category-img--bracelet {
-	background:
-		radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.9), rgba(245, 242, 236, 0.28)),
-		#ecf4f2;
+.category-symbol {
+	position: relative;
+	width: 72rpx;
+	height: 48rpx;
+	color: #9ca5a2;
 }
 
-.bracelet-photo {
+.category-symbol__dot {
 	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-}
-
-.mascot {
-	position: absolute;
-	inset: 0;
-}
-
-.mascot-head {
-	position: absolute;
-	left: 36rpx;
-	top: 35rpx;
-	width: 108rpx;
-	height: 100rpx;
-	border: 5rpx solid #191919;
-	border-radius: 48% 48% 45% 45%;
-	background: #fffef7;
-	box-sizing: border-box;
-}
-
-.mascot-eye {
-	position: absolute;
-	top: 38rpx;
+	top: 7rpx;
 	width: 7rpx;
 	height: 7rpx;
 	border-radius: 50%;
-	background: #191919;
+	background: currentColor;
 }
 
-.mascot-eye--left {
-	left: 34rpx;
+.category-symbol__dot--left {
+	left: 16rpx;
 }
 
-.mascot-eye--right {
-	right: 34rpx;
+.category-symbol__dot--right {
+	right: 14rpx;
 }
 
-.mascot-mouth {
+.category-symbol__ridge {
 	position: absolute;
-	left: 49rpx;
-	top: 51rpx;
-	width: 10rpx;
-	height: 5rpx;
-	border-bottom: 4rpx solid #191919;
-	border-radius: 0 0 12rpx 12rpx;
-}
-
-.mascot-cup {
-	position: absolute;
-	left: 72rpx;
-	top: 98rpx;
-	width: 54rpx;
-	height: 44rpx;
-}
-
-.cup-body {
-	position: absolute;
-	left: 4rpx;
-	top: 8rpx;
-	width: 38rpx;
-	height: 27rpx;
-	border: 4rpx solid #a16b37;
-	border-radius: 0 0 14rpx 14rpx;
-	box-sizing: border-box;
-	background: #f4d79a;
-}
-
-.cup-handle {
-	position: absolute;
-	right: 0;
-	top: 13rpx;
-	width: 15rpx;
-	height: 16rpx;
-	border: 4rpx solid #a16b37;
-	border-left: 0;
-	border-radius: 0 12rpx 12rpx 0;
-}
-
-.mascot-pick {
-	position: absolute;
-	inset: 0;
-}
-
-.pick-handle {
-	position: absolute;
-	left: 47rpx;
-	top: 45rpx;
-	width: 7rpx;
-	height: 100rpx;
-	border-radius: 999rpx;
-	background: #735137;
-	transform: rotate(38deg);
-}
-
-.pick-head {
-	position: absolute;
-	left: 31rpx;
-	top: 33rpx;
-	width: 55rpx;
-	height: 24rpx;
-	border: 5rpx solid #191919;
-	border-bottom: 0;
-	border-radius: 34rpx 34rpx 0 0;
-	transform: rotate(38deg);
-	box-sizing: border-box;
-}
-
-.soil {
-	position: absolute;
+	top: 23rpx;
+	width: 31rpx;
+	height: 15rpx;
+	border-top: 4rpx solid currentColor;
 	border-radius: 50%;
-	background: #604732;
 }
 
-.soil-a {
-	left: 24rpx;
-	bottom: 28rpx;
-	width: 74rpx;
-	height: 24rpx;
+.category-symbol__ridge--left {
+	left: 6rpx;
+	transform: rotate(-24deg);
 }
 
-.soil-b {
-	left: 85rpx;
-	bottom: 21rpx;
-	width: 58rpx;
-	height: 20rpx;
+.category-symbol__ridge--right {
+	right: 5rpx;
+	transform: rotate(25deg);
 }
 
 .category-body {
