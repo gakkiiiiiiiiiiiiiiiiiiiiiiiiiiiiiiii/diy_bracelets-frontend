@@ -63,6 +63,18 @@ function onRouteHashChange() {
 function startPageLoading() {
 	if (loadingTimer) clearTimeout(loadingTimer);
 	if (loadingProgressTimer) clearInterval(loadingProgressTimer);
+	// #ifdef H5
+	// Keep H5 scroll views mounted from the first render. Delayed mounting inside
+	// uni-app's cached tab pages can run the scroll-view activated hook before its
+	// DOM ref exists.
+	loadingReady.value = true;
+	loadingProgress.value = 100;
+	return;
+	// #endif
+	if (loadingReady.value && materialsStore.loaded) {
+		loadingProgress.value = 100;
+		return;
+	}
 	loadingReady.value = false;
 	loadingProgress.value = 8;
 	loadingProgressTimer = setInterval(() => {
