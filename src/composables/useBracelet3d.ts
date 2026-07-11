@@ -192,6 +192,7 @@ export function useBracelet3d(
 	// ThreeJS相关对象
 	let scene: THREE.Scene; // 场景
 	let camera: THREE.PerspectiveCamera; // 摄像机
+	let cameraAspect = 1;
 	let renderer: THREE.WebGLRenderer; // 渲染器
 	let braceletGroup: THREE.Group; // 手串整体Group
 	let ringMesh: THREE.Mesh; // 环
@@ -1118,8 +1119,10 @@ export function useBracelet3d(
 		if (!renderer || !camera || !canvasEl) return;
 		renderer.setPixelRatio(getAdaptivePixelRatio());
 		renderer.setSize(width, height, false);
-		camera.aspect = width / height;
+		cameraAspect = width / Math.max(height, 1);
+		camera.aspect = cameraAspect;
 		camera.updateProjectionMatrix();
+		if (!cameraAnimation) applyCameraView();
 	}
 
 	function clampCameraDistance(next: number) {
@@ -1140,10 +1143,14 @@ export function useBracelet3d(
 	}
 
 	function getCameraPose(mode: 'top' | 'side') {
+		// PerspectiveCamera 的横向视野会随 aspect 变窄。桌面双栏中的画布偏长，
+		// 需要让相机适度后退，保证完整手串始终按画布短边取景。
+		const aspectFit = Math.max(1, Math.min(1.7, 0.9 / Math.max(cameraAspect, 0.01)));
+		const fittedDistance = cameraDistance.value * aspectFit;
 		return mode === 'top'
 			? {
 					x: 0,
-					y: cameraDistance.value,
+					y: fittedDistance,
 					z: 0,
 					upX: 0,
 					upY: 0,
@@ -1152,7 +1159,7 @@ export function useBracelet3d(
 			: {
 					x: 0.28,
 					y: 1.48,
-					z: cameraDistance.value * 0.94,
+					z: fittedDistance * 0.94,
 					upX: 0,
 					upY: 1,
 					upZ: 0,
@@ -1722,6 +1729,7 @@ export function useBracelet3d(
 		// 获取画布尺寸
 		const width = canvas.clientWidth || 400;
 		const height = canvas.clientHeight || 400;
+		cameraAspect = width / Math.max(height, 1);
 
 		// 创建threejs基本对象
 		scene = new THREE.Scene();

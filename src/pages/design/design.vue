@@ -5663,4 +5663,144 @@ function hideDesignTabBar() {
 		transform: translateY(0) scale(1);
 	}
 }
+
+/* #ifdef H5 */
+/*
+ * H5 宽屏使用真正的配置器工作台布局。rpx 只负责移动端密度，
+ * 桌面区域尺寸用 px/% 约束，避免浏览器变宽后控件与素材卡同步膨胀。
+ */
+@media screen and (min-width: 769px) and (max-width: 899px) {
+	.page--ready {
+		width: min(520px, 100vw);
+		margin: 0 auto;
+		box-shadow: 0 0 36px rgba(67, 85, 86, 0.08);
+	}
+}
+
+@media screen and (min-width: 900px) {
+	.page--ready {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) clamp(380px, 36vw, 460px);
+		grid-template-rows: auto auto minmax(0, 1fr);
+		column-gap: 1px;
+		padding-bottom: 0;
+		background: #f1f3f1;
+	}
+
+	.page--ready :deep(.nav-bar) {
+		grid-column: 1 / -1;
+		grid-row: 1;
+	}
+
+	.page--ready .info-section {
+		grid-column: 1;
+		grid-row: 2;
+		padding: 10px 18px;
+		border-bottom: 1px solid rgba(82, 121, 133, 0.12);
+	}
+
+	.page--ready .info-tags {
+		min-height: 44px;
+		gap: 10px;
+	}
+
+	.page--ready .info-tags__left,
+	.page--ready .info-tags__right {
+		gap: 8px;
+	}
+
+	.page--ready .canvas-section {
+		grid-column: 1;
+		grid-row: 3;
+		min-width: 0;
+		min-height: 0;
+		border-right: 1px solid rgba(82, 121, 133, 0.12);
+	}
+
+	.page--ready .canvas-card {
+		min-height: 0;
+	}
+
+	.page--ready .bottom-section {
+		grid-column: 2;
+		grid-row: 2 / 4;
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		border-top: 0;
+		box-shadow: -12px 0 30px rgba(67, 85, 86, 0.07);
+	}
+
+	.page--ready .action-row {
+		min-height: 64px;
+		padding: 8px 14px;
+		border-bottom: 1px solid rgba(82, 121, 133, 0.12);
+		box-sizing: border-box;
+	}
+
+	.page--ready .action-row__left {
+		gap: 8px;
+	}
+
+	.page--ready .action-row__spacer {
+		min-width: 8px;
+	}
+
+	.page--ready .material-panel {
+		flex: 1;
+		height: auto;
+		min-height: 0;
+		border-top: 0;
+	}
+
+	.page--ready .refill-suggestion {
+		min-height: 58px;
+		padding: 9px 14px;
+		gap: 10px;
+	}
+
+	.page--ready .material-body,
+	.page--ready .function-panel {
+		min-height: 0;
+	}
+
+	.page--ready .material-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+		padding: 14px 14px 30px;
+	}
+
+	.page--ready .function-panel__cards {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+		padding: 18px 14px;
+	}
+
+	.page--ready .function-card {
+		height: 112px;
+	}
+
+	.page--ready .view-mode-toggle {
+		right: 18px;
+		top: 18px;
+	}
+
+	.design-confirm-sheet {
+		width: min(560px, calc(100vw - 48px));
+		margin: 0 auto;
+		border-radius: 20px 20px 0 0;
+	}
+}
+
+@media screen and (min-width: 1400px) {
+	.page--ready {
+		grid-template-columns: minmax(700px, 1fr) 480px;
+	}
+
+	.page--ready .material-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+/* #endif */
 </style>
