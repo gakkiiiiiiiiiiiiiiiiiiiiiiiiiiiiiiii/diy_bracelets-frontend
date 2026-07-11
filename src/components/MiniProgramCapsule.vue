@@ -1,17 +1,19 @@
+<script setup lang="ts">
+import BrandIcon from '@/components/BrandIcon.vue';
+</script>
+
 <template>
 	<view class="mini-capsule" aria-hidden="true">
 		<view class="mini-capsule__menu">
-			<view class="mini-capsule__dot" />
-			<view class="mini-capsule__dot" />
-			<view class="mini-capsule__dot" />
+			<BrandIcon class="mini-capsule__icon" name="ellipsis" />
 		</view>
 		<view class="mini-capsule__divider" />
 		<view class="mini-capsule__minimize">
-			<view class="mini-capsule__dash" />
+			<BrandIcon class="mini-capsule__icon mini-capsule__icon--small" name="minus" />
 		</view>
 		<view class="mini-capsule__divider" />
 		<view class="mini-capsule__close">
-			<view class="mini-capsule__ring" />
+			<BrandIcon class="mini-capsule__icon" name="locate-fixed" />
 		</view>
 	</view>
 </template>
@@ -53,48 +55,19 @@
 	width: 50rpx;
 }
 
-.mini-capsule__menu {
-	gap: 7rpx;
-}
-
-.mini-capsule__dot {
-	width: 8rpx;
-	height: 8rpx;
-	border-radius: 50%;
-	background: #111318;
-}
-
 .mini-capsule__divider {
 	width: 1rpx;
 	height: 32rpx;
 	background: rgba(23, 25, 31, 0.12);
 }
 
-.mini-capsule__dash {
-	width: 20rpx;
-	height: 4rpx;
-	border-radius: 999rpx;
-	background: #111318;
+.mini-capsule__icon {
+	width: 30rpx;
+	height: 30rpx;
 }
 
-.mini-capsule__ring {
-	width: 27rpx;
-	height: 27rpx;
-	border: 5rpx solid #111318;
-	border-radius: 50%;
-	box-sizing: border-box;
-	position: relative;
-}
-
-.mini-capsule__ring::after {
-	content: '';
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 9rpx;
-	height: 9rpx;
-	border-radius: 50%;
-	background: #111318;
-	transform: translate(-50%, -50%);
+.mini-capsule__icon--small {
+	width: 26rpx;
+	height: 26rpx;
 }
 </style>

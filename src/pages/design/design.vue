@@ -8,6 +8,7 @@ import ActionButton from '@/components/ActionButton.vue';
 import MaterialSearch from '@/components/MaterialSearch.vue';
 import MaterialCategoryList from '@/components/MaterialCategoryList.vue';
 import MaterialCard from '@/components/MaterialCard.vue';
+import BrandIcon from '@/components/BrandIcon.vue';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
@@ -1489,10 +1490,11 @@ function hideDesignTabBar() {
 						title="俯视"
 						@tap.stop="setDesignViewMode('top')"
 					>
-						<view class="view-mode-icon view-mode-icon--top">
-							<view class="view-mode-icon__ring" />
-							<view class="view-mode-icon__dot" />
-						</view>
+						<BrandIcon
+							class="view-mode-icon"
+							name="circle-dot"
+							:tone="viewMode === 'top' ? 'inverse' : 'muted'"
+						/>
 					</view>
 					<view
 						class="view-mode-button"
@@ -1501,10 +1503,11 @@ function hideDesignTabBar() {
 						title="侧视"
 						@tap.stop="setDesignViewMode('side')"
 					>
-						<view class="view-mode-icon view-mode-icon--side">
-							<view class="view-mode-icon__arc" />
-							<view class="view-mode-icon__shadow" />
-						</view>
+						<BrandIcon
+							class="view-mode-icon"
+							name="rotate-3d"
+							:tone="viewMode === 'side' ? 'inverse' : 'muted'"
+						/>
 					</view>
 				</view>
 				<view class="growth-panel" :class="{ 'growth-panel--complete': canFinish && !isEffectiveBeadCountInsufficient }">
@@ -1534,9 +1537,15 @@ function hideDesignTabBar() {
 			<view class="action-row">
 				<view class="action-row__left">
 					<view class="function-menu-wrap" :class="{ 'function-menu-wrap--open': functionMenuOpen }">
-						<ActionButton type="delete" icon="▰" label="功能" @click="toggleFunctionMenu" />
+						<ActionButton
+							type="delete"
+							icon="layers-3"
+							:icon-tone="functionMenuOpen ? 'inverse' : 'brand'"
+							label="功能"
+							@click="toggleFunctionMenu"
+						/>
 					</view>
-					<ActionButton v-if="showSaveAction" type="save" icon="▣" :label="contentStore.diy.saveLabel" @click="onSave" />
+					<ActionButton v-if="showSaveAction" type="save" icon="save" :label="contentStore.diy.saveLabel" @click="onSave" />
 				</view>
 				<view class="action-row__spacer" />
 				<view class="action-row__right">
@@ -1567,23 +1576,23 @@ function hideDesignTabBar() {
 						</view>
 						<view class="function-panel__cards">
 							<view class="function-card" :class="{ 'function-card--muted': soundMuted }" @tap="toggleSoundMuted">
-								<view class="function-card__icon function-card__icon--sound" :class="{ 'function-card__icon--muted': soundMuted }" />
+								<BrandIcon class="function-card__icon" :name="soundMuted ? 'volume-x' : 'volume-2'" :tone="soundMuted ? 'muted' : 'brand'" />
 								<text class="function-card__label">{{ soundMuted ? '开启音效' : '关闭音效' }}</text>
 							</view>
 							<view class="function-card" @tap="onClearDesign">
-								<view class="function-card__icon function-card__icon--trash" />
+								<BrandIcon class="function-card__icon" name="trash-2" />
 								<text class="function-card__label">清空设计</text>
 							</view>
 							<view class="function-card" @tap="onImportDesign">
-								<view class="function-card__icon function-card__icon--import" />
+								<BrandIcon class="function-card__icon" name="file-down" />
 								<text class="function-card__label">导入设计</text>
 							</view>
 							<view class="function-card" @tap="onShareDesign">
-								<view class="function-card__icon function-card__icon--share" />
+								<BrandIcon class="function-card__icon" name="share-2" />
 								<text class="function-card__label">分享设计</text>
 							</view>
 							<view class="function-card" :class="{ 'function-card--active': inspirationMode }" @tap="onInspirationMode">
-								<view class="function-card__icon function-card__icon--spark" />
+								<BrandIcon class="function-card__icon" name="wand-sparkles" />
 								<text class="function-card__label">灵感模式</text>
 							</view>
 						</view>
@@ -1619,7 +1628,7 @@ function hideDesignTabBar() {
 							</view>
 							<view v-if="showInUseMaterialTip" class="in-use-tip">长按珠子选择区域查看实物图哦！ v2.0.6</view>
 							<view v-if="!materialsStore.filteredMaterialSpecCards.length" class="material-empty">
-								<view class="material-empty__icon">⌕</view>
+								<view class="material-empty__icon"><BrandIcon name="search" tone="muted" /></view>
 								<view class="material-empty__title">没有找到相关珠子</view>
 								<view class="material-empty__text">
 									{{ hasMaterialSearchKeyword ? '换个材质名或尺寸试试' : '当前分类暂无可用珠子' }}
@@ -1645,7 +1654,7 @@ function hideDesignTabBar() {
 							<view class="design-confirm-eyebrow">{{ designConfirmTypeText }}</view>
 							<view class="design-confirm-title">{{ designConfirmTitle }}</view>
 						</view>
-						<view class="design-confirm-close" @tap="closeDesignConfirm">×</view>
+						<view class="design-confirm-close" aria-label="关闭" @tap="closeDesignConfirm"><BrandIcon name="x" tone="muted" /></view>
 					</view>
 
 					<view class="design-confirm-card">
@@ -1718,7 +1727,7 @@ function hideDesignTabBar() {
 						<text class="actual-photo-eyebrow">本批次货品实物图</text>
 						<text class="actual-photo-title">{{ materialPreviewTitle }}</text>
 					</view>
-					<view class="actual-photo-close" @tap="closeMaterialPreview">×</view>
+					<view class="actual-photo-close" aria-label="关闭" @tap="closeMaterialPreview"><BrandIcon name="x" tone="muted" /></view>
 				</view>
 				<view class="actual-photo-frame">
 					<image v-if="materialPreview.image" class="actual-photo-img" :src="materialPreview.image" mode="aspectFit" />
@@ -1742,7 +1751,7 @@ function hideDesignTabBar() {
 			</view>
 		</view>
 		<view v-if="insufficientHintVisible" class="insufficient-hint" @tap="openWristNoticeFromHint">
-			<view class="insufficient-hint__icon" />
+			<BrandIcon class="insufficient-hint__icon" name="triangle-alert" tone="rose" />
 			<view class="insufficient-hint__copy">
 				<text class="insufficient-hint__title">手串尺寸偏小</text>
 				<text class="insufficient-hint__line">{{ insufficientDetailText }}</text>
@@ -1750,7 +1759,7 @@ function hideDesignTabBar() {
 			</view>
 		</view>
 		<view v-if="insufficientToastVisible" class="insufficient-toast" @tap="openWristSelectorFromToast">
-			<view class="insufficient-toast__icon" />
+			<BrandIcon class="insufficient-toast__icon" name="triangle-alert" tone="rose" />
 			<view class="insufficient-toast__copy">
 				<text class="insufficient-toast__title">手串尺寸偏小</text>
 				<text class="insufficient-toast__line">{{ insufficientDetailText }}</text>
@@ -1758,7 +1767,9 @@ function hideDesignTabBar() {
 			</view>
 		</view>
 		<view v-if="functionToastVisible" class="function-toast">
-			<view class="function-toast__icon" :class="`function-toast__icon--${functionToastIcon}`" />
+			<view class="function-toast__icon">
+				<BrandIcon :name="functionToastIcon === 'play' ? 'play' : 'circle-check'" tone="inverse" />
+			</view>
 			<text class="function-toast__text">{{ functionToastText }}</text>
 		</view>
 		<view v-if="wristSelectorOpen" class="wrist-target-overlay" @tap="closeWristSelector">
@@ -1768,15 +1779,15 @@ function hideDesignTabBar() {
 						<text class="wrist-target-eyebrow">目标手围</text>
 						<text class="wrist-target-title">{{ targetCircumference.toFixed(1) }}cm</text>
 					</view>
-					<view class="wrist-target-close" @tap="closeWristSelector">×</view>
+					<view class="wrist-target-close" aria-label="关闭" @tap="closeWristSelector"><BrandIcon name="x" tone="muted" /></view>
 				</view>
 				<view class="wrist-target-stepper">
-					<view class="wrist-target-stepper__btn" @tap="adjustWristTarget(-WRIST_TARGET_STEP_CM)">−</view>
+					<view class="wrist-target-stepper__btn" aria-label="减小手围" @tap="adjustWristTarget(-WRIST_TARGET_STEP_CM)"><BrandIcon name="minus" /></view>
 					<view class="wrist-target-stepper__value">
 						<text>{{ targetCircumference.toFixed(1) }}</text>
 						<text>cm</text>
 					</view>
-					<view class="wrist-target-stepper__btn" @tap="adjustWristTarget(WRIST_TARGET_STEP_CM)">＋</view>
+					<view class="wrist-target-stepper__btn" aria-label="增大手围" @tap="adjustWristTarget(WRIST_TARGET_STEP_CM)"><BrandIcon name="plus" /></view>
 				</view>
 				<view class="wrist-target-options">
 					<view
@@ -1809,7 +1820,7 @@ function hideDesignTabBar() {
 						{{ tab.label }}
 					</view>
 				</view>
-				<view class="notice-close" @tap="closeNoticeModal">×</view>
+				<view class="notice-close" aria-label="关闭" @tap="closeNoticeModal"><BrandIcon name="x" tone="muted" /></view>
 				<view
 					class="notice-content"
 					:class="{ 'notice-content--tutorial': activeNoticeTab === 'tutorial', 'notice-content--poster': activeNoticeTab !== 'tutorial' }"
@@ -2091,10 +2102,11 @@ function hideDesignTabBar() {
 	width: 44rpx;
 	height: 44rpx;
 	border-radius: 50%;
-	color: #606879;
-	font-size: 42rpx;
-	line-height: 40rpx;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8rpx;
+	box-sizing: border-box;
 }
 
 .actual-photo-frame {
@@ -2203,24 +2215,9 @@ function hideDesignTabBar() {
 }
 
 .insufficient-hint__icon {
-	position: relative;
-	width: 30rpx;
-	height: 30rpx;
-	border-radius: 50%;
+	width: 32rpx;
+	height: 32rpx;
 	flex-shrink: 0;
-	background: radial-gradient(circle at 32% 25%, #fff 0 15%, #7fa1a6 42%, #527985 100%);
-	box-shadow: 0 4rpx 9rpx rgba(82, 121, 133, 0.24);
-}
-
-.insufficient-hint__icon::after {
-	content: '';
-	position: absolute;
-	left: 9rpx;
-	top: 5rpx;
-	width: 8rpx;
-	height: 8rpx;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.72);
 }
 
 .insufficient-hint__copy {
@@ -2280,16 +2277,10 @@ function hideDesignTabBar() {
 }
 
 .insufficient-toast__icon {
-	position: relative;
 	z-index: 1;
-	width: 30rpx;
-	height: 30rpx;
-	border-radius: 50%;
+	width: 32rpx;
+	height: 32rpx;
 	flex-shrink: 0;
-	background:
-		radial-gradient(circle at 52% 38%, #fff 0 5rpx, transparent 6rpx),
-		radial-gradient(circle at 32% 25%, #fff 0 16%, #7fa1a6 44%, #527985 100%);
-	box-shadow: 0 4rpx 9rpx rgba(82, 121, 133, 0.24);
 }
 
 .insufficient-toast__copy {
@@ -2338,37 +2329,12 @@ function hideDesignTabBar() {
 }
 
 .function-toast__icon {
-	position: relative;
 	width: 32rpx;
 	height: 32rpx;
 	border-radius: 50%;
 	flex-shrink: 0;
 	background: #2fd36a;
 	box-shadow: 0 5rpx 10rpx rgba(38, 185, 91, 0.24);
-}
-
-.function-toast__icon::after {
-	content: '';
-	position: absolute;
-	left: 9rpx;
-	top: 7rpx;
-	width: 11rpx;
-	height: 7rpx;
-	border-left: 4rpx solid #fff;
-	border-bottom: 4rpx solid #fff;
-	transform: rotate(-45deg);
-}
-
-.function-toast__icon--play::after {
-	left: 12rpx;
-	top: 8rpx;
-	width: 0;
-	height: 0;
-	border-left: 12rpx solid #fff;
-	border-top: 8rpx solid transparent;
-	border-bottom: 8rpx solid transparent;
-	border-radius: 2rpx;
-	transform: none;
 }
 
 .function-toast__text {
@@ -2434,10 +2400,11 @@ function hideDesignTabBar() {
 	height: 52rpx;
 	border-radius: 50%;
 	background: #f2f4f8;
-	color: #6d7486;
-	font-size: 44rpx;
-	line-height: 48rpx;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12rpx;
+	box-sizing: border-box;
 }
 
 .wrist-target-stepper {
@@ -2454,12 +2421,12 @@ function hideDesignTabBar() {
 
 .wrist-target-stepper__btn {
 	height: 96rpx;
-	color: #527985;
-	font-size: 42rpx;
-	font-weight: 900;
-	line-height: 96rpx;
-	text-align: center;
 	background: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 30rpx;
+	box-sizing: border-box;
 }
 
 .wrist-target-stepper__btn:active,
@@ -2615,10 +2582,11 @@ function hideDesignTabBar() {
 	width: 36rpx;
 	height: 36rpx;
 	border-radius: 50%;
-	color: #6f7584;
-	font-size: 38rpx;
-	line-height: 34rpx;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 6rpx;
+	box-sizing: border-box;
 	z-index: 2;
 }
 
@@ -4445,58 +4413,8 @@ function hideDesignTabBar() {
 }
 
 .view-mode-icon {
-	position: relative;
 	width: 34rpx;
 	height: 34rpx;
-	color: #717c79;
-}
-
-.view-mode-button--active .view-mode-icon {
-	color: #fff;
-}
-
-.view-mode-icon__ring {
-	position: absolute;
-	inset: 4rpx;
-	border: 3rpx solid currentColor;
-	border-radius: 999rpx;
-	box-sizing: border-box;
-}
-
-.view-mode-icon__dot {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 8rpx;
-	height: 8rpx;
-	margin-left: -4rpx;
-	margin-top: -4rpx;
-	border-radius: 999rpx;
-	background: currentColor;
-	box-shadow: 0 -12rpx 0 -2rpx currentColor;
-}
-
-.view-mode-icon__arc {
-	position: absolute;
-	left: 4rpx;
-	right: 4rpx;
-	top: 6rpx;
-	height: 20rpx;
-	border: 3rpx solid currentColor;
-	border-bottom-color: transparent;
-	border-radius: 999rpx 999rpx 8rpx 8rpx;
-	box-sizing: border-box;
-}
-
-.view-mode-icon__shadow {
-	position: absolute;
-	left: 7rpx;
-	right: 7rpx;
-	bottom: 5rpx;
-	height: 5rpx;
-	border-radius: 999rpx;
-	background: currentColor;
-	opacity: 0.72;
 }
 
 .growth-panel {
@@ -4721,11 +4639,11 @@ function hideDesignTabBar() {
 	height: 58rpx;
 	border-radius: 50%;
 	background: #fff;
-	color: #7d818b;
-	font-size: 38rpx;
-	font-weight: 700;
-	line-height: 54rpx;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 14rpx;
+	box-sizing: border-box;
 	box-shadow: 0 8rpx 18rpx rgba(31, 35, 48, 0.06);
 	flex-shrink: 0;
 }
@@ -5357,155 +5275,8 @@ function hideDesignTabBar() {
 }
 
 .function-card__icon {
-	position: relative;
 	width: 44rpx;
 	height: 44rpx;
-	color: #527985;
-}
-
-.function-card__icon--sound::before {
-	content: '';
-	position: absolute;
-	left: 2rpx;
-	top: 8rpx;
-	width: 27rpx;
-	height: 28rpx;
-	background: currentColor;
-	border-radius: 3rpx;
-	clip-path: polygon(0 34%, 34% 34%, 74% 7%, 74% 93%, 34% 66%, 0 66%);
-}
-
-.function-card__icon--sound::after {
-	content: '';
-	position: absolute;
-	right: 3rpx;
-	top: 8rpx;
-	width: 18rpx;
-	height: 28rpx;
-	border: 5rpx solid currentColor;
-	border-left: none;
-	border-radius: 0 999rpx 999rpx 0;
-}
-
-.function-card__icon--muted {
-	color: #202329;
-}
-
-.function-card__icon--muted::before {
-	box-shadow: none;
-}
-
-.function-card__icon--sound.function-card__icon--muted::after {
-	right: 1rpx;
-	top: 11rpx;
-	width: 22rpx;
-	height: 22rpx;
-	border: none;
-	border-radius: 0;
-	background:
-		linear-gradient(45deg, transparent 42%, currentColor 43% 57%, transparent 58%),
-		linear-gradient(-45deg, transparent 42%, currentColor 43% 57%, transparent 58%);
-}
-
-.function-card__icon--trash {
-	border: 7rpx solid currentColor;
-	border-top: none;
-	box-sizing: border-box;
-	transform: scale(0.82);
-}
-
-.function-card__icon--trash::before {
-	content: '';
-	position: absolute;
-	left: -8rpx;
-	right: -8rpx;
-	top: -12rpx;
-	height: 7rpx;
-	border-radius: 999rpx;
-	background: currentColor;
-}
-
-.function-card__icon--import {
-	transform: none;
-}
-
-.function-card__icon--import::before {
-	content: '';
-	position: absolute;
-	right: 4rpx;
-	top: 2rpx;
-	width: 24rpx;
-	height: 30rpx;
-	border: 5rpx solid currentColor;
-	border-radius: 2rpx;
-	box-sizing: border-box;
-	background: transparent;
-}
-
-.function-card__icon--import::after {
-	content: '';
-	position: absolute;
-	left: 3rpx;
-	top: 15rpx;
-	width: 26rpx;
-	height: 22rpx;
-	background: currentColor;
-	clip-path: polygon(0 35%, 48% 35%, 48% 0, 100% 50%, 48% 100%, 48% 65%, 0 65%);
-}
-
-.function-card__icon--share::before,
-.function-card__icon--share::after {
-	content: '';
-	position: absolute;
-	left: 14rpx;
-	top: 20rpx;
-	width: 30rpx;
-	height: 6rpx;
-	border-radius: 999rpx;
-	background: currentColor;
-	transform-origin: left center;
-}
-
-.function-card__icon--share::before {
-	transform: rotate(-32deg);
-}
-
-.function-card__icon--share::after {
-	transform: rotate(32deg);
-}
-
-.function-card__icon--share {
-	background:
-		radial-gradient(circle at 8rpx 22rpx, currentColor 0 7rpx, transparent 8rpx),
-		radial-gradient(circle at 38rpx 8rpx, currentColor 0 7rpx, transparent 8rpx),
-		radial-gradient(circle at 38rpx 36rpx, currentColor 0 7rpx, transparent 8rpx);
-}
-
-.function-card__icon--spark::before {
-	content: '';
-	position: absolute;
-	left: 15rpx;
-	top: 8rpx;
-	width: 0;
-	height: 0;
-	background: transparent;
-	border-top: 14rpx solid transparent;
-	border-bottom: 14rpx solid transparent;
-	border-left: 22rpx solid currentColor;
-	border-radius: 2rpx;
-}
-
-.function-card__icon--spark::after {
-	content: '';
-	position: absolute;
-	left: 9rpx;
-	top: 4rpx;
-	width: 36rpx;
-	height: 36rpx;
-	border-radius: 50%;
-	border: 4rpx solid currentColor;
-	opacity: 0.08;
-	box-sizing: border-box;
 }
 
 .function-card__label {
@@ -5606,9 +5377,8 @@ function hideDesignTabBar() {
 	align-items: center;
 	justify-content: center;
 	background: rgba(240, 243, 248, 0.94);
-	color: #8f97aa;
-	font-size: 44rpx;
-	font-weight: 800;
+	padding: 18rpx;
+	box-sizing: border-box;
 	box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.86);
 }
 

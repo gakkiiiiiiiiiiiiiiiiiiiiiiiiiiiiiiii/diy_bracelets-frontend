@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BrandIcon from '@/components/BrandIcon.vue'
+
 withDefaults(
   defineProps<{
     type?: 'default' | 'warn' | 'primary' | 'notice'
@@ -11,7 +13,7 @@ withDefaults(
 
 <template>
   <view class="info-tag" :class="[`info-tag--${type}`, { 'info-tag--shake': shake && type === 'warn' }]">
-    <view v-if="type === 'notice'" class="info-tag__mark" aria-hidden="true" />
+    <BrandIcon v-if="type === 'notice'" class="info-tag__mark" name="circle-help" tone="inverse" />
     <text class="info-tag__label">{{ label }}</text>
   </view>
 </template>
@@ -67,18 +69,6 @@ withDefaults(
 .info-tag__mark {
   width: 28rpx;
   height: 28rpx;
-  border-radius: 50%;
-  border: 3rpx solid currentColor;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22rpx;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.info-tag__mark::before {
-  content: '?';
 }
 
 @keyframes info-tag-shake {

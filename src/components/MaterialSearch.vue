@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useMaterialsStore } from '@/stores/materials'
+import BrandIcon from '@/components/BrandIcon.vue'
 
 const materialsStore = useMaterialsStore()
 const emit = defineEmits<{
@@ -35,10 +36,10 @@ function onToolTap() {
 <template>
   <view class="search-bar">
     <view class="search-tool-btn" @tap="onToolTap">
-      <view class="search-tool-icon" />
+      <BrandIcon class="search-tool-icon" name="circle-dashed" label="查看已用珠子" />
     </view>
     <view class="search-input-wrap" :class="{ 'search-input-wrap--active': isSearchActive }">
-      <view class="search-icon" />
+      <BrandIcon class="search-icon" name="search" tone="muted" />
       <input
         class="search-input"
         :class="{ 'search-input--active': isSearchActive }"
@@ -50,7 +51,9 @@ function onToolTap() {
         @focus="onFocus"
         @blur="onBlur"
       />
-      <view v-if="hasKeyword" class="search-clear" @tap.stop="clearSearch">×</view>
+      <view v-if="hasKeyword" class="search-clear" aria-label="清空搜索" @tap.stop="clearSearch">
+        <BrandIcon name="x" tone="inverse" />
+      </view>
     </view>
   </view>
 </template>
@@ -86,21 +89,8 @@ function onToolTap() {
 }
 
 .search-tool-icon {
-  position: relative;
   width: 44rpx;
   height: 44rpx;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 7rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 76% 12rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 88% 22rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 76% 32rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 50% 37rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 24% 32rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 12% 22rpx, #1f2635 0 3rpx, transparent 4rpx),
-    radial-gradient(circle at 24% 12rpx, #1f2635 0 3rpx, transparent 4rpx),
-    rgba(255, 255, 255, 0.92);
-  box-shadow: 0 4rpx 10rpx rgba(90, 98, 126, 0.12);
 }
 
 .search-input-wrap {
@@ -134,33 +124,9 @@ function onToolTap() {
 }
 
 .search-icon {
-  position: relative;
   width: 28rpx;
   height: 28rpx;
   flex-shrink: 0;
-}
-
-.search-icon::before {
-  content: '';
-  position: absolute;
-  left: 2rpx;
-  top: 2rpx;
-  width: 15rpx;
-  height: 15rpx;
-  border: 4rpx solid #8790a2;
-  border-radius: 50%;
-}
-
-.search-icon::after {
-  content: '';
-  position: absolute;
-  right: 2rpx;
-  bottom: 4rpx;
-  width: 13rpx;
-  height: 4rpx;
-  border-radius: 999rpx;
-  background: #8790a2;
-  transform: rotate(45deg);
 }
 
 .search-input {
@@ -184,11 +150,8 @@ function onToolTap() {
   height: 34rpx;
   border-radius: 50%;
   background: rgba(139, 146, 164, 0.24);
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 800;
-  line-height: 31rpx;
-  text-align: center;
+  padding: 8rpx;
+  box-sizing: border-box;
   flex-shrink: 0;
   transition:
     transform u.$duration-press u.$ease-out,

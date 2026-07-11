@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useContentStore } from '@/stores/content'
+import BrandIcon from '@/components/BrandIcon.vue'
 
 const contentStore = useContentStore()
 
@@ -65,22 +66,22 @@ function onMore() {
 <template>
   <view class="nav-bar">
     <view class="nav-left">
-      <view class="nav-btn" @tap="onBack">
-        <text class="nav-icon nav-icon--back">‹</text>
+      <view class="nav-btn" aria-label="返回" @tap="onBack">
+        <BrandIcon class="nav-icon nav-icon--back" name="arrow-left" />
       </view>
     </view>
     <view class="nav-title">{{ contentStore.diy.pageTitle }}</view>
     <view class="nav-right nav-capsule">
       <view class="nav-capsule__btn" @tap="onMore">
-        <text class="nav-icon">⋯</text>
+        <BrandIcon class="nav-icon" name="ellipsis" label="更多" />
       </view>
       <view class="nav-capsule__divider" />
       <view class="nav-capsule__btn" @tap="emit('secondary')">
-        <text class="nav-icon">−</text>
+        <BrandIcon class="nav-icon" name="minus" label="缩小" />
       </view>
       <view class="nav-capsule__divider" />
       <view class="nav-capsule__btn" @tap="emit('center')">
-        <text class="nav-icon">⊙</text>
+        <BrandIcon class="nav-icon" name="locate-fixed" label="居中" />
       </view>
     </view>
   </view>
@@ -167,14 +168,12 @@ function onMore() {
 }
 
 .nav-icon {
-  font-size: 42rpx;
-  color: #527985;
-  line-height: 1;
-  font-weight: 700;
+	width: 32rpx;
+	height: 32rpx;
 }
 
 .nav-icon--back {
-  font-size: 68rpx;
-  font-weight: 300;
+	width: 40rpx;
+	height: 40rpx;
 }
 </style>
