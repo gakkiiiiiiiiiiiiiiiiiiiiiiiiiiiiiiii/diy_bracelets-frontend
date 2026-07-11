@@ -94,6 +94,9 @@ function openPhotoPreview() {
 
 .material-card {
 	position: relative;
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 	overflow: hidden;
 	background: rgba(255, 253, 249, 0.97);
 	border-radius: 12rpx;

@@ -5527,6 +5527,7 @@ function hideDesignTabBar() {
 	flex: 1;
 	height: 100%;
 	background: linear-gradient(180deg, #fffdf9 0%, #f7f5f1 100%);
+	overflow-x: hidden;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 }
@@ -5541,14 +5542,17 @@ function hideDesignTabBar() {
 // 材料卡片网格：图中为 3 列
 .material-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 18rpx;
 	padding: 16rpx 14rpx 34rpx;
+	width: 100%;
+	box-sizing: border-box;
 	max-width: none;
 }
 
 // 材料卡片动画
 .material-grid-item {
+	min-width: 0;
 	animation: material-card-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 	will-change: transform, opacity;
 }
