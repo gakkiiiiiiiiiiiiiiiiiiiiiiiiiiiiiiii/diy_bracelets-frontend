@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount } from 'vue';
 import { onHide, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { useContentStore } from '@/stores/content';
 import { openDesignStudio } from '@/utils/designNavigation';
-
-interface NoteSection {
-	id: string;
-	title: string;
-	subtitle: string;
-	points: string[];
-	tone: 'texture' | 'color' | 'size' | 'shipping';
-}
 
 interface SampleBead {
 	id: string;
@@ -45,55 +38,12 @@ const sampleBeads: SampleBead[] = [
 		tag: '柔光',
 	},
 ];
-
-const sections: NoteSection[] = [
-	{
-		id: 'texture',
-		title: '天然纹理',
-		subtitle: '每一颗都不是复制品',
-		tone: 'texture',
-		points: [
-			'棉絮、冰裂、矿缺、色带和发丝属于天然晶石常见表现。',
-			'同一材质不同批次会有深浅、通透度和内含物差异。',
-			'手串最终会按实际珠子组合呈现，页面图用于辅助判断整体风格。',
-		],
-	},
-	{
-		id: 'color',
-		title: '色差说明',
-		subtitle: '光线、屏幕和角度都会影响观感',
-		tone: 'color',
-		points: [
-			'强光下晶体更透，弱光下颜色会更沉稳，虎眼、月光等材质角度差异更明显。',
-			'手机屏幕亮度和色彩模式会带来轻微偏差。',
-			'如需确认实物批次，可在下单前联系客服核对库存图。',
-		],
-	},
-	{
-		id: 'size',
-		title: '规格确认',
-		subtitle: '珠径、手围和颗数会共同影响佩戴效果',
-		tone: 'size',
-		points: [
-			'珠径越大，成串颗数越少，视觉存在感和重量也会更明显。',
-			'DIY 页面会提示当前珠子数量和手围适配情况，请提交前核对。',
-			'需要改尺寸、加配珠或特殊隔珠时，建议在订单备注中说明。',
-		],
-	},
-	{
-		id: 'shipping',
-		title: '下单与售后',
-		subtitle: '定制商品会先核对再制作',
-		tone: 'shipping',
-		points: [
-			'提交订单后会进入核对制作流程，部分稀有材质需确认库存。',
-			'发货前如需调整设计，可尽快联系客服处理。',
-			'收到商品后请保留包装和实物照片，便于售后沟通。',
-		],
-	},
-];
+const contentStore = useContentStore();
+const purchase = computed(() => contentStore.support.purchase);
+const sections = computed(() => purchase.value.sections);
 
 onShow(() => {
+	void contentStore.fetchContent();
 	uni.hideTabBar({ animation: false, fail: () => undefined });
 });
 
@@ -122,7 +72,7 @@ function goBack() {
 function contactService() {
 	uni.showModal({
 		title: '联系客服',
-		content: '下单前可发送材质名称、手围和设计截图，客服会协助核对库存、色差和规格。',
+		content: purchase.value.contactText,
 		showCancel: false,
 	});
 }
@@ -137,15 +87,15 @@ function contactService() {
 			<view class="nav-side">
 				<view class="nav-back" @tap="goBack">‹</view>
 			</view>
-			<view class="nav-title">水晶购买须知</view>
+			<view class="nav-title">{{ purchase.title }}</view>
 			<view class="nav-side nav-side--right" />
 		</view>
 
 		<view class="hero">
 			<view class="hero-copy">
-				<view class="hero-kicker">NOTES OF PURCHASE</view>
-				<view class="hero-title">水晶购买须知</view>
-				<view class="hero-sub">天然晶石会有自己的纹理、光感和小脾气，下单前先确认这些细节。</view>
+				<view class="hero-kicker">{{ purchase.heroKicker }}</view>
+				<view class="hero-title">{{ purchase.title }}</view>
+				<view class="hero-sub">{{ purchase.subtitle }}</view>
 			</view>
 			<view class="hero-visual">
 				<view class="hero-twig" />
@@ -188,7 +138,7 @@ function contactService() {
 
 		<view class="service-panel">
 			<view class="service-title">不确定怎么选？</view>
-			<view class="service-sub">可以先做一版设计，再找客服确认实物光感、库存和尺寸。</view>
+			<view class="service-sub">{{ purchase.contactText }}</view>
 			<view class="service-actions">
 				<button class="service-btn primary" @tap="goDesign">去设计手串</button>
 				<button class="service-btn" @tap="goGoods">找好物</button>

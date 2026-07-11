@@ -1,15 +1,16 @@
-/* Apple-style、PRD 与动画体系全局变量 */
+/* ZHUDAO 品牌与动画体系全局变量 */
 
 /* 色彩与布局 */
-$page-bg: #F5F5F7;
+$page-bg: #F4F6F4;
 $glass-bg: rgba(255, 255, 255, 0.8);
-$primary: #0071e3;
-$secondary-bg: #E5E5EA;
-$input-bg: #F2F2F7;
-$text-primary: #1d1d1f;
-$text-caption: #86868b;
+$primary: #527985;
+$brand-secondary: #D0A09D;
+$secondary-bg: #E8EFED;
+$input-bg: #EEF1EE;
+$text-primary: #1D292B;
+$text-caption: #738082;
 $hairline: rgba(0, 0, 0, 0.1);
-$radius-card: 24rpx;
+$radius-card: 12rpx;
 $radius-pill: 999px;
 
 /* 动画体系：品牌缓动曲线（克制、无夸张弹跳） */

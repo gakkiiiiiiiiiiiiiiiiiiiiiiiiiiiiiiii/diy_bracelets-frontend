@@ -37,7 +37,7 @@ const INERTIA_DECAY = 0.96;
 const INERTIA_STOP = 0.0008;
 const CRYSTAL_OPACITY = 0.9;
 const CRYSTAL_COLOR = 0xe0dce8;
-const RING_COLOR = 0xe1dfe4;
+const RING_COLOR = 0xd8ceca;
 const BEAD_FLOAT_Y = 0.026;
 const SHADOW_TINT = 0x4e4958;
 const SHADOW_SLANT = -0.72;
@@ -74,6 +74,12 @@ const SINGLE_SLOT_SPACING_X = 0.56;
 const SINGLE_SLOT_SPACING_Z = 0.42;
 const SINGLE_DELETE_DISTANCE = 1.46;
 const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
+
+function getMpQualityProfile(beadCount: number) {
+	if (beadCount >= 24) return { sphereSegments: 16, innerSegments: 12, pixelRatio: 1, frameInterval: 34 };
+	if (beadCount >= 16) return { sphereSegments: 20, innerSegments: 14, pixelRatio: 1.25, frameInterval: 25 };
+	return { sphereSegments: 24, innerSegments: 18, pixelRatio: 1.5, frameInterval: 16 };
+}
 
 export type BraceletLayoutMode = 'bracelet' | 'single';
 
@@ -210,9 +216,53 @@ export function useBracelet3dMp(
 	let targetRingOpacity = 0.72;
 	let lastInteractionTime = nowMs();
 	let lastFrameTime = nowMs();
+	let lastRenderedAt = 0;
+	let renderLoopPaused = false;
+	let devicePixelRatio = 2;
 	// 小程序无全局 requestAnimationFrame，需用 canvas 上的
 	let requestRAF: (callback: (timestamp: number) => void) => number = () => 0;
 	let cancelRAF: (id: number) => void = () => {};
+
+	function applyAdaptiveQuality() {
+		const count = beads.value.length;
+		const profile = getMpQualityProfile(count);
+		if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, profile.pixelRatio));
+		beadMeshMap.forEach(({ root }) => {
+			const reduceEffects = count >= 16;
+			const minimalEffects = count >= 24;
+			if (root.userData.sparkleGroup) root.userData.sparkleGroup.visible = !reduceEffects;
+			if (root.userData.causticGroup) root.userData.causticGroup.visible = !minimalEffects;
+			if (root.userData.highlightGroup) root.userData.highlightGroup.visible = !minimalEffects;
+		});
+		if (stageReflectionMesh) stageReflectionMesh.visible = count < 24;
+	}
+
+	function canRender() {
+		return inited && !renderLoopPaused;
+	}
+
+	function stopRenderLoop() {
+		if (!rafId) return;
+		cancelRAF(rafId);
+		rafId = 0;
+	}
+
+	function startRenderLoop() {
+		if (!canRender() || rafId) return;
+		lastFrameTime = nowMs();
+		rafId = requestRAF(tick);
+	}
+
+	function pauseRendering() {
+		renderLoopPaused = true;
+		stopRenderLoop();
+	}
+
+	function resumeRendering() {
+		renderLoopPaused = false;
+		lastRenderedAt = 0;
+		startRenderLoop();
+	}
 
 	function getLayoutMode(): BraceletLayoutMode {
 		return options?.layoutMode?.() ?? 'bracelet';
@@ -505,7 +555,8 @@ export function useBracelet3dMp(
 		if (!THREE) return null;
 		const { x, z } = slotForIndex(index, total);
 		const radius = bead.size * BEAD_SCALE * (isSingleLayout() ? SINGLE_BEAD_PREVIEW_SCALE : 1);
-		const geometry = new THREE.SphereGeometry(radius, 24, 24);
+		const quality = getMpQualityProfile(total);
+		const geometry = new THREE.SphereGeometry(radius, quality.sphereSegments, quality.sphereSegments);
 		const imageUrl = bead.image?.trim();
 		const renderConfig = getCrystalMaterialRenderConfig(bead.materialId);
 		const textureUrls = imageUrl ? getTextureUrlsForBead(bead, imageUrl) : renderConfig?.maps;
@@ -514,7 +565,7 @@ export function useBracelet3dMp(
 		const material = createCrystalMaterial({ alphaMap: centerTransparencyMap }, renderConfig?.material);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
-		mesh.userData = { beadId: bead.id };
+		mesh.userData = { beadId: bead.id, radius, sphereSegments: quality.sphereSegments };
 		const glowColor = new THREE.Color(renderConfig?.material?.attenuationColor ?? renderConfig?.material?.color ?? CRYSTAL_COLOR);
 		glowColor.lerp?.(new THREE.Color(0xffffff), 0.34);
 		const innerGlowMaterial = new THREE.MeshBasicMaterial({
@@ -526,7 +577,7 @@ export function useBracelet3dMp(
 		});
 		innerGlowMaterial.userData.baseOpacity = INNER_GLOW_BASE_OPACITY;
 		const innerGlow = new THREE.Mesh(
-			new THREE.SphereGeometry(radius * 0.82, 18, 18),
+			new THREE.SphereGeometry(radius * 0.82, quality.innerSegments, quality.innerSegments),
 			innerGlowMaterial,
 		);
 		innerGlow.position.set(radius * 0.04, BEAD_FLOAT_Y + radius * 0.03, -radius * 0.04);
@@ -573,7 +624,7 @@ export function useBracelet3dMp(
 		}
 		const selectionGroup = new THREE.Group();
 		const selectionGlowMaterial = new THREE.MeshBasicMaterial({
-			color: 0xff6f82,
+			color: 0xd0a09d,
 			transparent: true,
 			opacity: 0,
 			depthWrite: false,
@@ -587,7 +638,7 @@ export function useBracelet3dMp(
 		selectionGlow.rotation.x = -Math.PI / 2;
 		selectionGlow.position.set(0, BEAD_FLOAT_Y + radius * 0.11, 0);
 		const selectionRingMaterial = new THREE.MeshBasicMaterial({
-			color: 0xff6175,
+			color: 0x527985,
 			transparent: true,
 			opacity: 0,
 			depthWrite: false,
@@ -826,12 +877,22 @@ export function useBracelet3dMp(
 				} else {
 					root.position.set(x, 0, z);
 				}
-				// 与 createBeadMesh 一致：半径为 bead.size * BEAD_SCALE
+				// 规格或质量档不变时复用几何体，减少小程序端频繁分配与回收。
 				const radius = bead.size * BEAD_SCALE * (isSingleLayout() ? SINGLE_BEAD_PREVIEW_SCALE : 1);
 				root.userData.radius = radius;
 				mesh.scale.setScalar(1);
-				mesh.geometry.dispose();
-				mesh.geometry = new THREE.SphereGeometry(radius, 24, 24);
+				const quality = getMpQualityProfile(total);
+				if (mesh.userData.radius !== radius || mesh.userData.sphereSegments !== quality.sphereSegments) {
+					mesh.geometry.dispose();
+					mesh.geometry = new THREE.SphereGeometry(radius, quality.sphereSegments, quality.sphereSegments);
+					mesh.userData.radius = radius;
+					mesh.userData.sphereSegments = quality.sphereSegments;
+					const innerGlow = root.userData.innerGlow;
+					if (innerGlow?.geometry) {
+						innerGlow.geometry.dispose?.();
+						innerGlow.geometry = new THREE.SphereGeometry(radius * 0.82, quality.innerSegments, quality.innerSegments);
+					}
+				}
 				return;
 			}
 
@@ -859,12 +920,14 @@ export function useBracelet3dMp(
 		});
 		targetRingRadius = ringR;
 		targetRingOpacity = layoutMode === 'single' ? 0 : 0.72;
+		applyAdaptiveQuality();
 	}
 
 	function setSize(width: number, height: number) {
 		if (!renderer || !camera) return;
-		renderer.setSize(width, height);
-		renderer.setPixelRatio(Math.min(2, typeof uni !== 'undefined' ? uni.getSystemInfoSync().pixelRatio || 2 : 2));
+		const quality = getMpQualityProfile(beads.value.length);
+		renderer.setPixelRatio(Math.min(devicePixelRatio, quality.pixelRatio));
+		renderer.setSize(width, height, false);
 		camera.aspect = width / height;
 		camera.updateProjectionMatrix();
 	}
@@ -1015,8 +1078,15 @@ export function useBracelet3dMp(
 	}
 
 	function tick() {
-		if (!inited || !scene || !camera || !renderer || !braceletGroup) return;
+		rafId = 0;
+		if (!canRender() || !scene || !camera || !renderer || !braceletGroup) return;
 		const now = nowMs();
+		const frameInterval = getMpQualityProfile(beads.value.length).frameInterval;
+		if (lastRenderedAt && now - lastRenderedAt < frameInterval) {
+			startRenderLoop();
+			return;
+		}
+		lastRenderedAt = now;
 		const deltaMs = Math.min(34, Math.max(0, now - lastFrameTime || 16));
 		lastFrameTime = now;
 
@@ -1128,7 +1198,7 @@ export function useBracelet3dMp(
 			mesh.rotation.x = Math.sin(phase) * 0.025;
 			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
 			const highlightGroup = root.userData.highlightGroup;
-			if (highlightGroup) {
+			if (highlightGroup?.visible) {
 				highlightGroup.position.x = Math.sin(phase * 0.42) * radius * HIGHLIGHT_SWEEP_X;
 				highlightGroup.position.z = Math.cos(phase * 0.38) * radius * HIGHLIGHT_SWEEP_Z;
 				highlightGroup.rotation.z = -0.025 + Math.sin(phase * 0.78) * 0.045;
@@ -1148,7 +1218,7 @@ export function useBracelet3dMp(
 				innerGlow.scale?.setScalar?.(1 + Math.sin(phase * 0.7) * 0.035);
 			}
 			const causticGroup = root.userData.causticGroup;
-			if (causticGroup) {
+			if (causticGroup?.visible) {
 				causticGroup.position.x = Math.sin(phase * 0.52) * radius * 0.2;
 				causticGroup.position.z = Math.cos(phase * 0.48) * radius * 0.08;
 				causticGroup.rotation.z = Math.sin(phase * 0.5) * 0.08;
@@ -1159,7 +1229,7 @@ export function useBracelet3dMp(
 				});
 			}
 			const sparkleGroup = root.userData.sparkleGroup;
-			sparkleGroup?.children?.forEach?.((child: any, childIndex: number) => {
+			if (sparkleGroup?.visible) sparkleGroup.children?.forEach?.((child: any, childIndex: number) => {
 				const pulse = 0.68 + Math.sin(phase * 1.4 + childIndex * 1.7) * 0.32;
 				if (child.material) child.material.opacity = Number(child.userData.baseOpacity ?? 0.22) * pulse;
 				child.scale?.setScalar?.(0.92 + pulse * 0.18);
@@ -1237,7 +1307,7 @@ export function useBracelet3dMp(
 		braceletGroup.rotation.y = rotationY.value;
 		braceletGroup.rotation.x = 0;
 		renderer.render(scene, camera);
-		rafId = requestRAF(tick);
+		startRenderLoop();
 	}
 
 	let rotationVelocityY = 0;
@@ -1399,14 +1469,16 @@ export function useBracelet3dMp(
 		const height = size;
 
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xffffff);
+		scene.background = new THREE.Color(0xfaf8f5);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
 
 		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-		renderer.setSize(width, height);
-		renderer.setPixelRatio(Math.min(2, (sys as any).pixelRatio || 2));
+		devicePixelRatio = Math.max(1, (sys as any).pixelRatio || 2);
+		const quality = getMpQualityProfile(beads.value.length);
+		renderer.setPixelRatio(Math.min(devicePixelRatio, quality.pixelRatio));
+		renderer.setSize(width, height, false);
 		if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
 		else if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
 		if (renderer.toneMapping !== undefined && THREE.ACESFilmicToneMapping !== undefined) {
@@ -1419,13 +1491,13 @@ export function useBracelet3dMp(
 		const key = new THREE.DirectionalLight(0xffffff, 1.08);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xeaf2ff, 0.24);
+		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.24);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
 		const rim = new THREE.PointLight(0xffffff, 0.44, 8);
 		rim.position.set(0.7, 2.6, 1.7);
 		scene.add(rim);
-		const glow = new THREE.PointLight(0xf3f0fb, 0.08, 6);
+		const glow = new THREE.PointLight(0xf2dfdc, 0.1, 6);
 		glow.position.set(-0.9, 0.9, 1.8);
 		scene.add(glow);
 
@@ -1456,7 +1528,7 @@ export function useBracelet3dMp(
 		updateBeads(beads.value, []);
 		lastBeadsSnapshot = snapshotBeads(beads.value);
 		inited = true;
-		rafId = requestRAF(tick);
+		startRenderLoop();
 		// 异步获取 canvas 在页面中的位置，用于 touch 转 NDC
 		if (proxy && typeof proxy.createSelectorQuery === 'function') {
 			proxy
@@ -1477,8 +1549,7 @@ export function useBracelet3dMp(
 	function dispose() {
 		inited = false;
 		clearLongPressTimer();
-		cancelRAF(rafId);
-		rafId = 0;
+		stopRenderLoop();
 		beadMeshMap.forEach(({ root }) => {
 			root.traverse((child: any) => {
 				child.geometry?.dispose?.();
@@ -1588,6 +1659,8 @@ export function useBracelet3dMp(
 			isDragging,
 			isBeadDragging,
 			isBeadDeleteTarget,
+			pauseRendering,
+			resumeRendering,
 			onTouchStart(e: any) {
 			const touches = e.touches ?? [];
 			if (touches.length >= 2) {

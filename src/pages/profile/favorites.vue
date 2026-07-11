@@ -143,7 +143,7 @@ function previewBeads(item: DesignDetail) {
 							mode="aspectFill"
 							:style="bead.style"
 						/>
-						<view class="brand">养个石头</view>
+						<view class="brand">珠岛</view>
 					</view>
 					<view class="usage">{{ item.usageCount }}人使用</view>
 				</view>

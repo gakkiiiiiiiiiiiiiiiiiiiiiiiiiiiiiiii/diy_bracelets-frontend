@@ -4,6 +4,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
+import { useContentStore } from '@/stores/content';
 import { addLocalCartItems } from '@/utils/checkout';
 import { designEntrySourceForCartItem, openDesignStudio } from '@/utils/designNavigation';
 import {
@@ -28,8 +29,9 @@ const orderId = ref('');
 const order = ref<OrderRecord | null>(null);
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
+const contentStore = useContentStore();
 const supportOpen = ref(false);
-const supportId = 'YGS-STONE';
+const supportId = computed(() => contentStore.brand.supportId);
 
 interface LogisticsEvent {
 	title: string;
@@ -106,6 +108,7 @@ onLoad((query: Record<string, string | undefined>) => {
 });
 
 onShow(() => {
+	void contentStore.fetchContent();
 	// #ifdef H5
 	syncFromQuery(h5QueryFromHash());
 	// #endif
@@ -331,7 +334,7 @@ function closeSupport() {
 
 function copyServiceId() {
 	uni.setClipboardData({
-		data: supportId,
+		data: supportId.value,
 		success: () => {
 			uni.showToast({ title: '已复制客服号', icon: 'none' });
 		},

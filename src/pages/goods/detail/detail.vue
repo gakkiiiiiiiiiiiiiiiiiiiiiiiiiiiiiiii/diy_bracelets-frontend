@@ -6,6 +6,7 @@ import { api, type DesignDetail } from '@/api';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
+import { useContentStore } from '@/stores/content';
 import { mockDesignDetails } from '@/data/mock';
 import { getShopProductById, type ShopGoodsProduct } from '@/data/shopGoods';
 import {
@@ -28,12 +29,13 @@ const favoriteIds = ref<string[]>([]);
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedStore = useSavedDesignsStore();
+const contentStore = useContentStore();
 const selectedSize = ref('');
 const buyQty = ref(1);
 const productNote = ref('');
 const checkoutAddresses = ref<CheckoutAddress[]>([]);
 const supportOpen = ref(false);
-const serviceId = 'YGS-STONE';
+const serviceId = computed(() => contentStore.brand.supportId);
 
 const selectedSpecLabel = computed(() => selectedSize.value || product.value?.sizes[0] || '默认规格');
 const productHeroImages = computed(() => {
@@ -56,8 +58,8 @@ const addressSummaryText = computed(() =>
 const isServiceProduct = computed(() => product.value?.categoryId === 'services');
 const serviceContactContent = computed(() =>
 	isServiceProduct.value
-		? '客服时间：工作日 10:00-19:00，可咨询检测证书、差价补齐、订单备注和处理进度。'
-		: '客服时间：工作日 10:00-19:00，可咨询尺寸、库存和定制搭配。',
+			? `客服时间：${contentStore.brand.supportHours}，可咨询检测证书、差价补齐、订单备注和处理进度。`
+			: `客服时间：${contentStore.brand.supportHours}，可咨询尺寸、库存和定制搭配。`,
 );
 const supportContextText = computed(() => {
 	const targetName = product.value?.name || detail.value?.title || '当前商品';
@@ -85,6 +87,7 @@ onLoad((query: Record<string, string | undefined>) => {
 });
 
 onShow(() => {
+	void contentStore.fetchContent();
 	refreshCheckoutAddresses();
 	// #ifdef H5
 	syncDetailIdFromQuery(h5QueryFromHash());
@@ -334,7 +337,7 @@ function closeSupport() {
 
 function copyServiceId() {
 	uni.setClipboardData({
-		data: serviceId,
+		data: serviceId.value,
 		success: () => {
 			uni.showToast({ title: '已复制客服号', icon: 'none' });
 		},
@@ -527,7 +530,7 @@ function goBack() {
 								mode="aspectFill"
 								:style="detailPreviewBeadStyle(index, detail.composition.length)"
 							/>
-							<view class="detail-bracelet-logo">养个石头</view>
+							<view class="detail-bracelet-logo">珠岛</view>
 						</view>
 					</view>
 				</view>

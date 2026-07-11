@@ -2,13 +2,8 @@
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
-
-type HelpTopic = {
-	id: string;
-	title: string;
-	desc: string;
-	items: string[];
-};
+import { useContentStore } from '@/stores/content';
+import type { SupportHelpTopic } from '@/api';
 
 type HelpSearchRow = {
 	topicId: string;
@@ -20,59 +15,19 @@ const activeTopic = ref('custom');
 const supportOpen = ref(false);
 const searchKeyword = ref('');
 const supportOrderNo = ref('');
-const supportId = 'YGS-STONE';
+const contentStore = useContentStore();
+const supportId = computed(() => contentStore.brand.supportId);
+const supportHours = computed(() => contentStore.brand.supportHours);
+const topics = computed<SupportHelpTopic[]>(() => contentStore.support.helpTopics);
 
-const topics: HelpTopic[] = [
-	{
-		id: 'custom',
-		title: '定制与设计',
-		desc: '手串设计、珠子尺寸、保存记录',
-		items: [
-			'在 DIY 页面可按材质分类选择珠子，保存后会出现在“我的设计”。',
-			'系统会根据手围和珠子数量提示是否适合佩戴，手围过小时建议减少大尺寸珠子。',
-			'广场作品可直接套用，也可以保存后再微调材质、尺寸和顺序。',
-		],
-	},
-	{
-		id: 'goods',
-		title: '商品与材质',
-		desc: '水晶色差、棉絮、发丝、天然纹理',
-		items: [
-			'天然珠子会存在颜色、冰裂、棉絮、矿缺和纹路差异，页面图片用于展示整体效果。',
-			'发晶、幽灵、虎眼等材质在不同光线下会出现不同反光和色带表现。',
-			'散珠规格以商品页展示为准，混搭下单前可先联系客服确认库存。',
-		],
-	},
-	{
-		id: 'order',
-		title: '订单与售后',
-		desc: '确认订单、改尺寸、售后处理',
-		items: [
-			'购物车和立即购买都会进入确认订单页，提交前请确认地址、规格和留言。',
-			'改尺寸、补珠、重新穿线属于额外服务，可在好物页选择对应服务下单。',
-			'收到商品后如需售后，请保留包装和商品照片，联系客服协助处理。',
-		],
-	},
-	{
-		id: 'shipping',
-		title: '配送与保养',
-		desc: '发货时间、日常护理、消磁建议',
-		items: [
-			'定制类商品需要制作和复核，发货时间以订单页或客服通知为准。',
-			'日常佩戴请避免长期接触汗液、香水、清洁剂和高温环境。',
-			'水晶保养建议使用柔软布料擦拭，收纳时单独放置，减少磕碰。',
-		],
-	},
-];
-
-const currentTopic = computed(() =>
-	topics.find((topic) => topic.id === activeTopic.value) ?? topics[0],
+const currentTopic = computed<SupportHelpTopic>(() =>
+	topics.value.find((topic) => topic.id === activeTopic.value) ?? topics.value[0]!,
 );
 const hasSearchKeyword = computed(() => searchKeyword.value.trim().length > 0);
 const searchRows = computed<HelpSearchRow[]>(() => {
 	const keyword = searchKeyword.value.trim().toLowerCase();
 	if (!keyword) return [];
-	return topics.flatMap((topic) =>
+	return topics.value.flatMap((topic) =>
 		topic.items
 			.filter((item) => `${topic.title} ${topic.desc} ${item}`.toLowerCase().includes(keyword))
 			.map((item) => ({
@@ -85,19 +40,28 @@ const searchRows = computed<HelpSearchRow[]>(() => {
 const supportHint = computed(() =>
 	supportOrderNo.value
 		? `已定位订单 ${supportOrderNo.value}，发送给客服可查询实物图、发货进度和售后处理。`
-		: '工作日 10:00-19:00，发图可查库存、色差、手围和发货进度。',
+		: `${supportHours.value}，发图可查库存、色差、手围和发货进度。`,
 );
 
 onLoad((query: Record<string, string | undefined>) => {
 	const topic = query.topic || '';
-	if (topics.some((item) => item.id === topic)) {
-		activeTopic.value = topic;
-	}
+	syncActiveTopic(topic);
+	void contentStore.fetchContent().finally(() => syncActiveTopic(topic));
 	supportOrderNo.value = decodeURIComponent(query.order || query.orderNo || '');
 	if (query.support === '1') {
 		supportOpen.value = true;
 	}
 });
+
+function syncActiveTopic(requestedTopic: string) {
+	if (requestedTopic && topics.value.some((item) => item.id === requestedTopic)) {
+		activeTopic.value = requestedTopic;
+		return;
+	}
+	if (!topics.value.some((item) => item.id === activeTopic.value)) {
+		activeTopic.value = topics.value[0]?.id || '';
+	}
+}
 
 function selectTopic(id: string) {
 	activeTopic.value = id;
@@ -134,7 +98,7 @@ function goBack() {
 
 function copyServiceId() {
 	uni.setClipboardData({
-		data: supportId,
+		data: supportId.value,
 		success: () => {
 			uni.showToast({ title: '已复制客服号', icon: 'none' });
 		},
@@ -180,7 +144,7 @@ function copyServiceId() {
 				<view class="quick-icon quick-icon--service">S</view>
 				<view class="quick-copy">
 					<view class="quick-title">联系客服</view>
-					<view class="quick-sub">工作日 10:00-19:00</view>
+					<view class="quick-sub">{{ supportHours }}</view>
 				</view>
 				<view class="quick-arrow">›</view>
 			</view>

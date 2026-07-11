@@ -1,7 +1,7 @@
 {
-  "name": "养个石头",
+  "name": "珠岛",
   "appid": "__UNI__DIYBRACELETS",
-  "description": "DIY手串设计小程序",
+  "description": "珠岛 3D 晶石手串设计小程序",
   "versionName": "1.0.0",
   "versionCode": "100",
   "transformPx": false,
@@ -10,6 +10,6 @@
     "setting": { "urlCheck": false }
   },
   "h5": {
-    "title": "养个石头 - DIY手串"
+    "title": "珠岛 ZHUDAO - 3D 晶石手串设计"
   }
 }

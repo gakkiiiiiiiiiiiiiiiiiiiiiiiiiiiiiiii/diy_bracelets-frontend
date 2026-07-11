@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { onHide, onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app';
 import NavigationBar from '@/components/NavigationBar.vue';
 import InfoTag from '@/components/InfoTag.vue';
@@ -12,6 +12,7 @@ import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
 import { useUIStore } from '@/stores/ui';
+import { useContentStore } from '@/stores/content';
 import { beadsToComposition, compositionBeadCount } from '@/utils/designComposition';
 import { addLocalCartItems, loadLocalCartItems, saveCheckoutDraft, saveLocalCartItems } from '@/utils/checkout';
 import {
@@ -30,6 +31,8 @@ const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedDesignsStore = useSavedDesignsStore();
 const uiStore = useUIStore();
+const contentStore = useContentStore();
+const braceletCanvasRef = ref<{ pauseRendering: () => void; resumeRendering: () => void } | null>(null);
 const DRAFT_STORAGE_KEY = 'bracelet-draft';
 const DRAFT_RESTORE_KEY = 'diy-bracelets-restore-draft-on-next-design-open';
 const CURRENT_BRACELET_STORAGE_KEY = 'diy-bracelets-current-bracelet-design';
@@ -89,6 +92,7 @@ function startPageLoading() {
 }
 
 onMounted(() => {
+	void contentStore.fetchContent();
 	loadTargetHandCircumference();
 	materialsStore.fetchFromApi();
 	if (typeof window !== 'undefined') {
@@ -106,9 +110,11 @@ onShow(() => {
 	syncTargetFromAppliedDesign();
 	startPageLoading();
 	hideDesignTabBar();
+	nextTick(() => braceletCanvasRef.value?.resumeRendering());
 });
 
 onHide(() => {
+	braceletCanvasRef.value?.pauseRendering();
 	uni.showTabBar({ animation: false, fail: () => undefined });
 });
 
@@ -139,7 +145,7 @@ const showSaveAction = computed(
 );
 const loadingTitle = computed(() =>
 	designStore.braceletDesign.length > 0 && existingDesignSources.has(designStore.designSource)
-		? '建立养个石头设计台...'
+		? '建立珠岛设计台...'
 		: '获取珠子数据...',
 );
 const targetHandCircumferenceCm = ref(MIN_HAND_CIRCUMFERENCE_CM);
@@ -205,9 +211,9 @@ const refillSuggestionText = computed(() => {
 	return `还差 ${circumferenceRemainingCm.value.toFixed(1)}cm，按最近 ${latestSize}mm 规格约再加 ${recommendedCount} 颗`;
 });
 const finishButtonLabel = computed(() => {
-	if (!canFinish.value) return '请选择珠子';
+	if (!canFinish.value) return contentStore.diy.selectHint;
 	if (designStore.hasUnavailableParts) return '部分缺货';
-	return entrySource.value === 'single' ? '完成选购' : '完成设计';
+	return entrySource.value === 'single' ? '完成选购' : contentStore.diy.finishLabel;
 });
 const unavailablePartNames = computed(() => {
 	if (!designStore.hasUnavailableParts) return [];
@@ -224,15 +230,15 @@ const orderItemName = computed(() => {
 const functionMenuOpen = ref(false);
 const viewMode = ref<'top' | 'side'>('side');
 const shareTitle = computed(() => {
-	if (!designStore.braceletDesign.length) return '养个石头｜从一颗珠子开始设计';
+	if (!designStore.braceletDesign.length) return '珠岛｜从一颗珠子开始设计';
 	return entrySource.value === 'single'
-		? `我在养个石头挑了 ${designStore.braceletDesign.length} 颗水晶单珠`
-		: `我在养个石头设计了 ${designStore.braceletDesign.length} 颗水晶手串`;
+		? `我在珠岛挑了 ${designStore.braceletDesign.length} 颗水晶单珠`
+		: `我在珠岛设计了 ${designStore.braceletDesign.length} 颗水晶手串`;
 });
 const shareImage = computed(() => designStore.braceletDesign.find((bead) => bead.image)?.image || '/static/tabbar/diy.png');
 const shareSummary = computed(() => {
 	if (!designStore.braceletDesign.length) {
-		return '我正在养个石头设计水晶手串，来一起挑一串自己的光。';
+		return '我正在珠岛设计水晶手串，来一起挑一串自己的光。';
 	}
 	const composition = getCompositionSummary();
 	return `${shareTitle.value}，总价 ¥${designStore.totalPrice.toFixed(1)}。${composition ? `搭配：${composition}。` : ''}`;
@@ -385,7 +391,7 @@ const noticePages: Record<NoticeTabKey, NoticePage[]> = {
 		},
 		{
 			title: '有关售后',
-			subtitle: '养个石头定制手串退换政策',
+			subtitle: '珠岛定制手串退换政策',
 			visual: 'purchase',
 			points: ['天然水晶默认不支持无理由退换', '商品存在质量问题可及时联系处理', '定制款确认制作后不支持随意修改'],
 		},
@@ -573,7 +579,7 @@ function switchEntrySource(target: DesignEntrySource) {
 				? '当前手串会先保留为草稿，切到单珠后从空清单开始选择。'
 				: '将恢复您之前的手串设计，当前单珠清单会被清空。',
 		confirmText: '切换',
-		confirmColor: '#D92733',
+		confirmColor: '#527985',
 		success: (res) => {
 			if (res.confirm) run();
 		},
@@ -1444,7 +1450,7 @@ function hideDesignTabBar() {
 						</view>
 					</view>
 					<view class="info-tag-wrap" @tap="onNotice">
-						<InfoTag type="notice" label="使用须知" />
+						<InfoTag type="notice" :label="contentStore.diy.noticeLabel" />
 					</view>
 				</view>
 				<view class="info-tags__right">
@@ -1474,7 +1480,7 @@ function hideDesignTabBar() {
 		<!-- 中部画布区：手链设计效果图 -->
 		<view class="canvas-section">
 			<view class="canvas-card">
-				<BraceletCanvas :view-mode="viewMode" :mode="entrySource" @bead-preview="openBeadPreview" />
+				<BraceletCanvas ref="braceletCanvasRef" :view-mode="viewMode" :mode="entrySource" @bead-preview="openBeadPreview" />
 				<view class="view-mode-toggle">
 					<view
 						class="view-mode-button"
@@ -1530,7 +1536,7 @@ function hideDesignTabBar() {
 					<view class="function-menu-wrap" :class="{ 'function-menu-wrap--open': functionMenuOpen }">
 						<ActionButton type="delete" icon="▰" label="功能" @click="toggleFunctionMenu" />
 					</view>
-					<ActionButton v-if="showSaveAction" type="save" icon="▣" label="保存" @click="onSave" />
+					<ActionButton v-if="showSaveAction" type="save" icon="▣" :label="contentStore.diy.saveLabel" @click="onSave" />
 				</view>
 				<view class="action-row__spacer" />
 				<view class="action-row__right">
@@ -1653,7 +1659,7 @@ function hideDesignTabBar() {
 									mode="aspectFill"
 									:style="designConfirmBeadStyle(index, designConfirmPreviewBeads.length)"
 								/>
-								<view class="design-confirm-logo">养个石头</view>
+								<view class="design-confirm-logo">珠岛</view>
 							</view>
 						</view>
 						<view class="design-confirm-copy">
@@ -1810,12 +1816,12 @@ function hideDesignTabBar() {
 				>
 					<template v-if="activeNoticeTab === 'tutorial'">
 						<view class="notice-poster" :class="`notice-poster--${currentNoticePage.visual}`">
-							<view class="notice-poster__watermark notice-poster__watermark--one">养个石头</view>
-							<view class="notice-poster__watermark notice-poster__watermark--two">MineStone</view>
+							<view class="notice-poster__watermark notice-poster__watermark--one">珠岛</view>
+							<view class="notice-poster__watermark notice-poster__watermark--two">ZHUDAO</view>
 							<view class="notice-poster__scene">
 								<view class="poster-phone">
 									<view class="poster-phone__top">
-										<text>MineStone</text>
+										<text>ZHUDAO</text>
 									</view>
 									<view class="poster-phone__ring">
 										<view
@@ -1830,8 +1836,8 @@ function hideDesignTabBar() {
 											}"
 										/>
 										<view v-if="currentNoticePage.visual === 'info'" class="poster-callout poster-callout--top">手串参数</view>
-										<view v-if="currentNoticePage.visual === 'info'" class="poster-callout poster-callout--left">保存设计</view>
-										<view v-if="currentNoticePage.visual === 'info'" class="poster-callout poster-callout--right">完成设计</view>
+											<view v-if="currentNoticePage.visual === 'info'" class="poster-callout poster-callout--left">{{ contentStore.diy.saveLabel }}</view>
+											<view v-if="currentNoticePage.visual === 'info'" class="poster-callout poster-callout--right">{{ contentStore.diy.finishLabel }}</view>
 										<view v-if="currentNoticePage.visual === 'press'" class="poster-photo">
 											<view class="poster-photo__title">本批次货品实物图</view>
 											<view class="poster-photo__img" />
@@ -1896,7 +1902,7 @@ function hideDesignTabBar() {
 							</view>
 						</view>
 						<view v-else-if="activeNoticeTab === 'wrist'" class="wrist-guide-poster" :class="`wrist-guide-poster--${noticePageIndex}`">
-							<view class="notice-poster__watermark notice-poster__watermark--one">养个石头</view>
+							<view class="notice-poster__watermark notice-poster__watermark--one">珠岛</view>
 							<view class="wrist-guide-poster__header">
 								<text class="wrist-guide-poster__title">{{ currentNoticePage.title }}</text>
 								<text class="wrist-guide-poster__subtitle">{{ currentNoticePage.subtitle }}</text>
@@ -1921,7 +1927,7 @@ function hideDesignTabBar() {
 							</view>
 						</view>
 						<view v-else class="bead-size-poster">
-							<view class="notice-poster__watermark notice-poster__watermark--two">养个石头</view>
+							<view class="notice-poster__watermark notice-poster__watermark--two">珠岛</view>
 							<view class="bead-size-poster__header">
 								<text class="bead-size-poster__title">{{ currentNoticePage.title }}</text>
 								<text class="bead-size-poster__subtitle">{{ currentNoticePage.subtitle }}</text>
@@ -1975,7 +1981,7 @@ function hideDesignTabBar() {
 	z-index: 1;
 	display: flex;
 	flex-direction: column;
-	background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 48%, #f6f7f9 100%);
+	background: linear-gradient(180deg, #fffdf9 0%, #faf8f5 48%, #f3f0ec 100%);
 	padding-bottom: env(safe-area-inset-bottom);
 	overflow: hidden;
 }
@@ -2062,7 +2068,7 @@ function hideDesignTabBar() {
 }
 
 .actual-photo-eyebrow {
-	color: #db2934;
+	color: #a45b5e;
 	font-size: 23rpx;
 	font-weight: 900;
 	line-height: 1.1;
@@ -2165,7 +2171,7 @@ function hideDesignTabBar() {
 }
 
 .actual-photo-value--price {
-	color: #db2934;
+	color: #527985;
 }
 
 .actual-photo-note {
@@ -2202,8 +2208,8 @@ function hideDesignTabBar() {
 	height: 30rpx;
 	border-radius: 50%;
 	flex-shrink: 0;
-	background: radial-gradient(circle at 32% 25%, #fff 0 15%, #7b3bb4 42%, #42165f 100%);
-	box-shadow: 0 4rpx 9rpx rgba(92, 38, 126, 0.28);
+	background: radial-gradient(circle at 32% 25%, #fff 0 15%, #7fa1a6 42%, #527985 100%);
+	box-shadow: 0 4rpx 9rpx rgba(82, 121, 133, 0.24);
 }
 
 .insufficient-hint__icon::after {
@@ -2282,8 +2288,8 @@ function hideDesignTabBar() {
 	flex-shrink: 0;
 	background:
 		radial-gradient(circle at 52% 38%, #fff 0 5rpx, transparent 6rpx),
-		radial-gradient(circle at 32% 25%, #fff 0 16%, #7b3bb4 44%, #42165f 100%);
-	box-shadow: 0 4rpx 9rpx rgba(92, 38, 126, 0.28);
+		radial-gradient(circle at 32% 25%, #fff 0 16%, #7fa1a6 44%, #527985 100%);
+	box-shadow: 0 4rpx 9rpx rgba(82, 121, 133, 0.24);
 }
 
 .insufficient-toast__copy {
@@ -2418,7 +2424,7 @@ function hideDesignTabBar() {
 
 .wrist-target-title {
 	margin-top: 8rpx;
-	color: #1e2638;
+	color: #365760;
 	font-size: 50rpx;
 	font-weight: 900;
 }
@@ -2448,7 +2454,7 @@ function hideDesignTabBar() {
 
 .wrist-target-stepper__btn {
 	height: 96rpx;
-	color: #26314f;
+	color: #527985;
 	font-size: 42rpx;
 	font-weight: 900;
 	line-height: 96rpx;
@@ -2468,7 +2474,7 @@ function hideDesignTabBar() {
 	align-items: baseline;
 	justify-content: center;
 	gap: 8rpx;
-	color: #1e2638;
+	color: #365760;
 	font-weight: 900;
 }
 
@@ -2501,10 +2507,10 @@ function hideDesignTabBar() {
 }
 
 .wrist-target-option--active {
-	background: #ef4f66;
-	border-color: #ef4f66;
+	background: #527985;
+	border-color: #527985;
 	color: #fff;
-	box-shadow: 0 10rpx 22rpx rgba(239, 79, 102, 0.22);
+	box-shadow: 0 10rpx 22rpx rgba(82, 121, 133, 0.2);
 }
 
 .wrist-target-summary {
@@ -2520,7 +2526,7 @@ function hideDesignTabBar() {
 }
 
 .wrist-target-summary text:last-child {
-	color: #ef4f66;
+	color: #527985;
 }
 
 .wrist-target-done {
@@ -2593,9 +2599,9 @@ function hideDesignTabBar() {
 }
 
 .notice-tab--active {
-	background: linear-gradient(135deg, #ef4056 0%, #d7253c 100%);
+	background: #527985;
 	color: #fff;
-	box-shadow: 0 10rpx 22rpx rgba(215, 37, 60, 0.22);
+	box-shadow: 0 10rpx 22rpx rgba(82, 121, 133, 0.2);
 }
 
 .notice-tab:active {
@@ -2657,7 +2663,7 @@ function hideDesignTabBar() {
 
 .notice-poster::before,
 .notice-poster::after {
-	content: '养个石头';
+	content: '珠岛';
 	position: absolute;
 	color: rgba(24, 30, 45, 0.045);
 	font-size: 58rpx;
@@ -3115,13 +3121,13 @@ function hideDesignTabBar() {
 }
 
 .poster-phone__category {
-	color: #26314f;
+	color: #365760;
 	font-size: 19rpx;
 	font-weight: 900;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border-left: 4rpx solid #ef4056;
+	border-left: 4rpx solid #527985;
 }
 
 .poster-phone__card {
@@ -3859,13 +3865,13 @@ function hideDesignTabBar() {
 }
 
 .phone-demo__category {
-	color: #26314f;
+	color: #365760;
 	font-size: 20rpx;
 	font-weight: 900;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border-left: 4rpx solid #ef4056;
+	border-left: 4rpx solid #527985;
 }
 
 .phone-demo__card {
@@ -4144,8 +4150,8 @@ function hideDesignTabBar() {
 	height: 148rpx;
 	border-radius: 50%;
 	border: 10rpx solid transparent;
-	border-top-color: #dd2b32;
-	border-right-color: #dd2b32;
+	border-top-color: #527985;
+	border-right-color: #527985;
 	animation: loading-spin 1s linear infinite;
 	box-sizing: border-box;
 }
@@ -4155,7 +4161,7 @@ function hideDesignTabBar() {
 	position: absolute;
 	inset: -10rpx;
 	border-radius: 50%;
-	border: 10rpx solid rgba(221, 43, 50, 0.1);
+	border: 10rpx solid rgba(82, 121, 133, 0.12);
 	box-sizing: border-box;
 }
 
@@ -4189,7 +4195,7 @@ function hideDesignTabBar() {
 .loading-fill {
 	height: 100%;
 	border-radius: inherit;
-	background: linear-gradient(90deg, #dd2b32 0%, #ff6c72 100%);
+	background: linear-gradient(90deg, #527985 0%, #d0a09d 100%);
 	transition: width 0.16s ease-out;
 }
 
@@ -4255,7 +4261,7 @@ function hideDesignTabBar() {
 	flex-shrink: 0;
 	position: relative;
 	z-index: 6;
-	background: #fff;
+	background: #fffdf9;
 }
 
 // 信息标签布局
@@ -4288,6 +4294,23 @@ function hideDesignTabBar() {
 	max-width: 100%;
 }
 
+.info-section :deep(.info-tag--notice) {
+	background: #527985;
+	border-color: rgba(255, 255, 255, 0.32);
+	box-shadow: 0 8rpx 18rpx rgba(82, 121, 133, 0.2);
+}
+
+.info-section :deep(.info-tag--default) {
+	background: rgba(242, 240, 235, 0.92);
+	color: #6f7773;
+	border-color: rgba(82, 121, 133, 0.1);
+}
+
+.info-section :deep(.info-tag--warn) {
+	background: rgba(250, 239, 232, 0.94);
+	color: #946d62;
+}
+
 .mode-switch {
 	display: flex;
 	align-items: center;
@@ -4295,8 +4318,8 @@ function hideDesignTabBar() {
 	height: 54rpx;
 	padding: 4rpx;
 	border-radius: 999rpx;
-	background: #f1f3f7;
-	border: 1rpx solid rgba(220, 225, 236, 0.96);
+	background: #edf1ef;
+	border: 1rpx solid rgba(82, 121, 133, 0.16);
 	box-sizing: border-box;
 	flex-shrink: 0;
 }
@@ -4306,7 +4329,7 @@ function hideDesignTabBar() {
 	height: 44rpx;
 	padding: 0 14rpx;
 	border-radius: 999rpx;
-	color: #717989;
+	color: #737a77;
 	font-size: 23rpx;
 	font-weight: 900;
 	line-height: 44rpx;
@@ -4320,9 +4343,9 @@ function hideDesignTabBar() {
 }
 
 .mode-switch__item--active {
-	background: #1f2636;
+	background: #527985;
 	color: #fff;
-	box-shadow: 0 6rpx 14rpx rgba(31, 38, 54, 0.16);
+	box-shadow: 0 6rpx 14rpx rgba(82, 121, 133, 0.2);
 }
 
 .mode-switch__item:active {
@@ -4391,9 +4414,9 @@ function hideDesignTabBar() {
 	gap: 6rpx;
 	padding: 6rpx;
 	border-radius: 999rpx;
-	background: rgba(255, 255, 255, 0.82);
-	border: 1rpx solid rgba(218, 224, 236, 0.92);
-	box-shadow: 0 12rpx 30rpx rgba(50, 60, 84, 0.13);
+	background: rgba(255, 253, 249, 0.86);
+	border: 1rpx solid rgba(82, 121, 133, 0.2);
+	box-shadow: 0 12rpx 30rpx rgba(67, 85, 86, 0.12);
 	backdrop-filter: blur(18rpx);
 	box-sizing: border-box;
 }
@@ -4413,8 +4436,8 @@ function hideDesignTabBar() {
 }
 
 .view-mode-button--active {
-	background: #1e2638;
-	box-shadow: 0 8rpx 18rpx rgba(30, 38, 56, 0.18);
+	background: #527985;
+	box-shadow: 0 8rpx 18rpx rgba(82, 121, 133, 0.2);
 }
 
 .view-mode-button:active {
@@ -4425,7 +4448,7 @@ function hideDesignTabBar() {
 	position: relative;
 	width: 34rpx;
 	height: 34rpx;
-	color: #697185;
+	color: #717c79;
 }
 
 .view-mode-button--active .view-mode-icon {
@@ -4520,7 +4543,7 @@ function hideDesignTabBar() {
 }
 
 .growth-panel__title {
-	color: #1e2638;
+	color: #365760;
 	font-size: 30rpx;
 	font-weight: 900;
 	line-height: 1.08;
@@ -4540,7 +4563,7 @@ function hideDesignTabBar() {
 }
 
 .growth-panel__recent {
-	color: #ef4f66;
+	color: #b47776;
 	font-size: 20rpx;
 	font-weight: 900;
 	line-height: 1.1;
@@ -4572,13 +4595,13 @@ function hideDesignTabBar() {
 .growth-panel__fill {
 	height: 100%;
 	border-radius: inherit;
-	background: linear-gradient(90deg, #ef4f66 0%, #f2bb55 48%, #65c38a 100%);
+	background: linear-gradient(90deg, #d0a09d 0%, #8fa9a8 52%, #527985 100%);
 	transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .growth-panel__value {
 	width: 56rpx;
-	color: #283149;
+	color: #527985;
 	font-size: 22rpx;
 	font-weight: 900;
 	line-height: 1;
@@ -4591,9 +4614,9 @@ function hideDesignTabBar() {
 	height: 38rpx;
 	padding: 0 16rpx;
 	border-radius: 999rpx;
-	background: rgba(239, 79, 102, 0.09);
-	border: 1rpx solid rgba(239, 79, 102, 0.22);
-	color: #ef4f66;
+	background: rgba(82, 121, 133, 0.09);
+	border: 1rpx solid rgba(82, 121, 133, 0.22);
+	color: #527985;
 	font-size: 20rpx;
 	font-weight: 900;
 	line-height: 36rpx;
@@ -4679,7 +4702,7 @@ function hideDesignTabBar() {
 }
 
 .design-confirm-eyebrow {
-	color: #d92733;
+	color: #527985;
 	font-size: 23rpx;
 	font-weight: 900;
 	line-height: 1.2;
@@ -4839,7 +4862,7 @@ function hideDesignTabBar() {
 }
 
 .design-confirm-stat__value.price {
-	color: #d92733;
+	color: #527985;
 }
 
 .design-confirm-stat__label {
@@ -4933,7 +4956,7 @@ function hideDesignTabBar() {
 	width: 10rpx;
 	height: 10rpx;
 	border-radius: 50%;
-	background: #d92733;
+	background: #d0a09d;
 	flex-shrink: 0;
 }
 
@@ -4949,7 +4972,7 @@ function hideDesignTabBar() {
 	line-height: 88rpx;
 	margin: 0;
 	border-radius: 999rpx;
-	background: #d92733;
+	background: #527985;
 	color: #fff;
 	font-size: 29rpx;
 	font-weight: 900;
@@ -4957,8 +4980,8 @@ function hideDesignTabBar() {
 
 .design-confirm-btn.ghost {
 	background: #fff;
-	color: #d92733;
-	border: 2rpx solid rgba(217, 39, 51, 0.44);
+	color: #527985;
+	border: 2rpx solid rgba(82, 121, 133, 0.4);
 }
 
 @keyframes confirm-sheet-in {
@@ -5096,10 +5119,10 @@ function hideDesignTabBar() {
 
 // 底部操作区和材料列表
 .bottom-section {
-	background: #fff;
+	background: #fffdf9;
 	border-radius: 0;
-	border-top: 1rpx solid rgba(215, 219, 228, 0.96);
-	box-shadow: 0 -3rpx 12rpx rgba(67, 75, 96, 0.06);
+	border-top: 1rpx solid rgba(82, 121, 133, 0.16);
+	box-shadow: 0 -3rpx 12rpx rgba(67, 85, 86, 0.06);
 	padding: 4rpx 0 0;
 	padding-bottom: env(safe-area-inset-bottom);
 	flex-shrink: 0;
@@ -5117,6 +5140,39 @@ function hideDesignTabBar() {
 .action-row__left {
 	display: flex;
 	gap: 14rpx;
+}
+
+.action-row :deep(.action-btn--delete) {
+	background: #fffdf9;
+	color: #527985;
+	border-color: #527985;
+}
+
+.action-row :deep(.action-btn--save) {
+	background: #fff8f5;
+	color: #a87573;
+	border-color: #d0a09d;
+	box-shadow: 0 7rpx 18rpx rgba(208, 160, 157, 0.16);
+}
+
+.action-row :deep(.action-btn--primary) {
+	background: #527985;
+	color: #fff;
+	border-color: #527985;
+	box-shadow: 0 7rpx 18rpx rgba(82, 121, 133, 0.2);
+}
+
+.action-row :deep(.action-btn--primary.action-btn--disabled) {
+	background: #e2e6e3;
+	color: #8a928d;
+	border-color: #d5dbd7;
+	box-shadow: none;
+}
+
+.action-row :deep(.action-btn--primary.action-btn--tone-danger) {
+	background: #a45b5e;
+	color: #fff;
+	border-color: #a45b5e;
 }
 
 .function-menu-wrap {
@@ -5144,7 +5200,7 @@ function hideDesignTabBar() {
 	display: flex;
 	flex-direction: column;
 	height: 492rpx;
-	border-top: 1rpx solid rgba(223, 226, 234, 0.96);
+	border-top: 1rpx solid rgba(82, 121, 133, 0.14);
 }
 
 .refill-suggestion {
@@ -5153,8 +5209,8 @@ function hideDesignTabBar() {
 	gap: 14rpx;
 	min-height: 74rpx;
 	padding: 10rpx 18rpx 10rpx 20rpx;
-	background: linear-gradient(90deg, rgba(255, 244, 246, 0.96), rgba(249, 251, 255, 0.96));
-	border-bottom: 1rpx solid rgba(231, 221, 226, 0.9);
+	background: linear-gradient(90deg, rgba(244, 235, 232, 0.96), rgba(237, 244, 242, 0.96));
+	border-bottom: 1rpx solid rgba(82, 121, 133, 0.13);
 	box-sizing: border-box;
 }
 
@@ -5162,8 +5218,8 @@ function hideDesignTabBar() {
 	width: 16rpx;
 	height: 16rpx;
 	border-radius: 50%;
-	background: #f04452;
-	box-shadow: 0 0 0 8rpx rgba(240, 68, 82, 0.1);
+	background: #d0a09d;
+	box-shadow: 0 0 0 8rpx rgba(208, 160, 157, 0.12);
 	flex-shrink: 0;
 }
 
@@ -5197,7 +5253,7 @@ function hideDesignTabBar() {
 	height: 40rpx;
 	padding: 0 14rpx;
 	border-radius: 999rpx;
-	background: #202633;
+	background: #527985;
 	color: #fff;
 	font-size: 20rpx;
 	font-weight: 900;
@@ -5215,7 +5271,7 @@ function hideDesignTabBar() {
 	width: 126rpx;
 	flex-shrink: 0;
 	padding-top: 18rpx;
-	background: #fafafa;
+	background: #f4f1ed;
 	border-right: 1rpx solid rgba(232, 232, 232, 0.9);
 	box-sizing: border-box;
 }
@@ -5235,8 +5291,8 @@ function hideDesignTabBar() {
 }
 
 .function-panel__tab--active {
-	color: #17191f;
-	background: #fff;
+	color: #365760;
+	background: #fffdf9;
 	font-weight: 900;
 }
 
@@ -5248,7 +5304,7 @@ function hideDesignTabBar() {
 	width: 5rpx;
 	height: 34rpx;
 	border-radius: 0 999rpx 999rpx 0;
-	background: #ff4f63;
+	background: #527985;
 }
 
 .function-panel__cards {
@@ -5260,14 +5316,14 @@ function hideDesignTabBar() {
 	gap: 18rpx;
 	padding: 26rpx 16rpx 0;
 	box-sizing: border-box;
-	background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
+	background: linear-gradient(180deg, #fffdf9 0%, #f8f6f2 100%);
 }
 
 .function-card {
 	height: 140rpx;
 	border-radius: 18rpx;
-	background: #fff;
-	border: 1rpx solid rgba(226, 228, 234, 0.92);
+	background: #fffdf9;
+	border: 1rpx solid rgba(82, 121, 133, 0.16);
 	box-shadow: 0 9rpx 22rpx rgba(53, 58, 72, 0.08);
 	display: flex;
 	flex-direction: column;
@@ -5286,10 +5342,10 @@ function hideDesignTabBar() {
 }
 
 .function-card--active {
-	border-color: rgba(226, 228, 234, 0.92);
+	border-color: rgba(82, 121, 133, 0.35);
 	box-shadow:
 		0 9rpx 22rpx rgba(53, 58, 72, 0.08),
-		0 18rpx 26rpx rgba(221, 176, 91, 0.16);
+		0 18rpx 26rpx rgba(208, 160, 157, 0.16);
 }
 
 .function-card--muted {
@@ -5304,7 +5360,7 @@ function hideDesignTabBar() {
 	position: relative;
 	width: 44rpx;
 	height: 44rpx;
-	color: #202329;
+	color: #527985;
 }
 
 .function-card__icon--sound::before {
@@ -5453,7 +5509,7 @@ function hideDesignTabBar() {
 }
 
 .function-card__label {
-	color: #202329;
+	color: #365760;
 	font-size: 26rpx;
 	font-weight: 800;
 	white-space: nowrap;
@@ -5470,7 +5526,7 @@ function hideDesignTabBar() {
 .material-grid-wrap {
 	flex: 1;
 	height: 100%;
-	background: linear-gradient(180deg, #fffdfb 0%, #fbfcff 100%);
+	background: linear-gradient(180deg, #fffdf9 0%, #f7f5f1 100%);
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 }
@@ -5554,7 +5610,7 @@ function hideDesignTabBar() {
 
 .material-empty__title {
 	margin-top: 20rpx;
-	color: #26314f;
+	color: #365760;
 	font-size: 28rpx;
 	font-weight: 900;
 	line-height: 1.2;
@@ -5576,7 +5632,7 @@ function hideDesignTabBar() {
 	background: #fff;
 	border: 1rpx solid rgba(218, 224, 236, 0.96);
 	box-shadow: 0 7rpx 16rpx rgba(76, 84, 108, 0.08);
-	color: #26314f;
+	color: #527985;
 	font-size: 23rpx;
 	font-weight: 900;
 	line-height: 48rpx;

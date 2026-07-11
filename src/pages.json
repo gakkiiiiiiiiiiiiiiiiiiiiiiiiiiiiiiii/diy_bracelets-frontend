@@ -4,7 +4,8 @@
 			"path": "pages/home/home",
 			"style": {
 				"navigationStyle": "custom",
-				"navigationBarTitleText": ""
+				"navigationBarTitleText": "珠岛 ZHUDAO",
+				"backgroundColor": "#F4F6F4"
 			}
 		},
 		{
@@ -39,7 +40,7 @@
 			"path": "pages/design/design",
 			"style": {
 				"navigationStyle": "custom",
-				"navigationBarTitleText": "养个石头"
+					"navigationBarTitleText": "珠岛设计台"
 			}
 		},
 		{
@@ -143,14 +144,14 @@
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "养个石头",
-		"backgroundColor": "#F5F5F7"
+		"navigationBarTitleText": "珠岛 ZHUDAO",
+		"backgroundColor": "#F4F6F4"
 	},
 	"tabBar": {
 		"custom": false,
-		"color": "#999999",
-		"selectedColor": "#000000",
-		"backgroundColor": "#FFFFFF",
+		"color": "#7B8587",
+		"selectedColor": "#527985",
+		"backgroundColor": "#FCFDFC",
 		"borderStyle": "white",
 		"list": [
 			{

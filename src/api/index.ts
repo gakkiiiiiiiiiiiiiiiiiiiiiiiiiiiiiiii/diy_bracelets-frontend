@@ -196,9 +196,27 @@ function request<T>(
   });
 }
 
+function publishedContent<T extends object>(config: PageConfigResponse<T>): Partial<T> | null {
+  return config.isPublished && config.publishedContent ? config.publishedContent : null;
+}
+
 export const api = {
   getCategories: () => request<MaterialCategory[]>(`/api/categories`),
   getMaterials: () => request<Material[]>(`/api/materials`),
+  getContent: async (): Promise<PublishedContentConfig> => {
+    const [brand, home, diy, support] = await Promise.all([
+      request<PageConfigResponse<BrandPageContent>>(`/api/content/brand`),
+      request<PageConfigResponse<HomePageContent>>(`/api/content/home`),
+      request<PageConfigResponse<DiyPageContent>>(`/api/content/diy`),
+      request<PageConfigResponse<SupportContent>>(`/api/content/support`),
+    ]);
+    return {
+      brand: publishedContent(brand),
+      home: publishedContent(home),
+      diy: publishedContent(diy),
+      support: publishedContent(support),
+    };
+  },
   getHome: () => request<HomeData>(`/api/home`),
   /** 设计广场列表，tab=designer|user */
   getGoods: (tab?: 'designer' | 'user') =>
@@ -222,6 +240,201 @@ export const api = {
   deleteMyDesign: (id: string) =>
     request<void>(`/api/my-designs/${id}`, 'DELETE'),
 };
+
+export interface BrandContent {
+  name: string;
+  nameEn: string;
+  tagline: string;
+  primaryColor: string;
+  secondaryColor: string;
+  supportId: string;
+  supportHours: string;
+}
+
+export interface ContentAction {
+  label: string;
+  path: string;
+}
+
+export interface HomeHeroContent {
+  eyebrow: string;
+  title: string;
+  description: string;
+  image: string;
+  primaryAction: ContentAction;
+}
+
+export interface HomeMaterialEntry {
+  id: string;
+  name: string;
+  caption: string;
+  image: string;
+  categoryId: string;
+}
+
+export interface HomeMaterialSectionContent {
+  eyebrow: string;
+  title: string;
+  description: string;
+  items: HomeMaterialEntry[];
+}
+
+export interface HomeFeaturedWork {
+  id: string;
+  title: string;
+  caption: string;
+  image: string;
+  path: string;
+}
+
+export interface HomeFeaturedSectionContent {
+  eyebrow: string;
+  title: string;
+  actionLabel: string;
+  actionPath: string;
+  items: HomeFeaturedWork[];
+}
+
+export interface HomeContent {
+  hero: HomeHeroContent;
+  materials: HomeMaterialSectionContent;
+  featured: HomeFeaturedSectionContent;
+}
+
+export interface DiyMaterialPreview {
+  id: string;
+  name: string;
+  image: string;
+}
+
+export interface DiyExperiencePoint {
+  id: string;
+  label: string;
+}
+
+export interface DiyContent {
+  pageTitle: string;
+  canvasTitle: string;
+  canvasHint: string;
+  noticeLabel: string;
+  saveLabel: string;
+  finishLabel: string;
+  selectHint: string;
+  stageLabel: string;
+  stageHint: string;
+  experiencePoints: DiyExperiencePoint[];
+  materialPreviews: DiyMaterialPreview[];
+}
+
+export interface SupportHelpTopic {
+  id: string;
+  title: string;
+  desc: string;
+  items: string[];
+}
+
+export interface SupportPurchaseSection {
+  id: string;
+  title: string;
+  subtitle: string;
+  points: string[];
+  tone: string;
+}
+
+export interface SupportPurchaseContent {
+  heroKicker: string;
+  title: string;
+  subtitle: string;
+  contactText: string;
+  sections: SupportPurchaseSection[];
+}
+
+export interface SupportTermsSection {
+  title: string;
+  body: string;
+}
+
+export interface SupportTermsContent {
+  intro: string;
+  sections: SupportTermsSection[];
+}
+
+export interface SupportContent {
+  helpTopics: SupportHelpTopic[];
+  purchase: SupportPurchaseContent;
+  terms: SupportTermsContent;
+}
+
+export interface ContentConfig {
+  brand: BrandContent;
+  home: HomeContent;
+  diy: DiyContent;
+  support: SupportContent;
+}
+
+export interface BrandPageContent {
+  name: string;
+  logoText: string;
+  slogan: string;
+  logoImage: string;
+  serviceEmail: string;
+  servicePhone: string;
+  nameEn?: string;
+  tagline?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  supportId?: string;
+  supportHours?: string;
+}
+
+export interface HomePageContent {
+  tiles: HomeTile[];
+  banners: HomeBanner[];
+  designs: HomeDesign[];
+  hero?: Partial<HomeHeroContent>;
+  materials?: Partial<HomeMaterialSectionContent>;
+  featured?: Partial<HomeFeaturedSectionContent>;
+}
+
+export interface DiyPageContent {
+  pageTitle?: string;
+  canvasTitle?: string;
+  canvasHint?: string;
+  noticeLabel?: string;
+  saveLabel?: string;
+  finishLabel?: string;
+  selectHint?: string;
+  title: string;
+  subtitle: string;
+  guideTitle: string;
+  guideDescription: string;
+  startButtonText: string;
+  emptyHint: string;
+  tips: string[];
+  stageLabel?: string;
+  stageHint?: string;
+  experiencePoints?: DiyExperiencePoint[];
+  materialPreviews?: DiyMaterialPreview[];
+}
+
+export interface PageConfigResponse<T extends object> {
+  key: 'brand' | 'home' | 'diy' | 'support';
+  name: string;
+  draftContent: Partial<T>;
+  publishedContent: Partial<T> | null;
+  isPublished: boolean;
+  hasUnpublishedChanges: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublishedContentConfig {
+  brand: Partial<BrandPageContent> | null;
+  home: Partial<HomePageContent> | null;
+  diy: Partial<DiyPageContent> | null;
+  support: Partial<SupportContent> | null;
+}
 
 export interface HomeTile {
   id: string;

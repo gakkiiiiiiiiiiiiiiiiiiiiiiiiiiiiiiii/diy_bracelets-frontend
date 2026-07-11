@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, type Ref } from 'vue';
+import { ref, computed, watch, onMounted, type Ref } from 'vue';
 import { useDesignStore } from '@/stores/design';
+import { useContentStore } from '@/stores/content';
 import { useUIStore } from '@/stores/ui';
 import type { BraceletBead } from '@/types';
 // #ifdef H5
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 
 // 使用手链设计相关的 Pinia store
 const designStore = useDesignStore();
+const contentStore = useContentStore();
 // 使用 UI 状态相关的 Pinia store
 const uiStore = useUIStore();
 
@@ -63,11 +65,15 @@ const emptySingleStageBeads = createPreviewBeads([
 // 计算属性：当前设计的珠子数组（reactive 响应式）；空设计时显示 3D 预览珠阵。
 const hasActualBeads = computed(() => designStore.braceletDesign.length > 0);
 const emptyStageBeads = computed(() => (props.mode === 'single' ? emptySingleStageBeads : emptyBraceletStageBeads));
-const emptyTitle = computed(() => (props.mode === 'single' ? '3D 单珠' : '3D DIY'));
-const emptySub = computed(() => (props.mode === 'single' ? '挑选第一颗散珠' : '等待第一颗水晶'));
+const emptyTitle = computed(() => (props.mode === 'single' ? '3D 单珠' : contentStore.diy.canvasTitle));
+const emptySub = computed(() => (props.mode === 'single' ? '挑选第一颗散珠' : contentStore.diy.canvasHint));
 const beads = computed(() => (hasActualBeads.value ? designStore.braceletDesign : emptyStageBeads.value));
 let rendererBeadDragging: Ref<boolean> | null = null;
 let rendererBeadDeleteTarget: Ref<boolean> | null = null;
+
+onMounted(() => {
+	void contentStore.fetchContent();
+});
 
 function withActualBeads(callback: () => void) {
 	if (!hasActualBeads.value) return;
@@ -128,6 +134,34 @@ const dragHintVisible = computed(() => hasActualBeads.value && props.mode === 'b
 const dragDeleteActive = computed(() => Boolean(rendererBeadDeleteTarget?.value));
 const dragHintTitle = computed(() => (dragDeleteActive.value ? '松手删除' : '拖出圈外删除'));
 const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取消' : '拖回圆圈可调整顺序'));
+
+function pauseRendering() {
+	// #ifdef H5
+	h5Renderer.pauseRendering();
+	// #endif
+	// #ifdef MP-WEIXIN
+	mp3d.pauseRendering();
+	// #endif
+}
+
+function resumeRendering() {
+	// #ifdef H5
+	h5Renderer.resumeRendering();
+	// #endif
+	// #ifdef MP-WEIXIN
+	mp3d.resumeRendering();
+	// #endif
+}
+
+function captureImage(type = 'image/png', quality = 0.92): string | null {
+	let image: string | null = null;
+	// #ifdef H5
+	image = h5Renderer.captureImage(type, quality);
+	// #endif
+	return image;
+}
+
+defineExpose({ pauseRendering, resumeRendering, captureImage });
 </script>
 
 <template>
@@ -137,8 +171,8 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 			<view class="canvas-3d" :class="{ 'canvas-3d--empty': !hasActualBeads, 'canvas-3d--single': mode === 'single' }">
 				<view ref="canvas3dContainer" class="canvas-3d__gl" />
 				<view class="canvas-center canvas-center--overlay">
-				<text class="canvas-brand">养个石头</text>
-				<text class="canvas-sub">MineStone</text>
+					<text class="canvas-brand">{{ contentStore.brand.name }}</text>
+					<text class="canvas-sub">{{ contentStore.brand.nameEn }}</text>
 			</view>
 				<view v-if="!hasActualBeads" class="canvas-empty-mark">
 					<text class="canvas-empty-mark__title">{{ emptyTitle }}</text>
@@ -166,8 +200,8 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 		>
 			<canvas id="bracelet-gl" type="webgl" class="canvas-3d__gl canvas-3d__gl-mp" />
 			<cover-view class="canvas-center canvas-center--overlay canvas-center--mp">
-				<cover-view class="canvas-brand">养个石头</cover-view>
-				<cover-view class="canvas-sub">MineStone</cover-view>
+					<cover-view class="canvas-brand">{{ contentStore.brand.name }}</cover-view>
+					<cover-view class="canvas-sub">{{ contentStore.brand.nameEn }}</cover-view>
 			</cover-view>
 				<cover-view v-if="!hasActualBeads" class="canvas-empty-mark canvas-empty-mark--mp">
 					<cover-view class="canvas-empty-mark__title">{{ emptyTitle }}</cover-view>
@@ -214,12 +248,12 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 	bottom: 0;
 	border-radius: 0;
 	overflow: hidden;
-	background: #fff;
+	background: #faf8f5;
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
-	background: #fbfcff;
+	background: #f8f6f2;
 }
 
 /* 3D gl 画布容器 */
@@ -240,7 +274,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 
 .canvas-center--overlay {
 	pointer-events: none;
-	filter: drop-shadow(0 4rpx 10rpx rgba(191, 186, 196, 0.22));
+	filter: drop-shadow(0 4rpx 10rpx rgba(82, 121, 133, 0.14));
 }
 
 .canvas-center--mp {
@@ -270,7 +304,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 	font-weight: 700;
 	font-size: 30rpx;
 	letter-spacing: 0;
-	color: rgba(149, 156, 177, 0.54);
+	color: rgba(82, 121, 133, 0.68);
 	text-shadow: 0 1rpx 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -278,7 +312,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 .canvas-sub {
 	font-size: 22rpx;
 	font-weight: 700;
-	color: rgba(149, 156, 177, 0.54);
+	color: rgba(208, 160, 157, 0.78);
 	opacity: 0.95;
 	margin-top: 0;
 }
@@ -303,7 +337,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 }
 
 .canvas-empty-mark__title {
-	color: rgba(34, 40, 56, 0.86);
+	color: rgba(59, 85, 92, 0.92);
 	font-size: 24rpx;
 	font-weight: 900;
 	line-height: 1.2;
@@ -311,7 +345,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 
 .canvas-empty-mark__sub {
 	margin-top: 6rpx;
-	color: rgba(111, 119, 137, 0.72);
+	color: rgba(108, 113, 110, 0.76);
 	font-size: 21rpx;
 	font-weight: 800;
 	line-height: 1.2;
@@ -325,7 +359,7 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 	min-width: 238rpx;
 	padding: 14rpx 22rpx;
 	border-radius: 999rpx;
-	background: rgba(20, 24, 34, 0.86);
+	background: rgba(62, 88, 95, 0.9);
 	box-shadow:
 		0 18rpx 42rpx rgba(18, 22, 34, 0.18),
 		inset 0 1rpx 0 rgba(255, 255, 255, 0.18);
@@ -343,9 +377,9 @@ const dragHintSub = computed(() => (dragDeleteActive.value ? '移回圆圈可取
 }
 
 .drag-delete-hint--delete {
-	background: rgba(225, 39, 59, 0.92);
+	background: rgba(164, 91, 94, 0.94);
 	box-shadow:
-		0 18rpx 42rpx rgba(225, 39, 59, 0.24),
+		0 18rpx 42rpx rgba(164, 91, 94, 0.22),
 		inset 0 1rpx 0 rgba(255, 255, 255, 0.2);
 }
 

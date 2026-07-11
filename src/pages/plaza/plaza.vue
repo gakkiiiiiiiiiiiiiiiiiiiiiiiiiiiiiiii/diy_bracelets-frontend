@@ -235,7 +235,7 @@ function showCharm(item: PlazaItem, index: number) {
 						<template v-if="hasBraceletPreview(item)">
 							<view class="bracelet-shadow" />
 							<view class="brand-mark">
-								<view class="brand-name">养个石头</view>
+								<view class="brand-name">珠岛</view>
 								<view class="brand-line">DIY PLATFORM</view>
 							</view>
 							<image
@@ -255,7 +255,7 @@ function showCharm(item: PlazaItem, index: number) {
 							<view class="image-halo" />
 							<image class="crystal-img" :src="item.image" mode="aspectFit" />
 							<view class="brand-mark">
-								<view class="brand-name">养个石头</view>
+								<view class="brand-name">珠岛</view>
 								<view class="brand-line">DIY PLATFORM</view>
 							</view>
 						</view>

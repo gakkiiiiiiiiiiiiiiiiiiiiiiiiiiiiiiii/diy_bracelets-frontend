@@ -95,11 +95,11 @@ function openPhotoPreview() {
 .material-card {
 	position: relative;
 	overflow: hidden;
-	background: rgba(255, 255, 255, 0.96);
+	background: rgba(255, 253, 249, 0.97);
 	border-radius: 12rpx;
 	padding: 17rpx 12rpx 14rpx;
-	border: 1rpx solid rgba(218, 222, 231, 0.96);
-	box-shadow: 0 6rpx 16rpx rgba(73, 79, 96, 0.08);
+	border: 1rpx solid rgba(188, 194, 189, 0.7);
+	box-shadow: 0 6rpx 16rpx rgba(67, 85, 86, 0.07);
 	transition:
 		box-shadow u.$duration-state u.$ease-brand,
 		background u.$duration-state u.$ease-brand,
@@ -114,7 +114,7 @@ function openPhotoPreview() {
 	width: 132rpx;
 	height: 132rpx;
 	border-radius: 50%;
-	background: rgba(37, 40, 48, 0.12);
+	background: rgba(82, 121, 133, 0.12);
 	opacity: 0;
 	transform: translate(-50%, -50%) scale(0.48);
 	pointer-events: none;
@@ -123,7 +123,7 @@ function openPhotoPreview() {
 
 /* 图中产品卡 hover：阴影略增强、背景略灰 */
 .material-card:hover {
-	box-shadow: 0 8rpx 20rpx rgba(73, 79, 96, 0.11);
+	box-shadow: 0 8rpx 20rpx rgba(67, 85, 86, 0.11);
 	background: rgba(255, 255, 255, 0.99);
 }
 
@@ -133,8 +133,8 @@ function openPhotoPreview() {
 }
 
 .material-card--used {
-	border-color: rgba(204, 210, 222, 0.95);
-	background: linear-gradient(180deg, rgba(236, 238, 244, 0.94), rgba(222, 226, 235, 0.86));
+	border-color: rgba(82, 121, 133, 0.42);
+	background: linear-gradient(180deg, rgba(231, 239, 238, 0.96), rgba(218, 229, 228, 0.9));
 	box-shadow:
 		inset 0 1rpx 0 rgba(255, 255, 255, 0.68),
 		0 6rpx 14rpx rgba(64, 72, 96, 0.09);
@@ -161,8 +161,8 @@ function openPhotoPreview() {
 	height: 30rpx;
 	padding: 0 10rpx;
 	border-radius: 999rpx;
-	background: rgba(255, 97, 117, 0.92);
-	box-shadow: 0 4rpx 10rpx rgba(255, 97, 117, 0.22);
+	background: rgba(208, 160, 157, 0.96);
+	box-shadow: 0 4rpx 10rpx rgba(208, 160, 157, 0.2);
 	color: #fff;
 	font-size: 18rpx;
 	font-weight: 800;
@@ -178,7 +178,7 @@ function openPhotoPreview() {
 	overflow: hidden;
 	background:
 		radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0) 36rpx),
-		linear-gradient(135deg, #f1eef7 0%, #e8f0ec 100%);
+		linear-gradient(135deg, #f4ece9 0%, #e4eeec 100%);
 	box-shadow: 0 5rpx 14rpx rgba(113, 119, 148, 0.12);
 	margin: 0 auto 12rpx;
 	position: relative;
@@ -194,7 +194,7 @@ function openPhotoPreview() {
 .material-card__name {
 	font-size: 28rpx;
 	font-weight: 800;
-	color: #26314f;
+	color: #365760;
 	margin-bottom: 6rpx;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -207,7 +207,7 @@ function openPhotoPreview() {
 /* 尺寸与价格：图中约 13–15px，价格略粗 */
 .material-card__specs {
 	font-size: 24rpx;
-	color: #6f778d;
+	color: #777d79;
 	text-align: center;
 	position: relative;
 	z-index: 1;
@@ -223,7 +223,7 @@ function openPhotoPreview() {
 
 .spec-price {
 	font-weight: 900;
-	color: #273149;
+	color: #527985;
 }
 
 @keyframes recent-card-pulse {

@@ -108,7 +108,7 @@ const compositionF = [
 ]
 
 export const mockHomeData: HomeData = {
-  logoText: '养个石头',
+  logoText: '珠岛',
   tiles: [
     { id: 'diy', label: 'DIY-CUSTOM', sub: '设计手串', image: strawberryCrystal, path: '/pages/design/design' },
     { id: 'goods', label: 'MUST-HAVE', sub: '好物', image: starryCrystal, path: '/pages/goods/goods' },
@@ -145,7 +145,7 @@ export const mockHomeData: HomeData = {
   designs: [
     { id: 'plaza-star-watch', title: '星·守望', author: '@LY', image: moonCrystal, cta: '查看实物' },
     { id: 'plaza-pink-mist', title: '粉色迷眸', author: '@-2enbor', image: strawberryCrystal, cta: '查看实物' },
-    { id: 'plaza-green-haze', title: '森雾回响', author: '@MineStone', image: greenCrystal, cta: '查看实物' },
+    { id: 'plaza-green-haze', title: '森雾回响', author: '@ZHUDAO', image: greenCrystal, cta: '查看实物' },
   ],
 }
 
@@ -156,7 +156,7 @@ export const mockGoodsByTab: Record<'designer' | 'user', GoodsData> = {
       { id: 'plaza-star-watch', title: '星·守望', author: '@LY', image: moonCrystal, cta: '查看实物', usageCount: 703 },
       { id: 'plaza-pink-ink', title: '粉研', author: '@yarina', image: roseCrystal, cta: '查看实物', usageCount: 753 },
       { id: 'plaza-silver-tide', title: '银色潮汐', author: '@Pomelo.Y', image: aquamarineCrystal, cta: '查看实物', usageCount: 499 },
-      { id: 'plaza-green-haze', title: '森雾回响', author: '@MineStone', image: greenCrystal, cta: '查看实物', usageCount: 226 },
+      { id: 'plaza-green-haze', title: '森雾回响', author: '@ZHUDAO', image: greenCrystal, cta: '查看实物', usageCount: 226 },
       { id: 'plaza-aurora-white', title: '月白极光', author: '@Mia', image: moonCrystal, cta: '查看实物', usageCount: 10718 },
     ],
   },
@@ -203,7 +203,7 @@ export const mockDesignDetails: Record<string, DesignDetail> = {
   'plaza-star-watch': designDetail('plaza-star-watch', 'designer', '星·守望', '@LY', moonCrystal, 703, compositionA),
   'plaza-pink-ink': designDetail('plaza-pink-ink', 'designer', '粉研', '@yarina', roseCrystal, 753, compositionD),
   'plaza-silver-tide': designDetail('plaza-silver-tide', 'designer', '银色潮汐', '@Pomelo.Y', aquamarineCrystal, 499, compositionE),
-  'plaza-green-haze': designDetail('plaza-green-haze', 'designer', '森雾回响', '@MineStone', greenCrystal, 226, compositionC),
+  'plaza-green-haze': designDetail('plaza-green-haze', 'designer', '森雾回响', '@ZHUDAO', greenCrystal, 226, compositionC),
   'plaza-aurora-white': designDetail('plaza-aurora-white', 'designer', '月白极光', '@Mia', moonCrystal, 10718, compositionA),
   'plaza-user-rose-dream': designDetail('plaza-user-rose-dream', 'user', '玫瑰泡泡', '@吴烦恼', strawberryCrystal, 318, compositionD),
   'plaza-user-sea-breath': designDetail('plaza-user-sea-breath', 'user', '海盐呼吸', '@Oo', aquamarineCrystal, 286, compositionE),
@@ -233,7 +233,7 @@ export const mockCartData: CartData = {
 
 export const mockProfileData: ProfileData = {
   name: 'Gakiiiiiiiiiiiiii',
-  greeting: '您好！欢迎来到养个石头',
+  greeting: '您好！欢迎来到珠岛',
   entries: [
     { id: 'design', label: '我的设计', sub: '查看已保存的设计记录', icon: 'D', path: '/pages/designs/list' },
     { id: 'coupon', label: '优惠券与口令兑换', sub: '我的优惠券，口令兑换优惠券', icon: '¥', path: '/pages/profile/coupons' },

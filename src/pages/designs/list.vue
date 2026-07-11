@@ -238,8 +238,8 @@ function goBack() {
 					<view v-if="designPreviewBeads(item).length" class="bracelet-preview">
 						<view class="bracelet-ring" />
 						<view class="bracelet-logo">
-							<view class="bracelet-logo-cn">养个石头</view>
-							<view class="bracelet-logo-en">MineStone</view>
+							<view class="bracelet-logo-cn">珠岛</view>
+							<view class="bracelet-logo-en">ZHUDAO</view>
 						</view>
 						<view class="bracelet-shadow" />
 						<image

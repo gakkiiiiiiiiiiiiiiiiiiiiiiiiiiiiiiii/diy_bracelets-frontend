@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { useContentStore } from '@/stores/content'
+
+const contentStore = useContentStore()
+
 const emit = defineEmits<{
   back: []
   reset: []
@@ -8,6 +13,10 @@ const emit = defineEmits<{
   secondary: []
   center: []
 }>()
+
+onMounted(() => {
+  void contentStore.fetchContent()
+})
 
 function goHome() {
   uni.switchTab({
@@ -60,7 +69,7 @@ function onMore() {
         <text class="nav-icon nav-icon--back">‹</text>
       </view>
     </view>
-    <view class="nav-title">养个石头</view>
+    <view class="nav-title">{{ contentStore.diy.pageTitle }}</view>
     <view class="nav-right nav-capsule">
       <view class="nav-capsule__btn" @tap="onMore">
         <text class="nav-icon">⋯</text>
@@ -89,7 +98,7 @@ function onMore() {
   padding-top: calc(40rpx + env(safe-area-inset-top));
   position: relative;
   z-index: 10;
-  background: rgba(251, 251, 255, 0.86);
+  background: rgba(250, 248, 245, 0.92);
   backdrop-filter: blur(14rpx);
   flex-shrink: 0;
 }
@@ -109,7 +118,7 @@ function onMore() {
   font-weight: 700;
   font-size: 34rpx;
   letter-spacing: 0;
-  color: #26314f;
+  color: #1d292b;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -132,9 +141,9 @@ function onMore() {
   height: 64rpx;
   min-width: 234rpx;
   border-radius: 999rpx;
-  border: 1rpx solid rgba(217, 222, 234, 0.9);
+  border: 1rpx solid rgba(82, 121, 133, 0.16);
   background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 6rpx 18rpx rgba(88, 96, 124, 0.1);
+  box-shadow: 0 6rpx 18rpx rgba(82, 121, 133, 0.1);
   overflow: hidden;
 }
 
@@ -149,7 +158,7 @@ function onMore() {
 .nav-capsule__divider {
   width: 1rpx;
   height: 32rpx;
-  background: rgba(170, 178, 199, 0.55);
+  background: rgba(82, 121, 133, 0.28);
 }
 
 .nav-btn:active {
@@ -159,7 +168,7 @@ function onMore() {
 
 .nav-icon {
   font-size: 42rpx;
-  color: #26314f;
+  color: #527985;
   line-height: 1;
   font-weight: 700;
 }
