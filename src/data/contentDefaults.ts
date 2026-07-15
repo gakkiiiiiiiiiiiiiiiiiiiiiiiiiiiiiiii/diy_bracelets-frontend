@@ -18,7 +18,7 @@ export const contentDefaults: ContentConfig = {
       eyebrow: 'NATURAL CRYSTAL · 3D DIY',
       title: '让每一颗晶石\n找到它的位置',
       description: '在真实材质与光线中自由搭配，实时看见专属于你的手串。',
-      image: '/static/brand/zhudao-hero-v2.png',
+      image: '/static/brand/zhudao-hero-v3.png',
       primaryAction: {
         label: '开始 3D 设计',
         path: '/pages/design/design',
