@@ -27,7 +27,8 @@ import {
 } from '@/utils/designNavigation';
 import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
 import type { Material, MaterialSpec } from '@/types';
-import type { CartItem } from '@/api';
+import type { BraceletCodeResolution, CartItem, ResolvedBraceletBead } from '@/api';
+import { api } from '@/api';
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedDesignsStore = useSavedDesignsStore();
@@ -249,6 +250,12 @@ const inspirationMode = ref(false);
 const insufficientHintVisible = ref(false);
 const insufficientToastVisible = ref(false);
 const functionToastVisible = ref(false);
+const braceletCodeOpen = ref(false);
+const braceletCodeText = ref('');
+const braceletCodeResolving = ref(false);
+const braceletCodeResolution = ref<BraceletCodeResolution | null>(null);
+const braceletCodeError = ref('');
+const braceletCodeReplacements = ref<Record<number, number>>({});
 const functionToastText = ref('');
 const functionToastIcon = ref<'check' | 'play'>('check');
 type DesignFeedbackKind = 'tap' | 'add' | 'play' | 'complete' | 'error';
@@ -973,6 +980,96 @@ async function onImportDesign() {
 	});
 }
 
+const braceletCodeOptions = computed(() =>
+	materialsStore.materials.flatMap((material) =>
+		material.specs
+			.filter((spec) => spec.specId)
+			.map((spec) => ({
+				label: `${material.name} · ${spec.size}mm · ¥${spec.price}`,
+				materialId: material.id,
+				specId: spec.specId as string,
+				name: material.name,
+				image: material.image,
+				size: spec.size,
+				price: spec.price,
+			})),
+	),
+);
+const braceletCodeOptionLabels = computed(() => braceletCodeOptions.value.map((option) => option.label));
+const resolvedCodeBeads = computed(() => {
+	if (!braceletCodeResolution.value) return [];
+	return braceletCodeResolution.value.beads.map((bead, index) => {
+		if (bead) return bead;
+		const replacementIndex = braceletCodeReplacements.value[index];
+		const replacement = braceletCodeOptions.value[replacementIndex];
+		if (!replacement) return null;
+		return { index, originalMaterialId: braceletCodeResolution.value!.payload.beads[index].materialId, available: true, ...replacement } as ResolvedBraceletBead;
+	});
+});
+const canConfirmBraceletCode = computed(() => !!braceletCodeResolution.value && resolvedCodeBeads.value.length > 0 && resolvedCodeBeads.value.every(Boolean));
+
+function openBraceletCodeImport() {
+	closeFunctionMenu();
+	braceletCodeOpen.value = true;
+	braceletCodeText.value = '';
+	braceletCodeResolution.value = null;
+	braceletCodeReplacements.value = {};
+	braceletCodeError.value = '';
+}
+
+function closeBraceletCodeImport() {
+	if (braceletCodeResolving.value) return;
+	braceletCodeOpen.value = false;
+}
+
+async function resolveBraceletCode() {
+	const code = braceletCodeText.value.trim();
+	if (!code) {
+		braceletCodeError.value = '请先粘贴手串代码';
+		return;
+	}
+	braceletCodeResolving.value = true;
+	braceletCodeError.value = '';
+	try {
+		if (!materialsStore.loaded) await materialsStore.fetchFromApi();
+		braceletCodeResolution.value = await api.resolveBraceletCode(code);
+		braceletCodeReplacements.value = {};
+	} catch {
+		braceletCodeResolution.value = null;
+		braceletCodeError.value = '代码无法解析，请检查是否复制完整';
+	} finally {
+		braceletCodeResolving.value = false;
+	}
+}
+
+function onBraceletReplacementChange(beadIndex: number, event: { detail?: { value?: string | number } }) {
+	const value = Number(event.detail?.value ?? -1);
+	if (value < 0) return;
+	braceletCodeReplacements.value = { ...braceletCodeReplacements.value, [beadIndex]: value };
+}
+
+function braceletCodeReplacementLabel(index: number) {
+	const optionIndex = braceletCodeReplacements.value[index];
+	return braceletCodeOptions.value[optionIndex]?.label || '选择替代水晶珠';
+}
+
+function braceletCodePreviewStyle(index: number, count: number) {
+	const angle = -Math.PI / 2 + (index / Math.max(1, count)) * Math.PI * 2;
+	return { transform: `translate(${Math.cos(angle) * 112}rpx, ${Math.sin(angle) * 112}rpx)` };
+}
+
+function confirmBraceletCodeImport() {
+	if (!braceletCodeResolution.value || !canConfirmBraceletCode.value) return;
+	designStore.applyOrderedBeads(resolvedCodeBeads.value.filter(Boolean) as ResolvedBraceletBead[], {
+		source: 'draft',
+		handCircumferenceCm: braceletCodeResolution.value.payload.wristCm,
+		hasUnavailableParts: false,
+	});
+	uiStore.setSelectedBeadId(null);
+	braceletCodeOpen.value = false;
+	uni.showToast({ title: '手串代码已导入', icon: 'success' });
+}
+
 function onShareDesign() {
 	closeFunctionMenu();
 	if (!designStore.braceletDesign.length) {
@@ -1587,6 +1684,10 @@ function hideDesignTabBar() {
 								<BrandIcon class="function-card__icon" name="file-down" />
 								<text class="function-card__label">导入设计</text>
 							</view>
+							<view class="function-card" @tap="openBraceletCodeImport">
+								<BrandIcon class="function-card__icon" name="file-down" />
+								<text class="function-card__label">手串代码</text>
+							</view>
 							<view class="function-card" @tap="onShareDesign">
 								<BrandIcon class="function-card__icon" name="share-2" />
 								<text class="function-card__label">分享设计</text>
@@ -1718,6 +1819,43 @@ function hideDesignTabBar() {
 						<button class="design-confirm-btn ghost" @tap="confirmDesignToCart">加入购物车</button>
 						<button class="design-confirm-btn" @tap="confirmDesignCheckout">立即结算</button>
 					</view>
+				</view>
+			</view>
+			<view v-if="braceletCodeOpen" class="bracelet-code-overlay" @tap="closeBraceletCodeImport">
+				<view class="bracelet-code-sheet" @tap.stop>
+					<view class="bracelet-code-head">
+						<view><text class="bracelet-code-eyebrow">DIY 复现</text><text class="bracelet-code-title">粘贴手串代码</text></view>
+						<view class="bracelet-code-close" @tap="closeBraceletCodeImport"><BrandIcon name="x" tone="muted" /></view>
+					</view>
+					<textarea v-model="braceletCodeText" class="bracelet-code-input" maxlength="-1" placeholder="ZD1.eyJ2IjoxLC4uLg.1234abcd" :disabled="braceletCodeResolving" />
+					<view v-if="braceletCodeError" class="bracelet-code-error">{{ braceletCodeError }}</view>
+					<view class="bracelet-code-parse" :class="{ 'bracelet-code-parse--loading': braceletCodeResolving }" @tap="resolveBraceletCode">
+						{{ braceletCodeResolving ? '正在解析…' : '解析并预览' }}
+					</view>
+
+					<template v-if="braceletCodeResolution">
+						<view class="bracelet-code-summary">
+							<view class="bracelet-code-ring">
+								<image v-for="(bead, index) in resolvedCodeBeads" :key="index" v-show="bead" class="bracelet-code-bead" :src="bead?.image" mode="aspectFill" :style="braceletCodePreviewStyle(index, resolvedCodeBeads.length)" />
+								<view class="bracelet-code-ring__center"><text>{{ braceletCodeResolution.payload.wristCm }}cm</text><text>{{ braceletCodeResolution.payload.beads.length }}颗</text></view>
+							</view>
+							<view class="bracelet-code-stats">
+								<view><text>预计价格</text><strong>¥{{ resolvedCodeBeads.reduce((sum, bead) => sum + (bead?.price || 0), 0).toFixed(1) }}</strong></view>
+								<view><text>代码版本</text><strong>ZD1</strong></view>
+								<view><text>替代映射</text><strong>{{ braceletCodeResolution.substitutions.length }}</strong></view>
+							</view>
+						</view>
+						<view v-if="braceletCodeResolution.missing.length" class="bracelet-code-missing">
+							<text class="bracelet-code-missing__title">{{ braceletCodeResolution.missing.length }} 颗素材需要替换</text>
+							<view v-for="missing in braceletCodeResolution.missing" :key="missing.index" class="bracelet-code-missing__row">
+								<view><text>第 {{ missing.index + 1 }} 颗 · {{ missing.reason }}</text><small>{{ missing.materialId }}</small></view>
+								<picker mode="selector" :range="braceletCodeOptionLabels" :value="braceletCodeReplacements[missing.index] ?? 0" @change="onBraceletReplacementChange(missing.index, $event)">
+									<view class="bracelet-code-replacement">{{ braceletCodeReplacementLabel(missing.index) }}</view>
+								</picker>
+							</view>
+						</view>
+						<view class="bracelet-code-confirm" :class="{ 'bracelet-code-confirm--disabled': !canConfirmBraceletCode }" @tap="confirmBraceletCodeImport">确认导入到 DIY</view>
+					</template>
 				</view>
 			</view>
 			<view v-if="materialPreview" class="actual-photo-overlay" @tap="closeMaterialPreview">
@@ -5575,6 +5713,55 @@ function hideDesignTabBar() {
 	.page--ready .material-grid {
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
+}
+/* #endif */
+
+.bracelet-code-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 180;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	background: rgba(17, 24, 39, 0.48);
+	backdrop-filter: blur(8px);
+}
+
+.bracelet-code-sheet {
+	width: 100%;
+	max-height: 88vh;
+	padding: 30rpx 28rpx calc(30rpx + env(safe-area-inset-bottom));
+	overflow-y: auto;
+	background: #fff;
+	border-radius: 32rpx 32rpx 0 0;
+}
+
+.bracelet-code-head { display: flex; align-items: center; justify-content: space-between; }
+.bracelet-code-head > view:first-child { display: flex; flex-direction: column; gap: 6rpx; }
+.bracelet-code-eyebrow { color: #ff5701; font-size: 22rpx; font-weight: 700; letter-spacing: 4rpx; }
+.bracelet-code-title { color: #171717; font-size: 38rpx; font-weight: 700; }
+.bracelet-code-close { display: grid; width: 64rpx; height: 64rpx; place-items: center; border-radius: 50%; background: #f5f5f2; }
+.bracelet-code-input { width: 100%; height: 178rpx; margin-top: 26rpx; padding: 22rpx; color: #27272a; font-family: monospace; font-size: 24rpx; line-height: 1.5; background: #f7f7f4; border: 2rpx solid #e7e5e4; border-radius: 20rpx; box-sizing: border-box; }
+.bracelet-code-error { margin-top: 12rpx; color: #dc2626; font-size: 24rpx; }
+.bracelet-code-parse, .bracelet-code-confirm { display: grid; height: 84rpx; margin-top: 18rpx; place-items: center; color: #fff; font-size: 28rpx; font-weight: 700; background: #171717; border-radius: 18rpx; }
+.bracelet-code-parse--loading, .bracelet-code-confirm--disabled { opacity: .42; }
+.bracelet-code-summary { display: grid; grid-template-columns: 280rpx 1fr; gap: 24rpx; align-items: center; margin-top: 26rpx; padding: 22rpx; background: #faf9f7; border-radius: 24rpx; }
+.bracelet-code-ring { position: relative; width: 280rpx; height: 280rpx; border-radius: 50%; background: radial-gradient(circle, #fff 0 38%, #f2efeb 39% 100%); }
+.bracelet-code-bead { position: absolute; left: 50%; top: 50%; width: 38rpx; height: 38rpx; margin: -19rpx 0 0 -19rpx; border-radius: 50%; }
+.bracelet-code-ring__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a8a29e; font-size: 22rpx; }
+.bracelet-code-ring__center text:first-child { color: #292524; font-size: 30rpx; font-weight: 700; }
+.bracelet-code-stats { display: grid; gap: 18rpx; }
+.bracelet-code-stats view { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12rpx; border-bottom: 1rpx solid #e7e5e4; }
+.bracelet-code-stats text { color: #78716c; font-size: 23rpx; }.bracelet-code-stats strong { color: #292524; font-size: 28rpx; }
+.bracelet-code-missing { margin-top: 20rpx; padding: 22rpx; background: #fff7ed; border: 1rpx solid #fed7aa; border-radius: 20rpx; }
+.bracelet-code-missing__title { color: #c2410c; font-size: 26rpx; font-weight: 700; }
+.bracelet-code-missing__row { display: grid; grid-template-columns: minmax(0, 1fr) 48%; gap: 16rpx; align-items: center; margin-top: 18rpx; }
+.bracelet-code-missing__row > view { display: flex; min-width: 0; flex-direction: column; gap: 4rpx; }.bracelet-code-missing__row text { color: #7c2d12; font-size: 22rpx; }.bracelet-code-missing__row small { overflow: hidden; color: #9a3412; font-size: 18rpx; text-overflow: ellipsis; white-space: nowrap; }
+.bracelet-code-replacement { overflow: hidden; padding: 15rpx 18rpx; color: #7c2d12; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; background: #fff; border-radius: 14rpx; }
+
+/* #ifdef H5 */
+@media screen and (min-width: 768px) {
+	.bracelet-code-sheet { width: min(620px, calc(100vw - 48px)); border-radius: 24px 24px 0 0; }
 }
 /* #endif */
 </style>

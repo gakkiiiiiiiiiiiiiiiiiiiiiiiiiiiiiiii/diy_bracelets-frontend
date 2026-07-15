@@ -203,6 +203,8 @@ function publishedContent<T extends object>(config: PageConfigResponse<T>): Part
 export const api = {
   getCategories: () => request<MaterialCategory[]>(`/api/categories`),
   getMaterials: () => request<Material[]>(`/api/materials`),
+  resolveBraceletCode: (code: string) =>
+    request<BraceletCodeResolution>(`/api/bracelet-code/resolve`, 'POST', { code }),
   getContent: async (): Promise<PublishedContentConfig> => {
     const [brand, home, diy, support] = await Promise.all([
       request<PageConfigResponse<BrandPageContent>>(`/api/content/brand`),
@@ -505,6 +507,30 @@ export interface DesignDetail {
   composition: DesignCompositionRow[];
   handCircumferenceCm?: number;
   hasUnavailableParts?: boolean;
+  orderedBeads?: Array<{ materialId: string; specId: string }> | null;
+  wristCm?: number | null;
+  braceletCode?: string | null;
+}
+
+export interface ResolvedBraceletBead {
+  index: number;
+  materialId: string;
+  originalMaterialId: string;
+  specId: string;
+  name: string;
+  image: string;
+  size: number;
+  price: number;
+  available: boolean;
+}
+
+export interface BraceletCodeResolution {
+  payload: { v: 1; wristCm: number; beads: Array<{ materialId: string; specId: string }>; styleRef?: string };
+  beads: Array<ResolvedBraceletBead | null>;
+  missing: Array<{ index: number; materialId: string; specId: string; reason: string }>;
+  valid: boolean;
+  totalPrice: number;
+  substitutions: Array<{ from: string; to: string }>;
 }
 
 export interface CartItem {

@@ -164,10 +164,21 @@ async function useDesign() {
 		return;
 	}
 	const current = detail.value;
-	const applyCurrentDesign = () => {
-		designStore.applyDesignFromPlaza(current.composition, {
-			source: 'plaza',
-			handCircumferenceCm: current.handCircumferenceCm,
+	const applyCurrentDesign = async () => {
+		let exactApplied = false;
+		if (current.braceletCode) {
+			try {
+				const resolved = await api.resolveBraceletCode(current.braceletCode);
+				if (resolved.valid) {
+					designStore.applyOrderedBeads(resolved.beads.filter(Boolean) as NonNullable<(typeof resolved.beads)[number]>[], {
+						source: 'plaza', handCircumferenceCm: resolved.payload.wristCm, hasUnavailableParts: false,
+					});
+					exactApplied = true;
+				}
+			} catch {}
+		}
+		if (!exactApplied) designStore.applyDesignFromPlaza(current.composition, {
+			source: 'plaza', handCircumferenceCm: current.handCircumferenceCm ?? current.wristCm,
 			hasUnavailableParts: current.hasUnavailableParts,
 		});
 		materialsStore.setCategory('in-use');
@@ -178,10 +189,10 @@ async function useDesign() {
 	};
 	try {
 		await api.useDesign(current.id);
-		applyCurrentDesign();
+		await applyCurrentDesign();
 	} catch (_e) {
 		// 仍可套用本地数据
-		applyCurrentDesign();
+		await applyCurrentDesign();
 	}
 }
 

@@ -39,6 +39,7 @@ export const useDesignStore = defineStore('design', () => {
 		image?: string;
 		size?: number;
 		price?: number;
+		specId?: string;
 		at: number;
 	} | null>(null);
 
@@ -79,6 +80,7 @@ export const useDesignStore = defineStore('design', () => {
 				image: material.image,
 				size: spec.size,
 				price: spec.price,
+				specId: spec.specId,
 				quantity: 1,
 				orderIndex: orderIndex + i,
 			});
@@ -96,6 +98,7 @@ export const useDesignStore = defineStore('design', () => {
 			image: material.image,
 			size: spec.size,
 			price: spec.price,
+			specId: spec.specId,
 			at: Date.now(),
 		};
 	}
@@ -134,6 +137,7 @@ export const useDesignStore = defineStore('design', () => {
 			image: material.image,
 			size: spec.size,
 			price: spec.price,
+			specId: spec.specId,
 			quantity: 1,
 		};
 		refreshOrderIndex();
@@ -145,6 +149,7 @@ export const useDesignStore = defineStore('design', () => {
 			image: material.image,
 			size: spec.size,
 			price: spec.price,
+			specId: spec.specId,
 			at: Date.now(),
 		};
 	}
@@ -216,6 +221,27 @@ export const useDesignStore = defineStore('design', () => {
 		lastBeadAction.value = { type: 'apply', at: Date.now() };
 	}
 
+	function applyOrderedBeads(
+		beads: Array<{ materialId: string; specId: string; name: string; image: string; size: number; price: number }>,
+		options: ApplyDesignOptions = {},
+	) {
+		braceletDesign.value = beads.map((bead, orderIndex) => ({
+			id: `bead-code-${Date.now()}-${orderIndex}`,
+			materialId: bead.materialId,
+			specId: bead.specId,
+			name: bead.name,
+			image: bead.image,
+			size: bead.size,
+			price: bead.price,
+			quantity: 1,
+			orderIndex,
+		}));
+		designSource.value = options.source ?? 'plaza';
+		handCircumferenceCm.value = typeof options.handCircumferenceCm === 'number' ? options.handCircumferenceCm : null;
+		hasUnavailableParts.value = !!options.hasUnavailableParts;
+		lastBeadAction.value = { type: 'apply', at: Date.now() };
+	}
+
 	return {
 		braceletDesign, // 手链设计数据数组
 		designSource,
@@ -233,5 +259,6 @@ export const useDesignStore = defineStore('design', () => {
 		clearDesign, // 清空设计
 		reorderBeads, // 重排珠子顺序
 		applyDesignFromPlaza, // 从设计广场套用设计
+		applyOrderedBeads,
 	};
 });

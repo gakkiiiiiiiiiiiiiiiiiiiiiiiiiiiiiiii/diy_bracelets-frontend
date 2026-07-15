@@ -8,6 +8,7 @@ export interface BraceletBead {
   price: number
   quantity: number
   orderIndex: number
+  specId?: string
 }
 
 /** 画布状态：当前手串珠子列表，顺序即串珠顺序 */
@@ -15,6 +16,7 @@ export type BraceletDesign = BraceletBead[]
 
 /** 材料规格：尺寸(mm) + 单价 */
 export interface MaterialSpec {
+  specId?: string
   size: number
   price: number
 }
@@ -26,6 +28,9 @@ export interface Material {
   image: string
   categoryId: string
   specs: MaterialSpec[]
+  status?: 'published' | 'disabled'
+  isAvailable?: boolean
+  dominantColors?: string[]
 }
 
 /** 材料规格卡：真实小程序的卡片粒度是“材料 + 单个规格” */
