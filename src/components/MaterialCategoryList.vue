@@ -47,7 +47,7 @@ function selectCategory(id: string) {
   height: 100%;
   padding: 0;
   box-sizing: border-box;
-  background: #091321;
+  background: #f4f1ed;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -77,25 +77,25 @@ function selectCategory(id: string) {
 
 /* 选中分类以品牌青灰强调，保持材料浏览区安静。 */
 .category-item--active {
-  background: rgba(28, 39, 53, 0.96);
-  border-left-color: #ed4b42;
-  box-shadow: inset -1rpx 0 0 rgba(225, 234, 244, 0.12);
+  background: rgba(255, 253, 249, 0.96);
+  border-left-color: #527985;
+  box-shadow: inset -1rpx 0 0 rgba(82, 121, 133, 0.12);
 }
 
 .category-item--active .category-item__name {
-  color: #f2f5f9;
+  color: #365760;
   font-weight: 800;
 }
 
 /* 未选中 hover（H5）：浅灰背景，无左侧条 */
 .category-item:not(.category-item--active):hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 .category-item__name {
   max-width: 100%;
   font-size: 24rpx;
-  color: #9fa9b6;
+  color: #7d817e;
   text-align: center;
   font-weight: 700;
   line-height: 1.1;

@@ -36,7 +36,7 @@ function onToolTap() {
 <template>
   <view class="search-bar">
     <view class="search-tool-btn" @tap="onToolTap">
-      <BrandIcon class="search-tool-icon" name="circle-dashed" tone="inverse" label="查看已用珠子" />
+      <BrandIcon class="search-tool-icon" name="circle-dashed" label="查看已用珠子" />
     </view>
     <view class="search-input-wrap" :class="{ 'search-input-wrap--active': isSearchActive }">
       <BrandIcon class="search-icon" name="search" tone="muted" />
@@ -69,15 +69,14 @@ function onToolTap() {
   height: 68rpx;
   padding: 8rpx 22rpx;
   box-sizing: border-box;
-  background: rgba(8, 17, 29, 0.96);
+  background: rgba(255, 253, 251, 0.94);
 }
 
 .search-tool-btn {
   width: 96rpx;
   height: 52rpx;
   border-radius: 999rpx;
-  background: rgba(38, 49, 64, 0.9);
-  border: 1rpx solid rgba(225, 234, 244, 0.18);
+  background: linear-gradient(135deg, #eceff7 0%, #e8efe9 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,8 +97,7 @@ function onToolTap() {
   position: relative;
   flex: 0 0 124rpx;
   height: 52rpx;
-  background: rgba(38, 49, 64, 0.9);
-  border: 1rpx solid rgba(225, 234, 244, 0.16);
+  background: rgba(239, 242, 248, 0.92);
   border-radius: 999rpx;
   display: flex;
   align-items: center;
@@ -119,7 +117,7 @@ function onToolTap() {
   flex: 0 1 456rpx;
   max-width: 456rpx;
   justify-content: flex-start;
-  background: rgba(51, 62, 77, 0.96);
+  background: rgba(255, 255, 255, 0.95);
   box-shadow:
     0 8rpx 18rpx rgba(86, 94, 116, 0.11),
     inset 0 1rpx 0 rgba(255, 255, 255, 0.82);
@@ -136,7 +134,7 @@ function onToolTap() {
   width: 54rpx;
   font-size: 26rpx;
   font-weight: 700;
-  color: #eef2f7;
+  color: #7d8496;
   height: 100%;
   min-width: 0;
   text-align: left;

@@ -1733,13 +1733,12 @@ export function useBracelet3d(
 
 		// 创建threejs基本对象
 		scene = new THREE.Scene();
-		scene.background = null;
+		scene.background = new THREE.Color(0xfffdf9);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
 
 		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: false });
-		renderer.setClearColor(0x000000, 0);
 		renderer.setPixelRatio(getAdaptivePixelRatio());
 		renderer.setSize(width, height, false);
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
