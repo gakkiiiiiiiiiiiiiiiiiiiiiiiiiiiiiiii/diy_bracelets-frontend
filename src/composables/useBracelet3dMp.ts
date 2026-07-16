@@ -1469,12 +1469,13 @@ export function useBracelet3dMp(
 		const height = size;
 
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0x07111f);
+		scene.background = null;
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
 
 		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+		renderer.setClearColor(0x000000, 0);
 		devicePixelRatio = Math.max(1, (sys as any).pixelRatio || 2);
 		const quality = getMpQualityProfile(beads.value.length);
 		renderer.setPixelRatio(Math.min(devicePixelRatio, quality.pixelRatio));

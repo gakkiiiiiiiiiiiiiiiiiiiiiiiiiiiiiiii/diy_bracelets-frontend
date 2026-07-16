@@ -169,6 +169,9 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 		<view class="canvas-stage">
 		<!-- #ifdef H5 -->
 			<view class="canvas-3d" :class="{ 'canvas-3d--empty': !hasActualBeads, 'canvas-3d--single': mode === 'single' }">
+				<view class="deep-sea-backdrop" />
+				<view class="deep-sea-caustics" />
+				<view class="deep-sea-vignette" />
 				<view ref="canvas3dContainer" class="canvas-3d__gl" />
 				<view class="canvas-center canvas-center--overlay">
 					<text class="canvas-brand">{{ contentStore.brand.name }}</text>
@@ -198,6 +201,9 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 			@touchend="mp3d.onTouchEnd"
 			@touchcancel="mp3d.onTouchCancel"
 		>
+			<view class="deep-sea-backdrop" />
+			<view class="deep-sea-caustics" />
+			<view class="deep-sea-vignette" />
 			<canvas id="bracelet-gl" type="webgl" class="canvas-3d__gl canvas-3d__gl-mp" />
 			<cover-view class="canvas-center canvas-center--overlay canvas-center--mp">
 					<cover-view class="canvas-brand">{{ contentStore.brand.name }}</cover-view>
@@ -249,17 +255,85 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	border-radius: 0;
 	overflow: hidden;
 	background:
-		radial-gradient(circle at 50% 40%, rgba(54, 69, 93, 0.9) 0%, rgba(16, 29, 47, 0.98) 42%, #07111f 100%);
+		radial-gradient(circle at 50% 30%, rgba(30, 83, 112, 0.36) 0%, rgba(8, 28, 46, 0.94) 50%, #030913 100%);
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
 	background:
-		radial-gradient(circle at 50% 40%, #33445f 0%, #14243b 44%, #07111f 100%);
+		radial-gradient(circle at 50% 30%, rgba(34, 98, 128, 0.42) 0%, rgba(8, 30, 49, 0.96) 50%, #030913 100%);
+}
+
+.deep-sea-backdrop,
+.deep-sea-caustics,
+.deep-sea-vignette {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	pointer-events: none;
+}
+
+.deep-sea-backdrop {
+	z-index: 0;
+	background:
+		radial-gradient(ellipse at 50% 20%, rgba(80, 163, 191, 0.22) 0%, rgba(27, 83, 111, 0.08) 30%, transparent 62%),
+		radial-gradient(ellipse at 14% 42%, rgba(31, 105, 137, 0.14) 0%, transparent 44%),
+		linear-gradient(180deg, #0d2a43 0%, #081c30 38%, #05111e 70%, #020811 100%);
+}
+
+.deep-sea-caustics {
+	z-index: 1;
+	left: -8%;
+	right: -8%;
+	top: -8%;
+	bottom: -8%;
+	opacity: 0.3;
+	background-image:
+		radial-gradient(ellipse 25% 15% at 5% 14%, transparent 61%, rgba(158, 226, 239, 0.12) 66%, transparent 72%),
+		radial-gradient(ellipse 31% 19% at 42% 8%, transparent 62%, rgba(126, 207, 226, 0.1) 67%, transparent 73%),
+		radial-gradient(ellipse 27% 17% at 88% 20%, transparent 60%, rgba(146, 216, 233, 0.11) 65%, transparent 71%),
+		radial-gradient(ellipse 34% 21% at 18% 66%, transparent 61%, rgba(100, 190, 216, 0.09) 66%, transparent 73%),
+		radial-gradient(ellipse 28% 18% at 72% 60%, transparent 61%, rgba(125, 207, 225, 0.08) 66%, transparent 72%),
+		radial-gradient(ellipse 38% 22% at 48% 98%, transparent 62%, rgba(89, 173, 202, 0.07) 67%, transparent 74%);
+	filter: blur(4rpx);
+	transform: translate3d(-1%, -0.5%, 0) scale(1.03);
+	animation: deep-sea-drift 32s steps(6, end) infinite alternate;
+}
+
+.deep-sea-vignette {
+	z-index: 3;
+	background:
+		radial-gradient(ellipse at 50% 46%, transparent 26%, rgba(1, 7, 15, 0.2) 68%, rgba(1, 5, 12, 0.62) 100%),
+		linear-gradient(180deg, rgba(4, 18, 31, 0.08) 0%, transparent 28%, rgba(1, 7, 14, 0.24) 100%);
+}
+
+@keyframes deep-sea-drift {
+	0% {
+		transform: translate3d(-1%, -0.5%, 0) scale(1.03);
+		opacity: 0.26;
+	}
+	50% {
+		opacity: 0.32;
+	}
+	100% {
+		transform: translate3d(1.5%, 1%, 0) scale(1.06);
+		opacity: 0.28;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.deep-sea-caustics {
+		animation: none;
+		transform: translate3d(0, 0, 0) scale(1.04);
+	}
 }
 
 /* 3D gl 画布容器 */
 .canvas-3d__gl {
+	position: relative;
+	z-index: 2;
 	display: block;
 	width: 100%;
 	height: 100%;
@@ -275,6 +349,7 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 }
 
 .canvas-center--overlay {
+	z-index: 4;
 	pointer-events: none;
 	filter: drop-shadow(0 4rpx 14rpx rgba(0, 0, 0, 0.42));
 }
@@ -328,6 +403,7 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	flex-direction: column;
 	align-items: center;
 	pointer-events: none;
+	z-index: 4;
 }
 
 .canvas-3d--single .canvas-empty-mark {
