@@ -22,7 +22,6 @@ import {
 	DESIGN_ENTRY_SOURCE_STORAGE_KEY,
 	readEditingCartItemId,
 	readEditingSavedDesignId,
-	rememberDesignEntrySource,
 	type DesignEntrySource,
 } from '@/utils/designNavigation';
 import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
@@ -48,10 +47,6 @@ const loadingReady = ref(false);
 const loadingProgress = ref(0);
 const entrySource = ref<DesignEntrySource>('bracelet');
 const activeRouteSource = ref<DesignEntrySource | null>(null);
-const modeOptions: Array<{ id: DesignEntrySource; label: string }> = [
-	{ id: 'bracelet', label: '手串' },
-	{ id: 'single', label: '单珠' },
-];
 let loadingTimer: ReturnType<typeof setTimeout> | null = null;
 let loadingProgressTimer: ReturnType<typeof setInterval> | null = null;
 let recentActionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -562,37 +557,6 @@ function syncEntrySource(source?: string | null) {
 	if (activeRouteSource.value === normalized) return;
 	activeRouteSource.value = normalized;
 	applyEntrySource(normalized);
-}
-
-function switchEntrySource(target: DesignEntrySource) {
-	if (target === entrySource.value) return;
-	const currentCount = designStore.braceletDesign.length;
-	const run = () => {
-		if (target === 'single' && entrySource.value === 'bracelet') {
-			persistCurrentBracelet();
-		}
-		activeRouteSource.value = target;
-		rememberDesignEntrySource(target);
-		applyEntrySource(target);
-		syncTargetFromAppliedDesign();
-		functionMenuOpen.value = false;
-	};
-	if (!currentCount) {
-		run();
-		return;
-	}
-	uni.showModal({
-		title: target === 'single' ? '切换到单珠选购' : '切换到手串定制',
-		content:
-			target === 'single'
-				? '当前手串会先保留为草稿，切到单珠后从空清单开始选择。'
-				: '将恢复您之前的手串设计，当前单珠清单会被清空。',
-		confirmText: '切换',
-		confirmColor: '#527985',
-		success: (res) => {
-			if (res.confirm) run();
-		},
-	});
 }
 
 function readRouteSource() {
@@ -1591,17 +1555,6 @@ function hideDesignTabBar() {
 		<view class="info-section">
 			<view class="info-tags">
 				<view class="info-tags__left">
-					<view class="mode-switch" aria-label="DIY模式">
-						<view
-							v-for="option in modeOptions"
-							:key="option.id"
-							class="mode-switch__item"
-							:class="{ 'mode-switch__item--active': entrySource === option.id }"
-							@tap="switchEntrySource(option.id)"
-						>
-							{{ option.label }}
-						</view>
-					</view>
 					<view class="info-tag-wrap" @tap="onNotice">
 						<InfoTag type="notice" :label="contentStore.diy.noticeLabel" />
 					</view>
@@ -4473,47 +4426,6 @@ function hideDesignTabBar() {
 	color: #946d62;
 }
 
-.mode-switch {
-	display: flex;
-	align-items: center;
-	gap: 4rpx;
-	height: 54rpx;
-	padding: 4rpx;
-	border-radius: 999rpx;
-	background: #edf1ef;
-	border: 1rpx solid rgba(82, 121, 133, 0.16);
-	box-sizing: border-box;
-	flex-shrink: 0;
-}
-
-.mode-switch__item {
-	min-width: 70rpx;
-	height: 44rpx;
-	padding: 0 14rpx;
-	border-radius: 999rpx;
-	color: #737a77;
-	font-size: 23rpx;
-	font-weight: 900;
-	line-height: 44rpx;
-	text-align: center;
-	box-sizing: border-box;
-	transition:
-		background-color 0.16s ease,
-		color 0.16s ease,
-		box-shadow 0.16s ease,
-		transform 0.16s ease;
-}
-
-.mode-switch__item--active {
-	background: #527985;
-	color: #fff;
-	box-shadow: 0 6rpx 14rpx rgba(82, 121, 133, 0.2);
-}
-
-.mode-switch__item:active {
-	transform: scale(0.96);
-}
-
 // 可点的信息标签包裹
 .info-tag-wrap {
 	cursor: pointer;
@@ -5869,21 +5781,6 @@ function hideDesignTabBar() {
 	background: rgba(48, 58, 72, 0.92);
 	color: #d6dce5;
 	border-color: rgba(225, 234, 244, 0.18);
-}
-
-.mode-switch {
-	background: rgba(38, 49, 64, 0.94);
-	border-color: rgba(225, 234, 244, 0.18);
-}
-
-.mode-switch__item {
-	color: #aab4c1;
-}
-
-.mode-switch__item--active {
-	background: rgba(8, 17, 29, 0.96);
-	color: #fff;
-	box-shadow: inset 0 0 0 1rpx rgba(238, 244, 250, 0.84), 0 6rpx 16rpx rgba(0, 0, 0, 0.26);
 }
 
 .canvas-section,
