@@ -27,7 +27,7 @@ const iconName = computed<BrandIconName>(() => {
 const iconTone = computed(() => {
 	if (props.iconTone) return props.iconTone;
 	if (props.disabled) return 'muted' as const;
-	if (props.type === 'save') return 'rose' as const;
+	if (props.type === 'save') return 'inverse' as const;
 	if (props.type === 'primary') return 'inverse' as const;
 	return 'brand' as const;
 });
@@ -57,7 +57,7 @@ const iconTone = computed(() => {
 	padding: 0 20rpx;
 	min-width: 112rpx;
 	border-radius: 16rpx;
-	box-shadow: 0 6rpx 16rpx rgba(66, 76, 103, 0.16);
+	box-shadow: 0 7rpx 18rpx rgba(0, 0, 0, 0.22);
 	transition:
 		transform u.$duration-press u.$ease-out,
 		box-shadow u.$duration-press u.$ease-out;
@@ -78,22 +78,22 @@ const iconTone = computed(() => {
 }
 
 .action-btn--delete {
-	background: linear-gradient(180deg, #fff 0%, #fff9f5 100%);
-	color: #273149;
-	border: 3rpx solid #273149;
+	background: rgba(11, 21, 34, 0.78);
+	color: #f2f5f9;
+	border: 3rpx solid rgba(238, 244, 250, 0.88);
 }
 
 .action-btn--save {
-	background: linear-gradient(135deg, #ff6175 0%, #e24962 100%);
+	background: linear-gradient(135deg, #ef5147 0%, #d83a33 100%);
 	color: #fff;
-	border: 3rpx solid #d9485f;
-	box-shadow: 0 7rpx 18rpx rgba(218, 72, 95, 0.28);
+	border: 3rpx solid #f15a50;
+	box-shadow: 0 7rpx 18rpx rgba(216, 58, 51, 0.3);
 }
 
 .action-btn--primary {
-	background: linear-gradient(180deg, #fff 0%, #f7fbff 100%);
-	color: #2d354c;
-	border: 3rpx solid #2d354c;
+	background: rgba(11, 21, 34, 0.78);
+	color: #f2f5f9;
+	border: 3rpx solid rgba(238, 244, 250, 0.88);
 }
 
 .action-btn--primary.action-btn--tone-danger {

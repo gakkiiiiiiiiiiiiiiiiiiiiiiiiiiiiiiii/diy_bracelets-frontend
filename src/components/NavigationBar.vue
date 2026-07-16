@@ -67,21 +67,21 @@ function onMore() {
   <view class="nav-bar">
     <view class="nav-left">
       <view class="nav-btn" aria-label="返回" @tap="onBack">
-        <BrandIcon class="nav-icon nav-icon--back" name="arrow-left" />
+        <BrandIcon class="nav-icon nav-icon--back" name="arrow-left" tone="inverse" />
       </view>
     </view>
     <view class="nav-title">{{ contentStore.diy.pageTitle }}</view>
     <view class="nav-right nav-capsule">
       <view class="nav-capsule__btn" @tap="onMore">
-        <BrandIcon class="nav-icon" name="ellipsis" label="更多" />
+        <BrandIcon class="nav-icon" name="ellipsis" tone="inverse" label="更多" />
       </view>
       <view class="nav-capsule__divider" />
       <view class="nav-capsule__btn" @tap="emit('secondary')">
-        <BrandIcon class="nav-icon" name="minus" label="缩小" />
+        <BrandIcon class="nav-icon" name="minus" tone="inverse" label="缩小" />
       </view>
       <view class="nav-capsule__divider" />
       <view class="nav-capsule__btn" @tap="emit('center')">
-        <BrandIcon class="nav-icon" name="locate-fixed" label="居中" />
+        <BrandIcon class="nav-icon" name="locate-fixed" tone="inverse" label="居中" />
       </view>
     </view>
   </view>
@@ -99,7 +99,7 @@ function onMore() {
   padding-top: calc(40rpx + env(safe-area-inset-top));
   position: relative;
   z-index: 10;
-  background: rgba(250, 248, 245, 0.92);
+  background: rgba(7, 15, 27, 0.94);
   backdrop-filter: blur(14rpx);
   flex-shrink: 0;
 }
@@ -119,11 +119,11 @@ function onMore() {
   font-weight: 700;
   font-size: 34rpx;
   letter-spacing: 0;
-  color: #1d292b;
+  color: #f4f7fb;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  text-shadow: 0 1rpx 0 rgba(255, 255, 255, 0.78);
+  text-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.42);
 }
 
 .nav-btn {
@@ -142,9 +142,9 @@ function onMore() {
   height: 64rpx;
   min-width: 234rpx;
   border-radius: 999rpx;
-  border: 1rpx solid rgba(82, 121, 133, 0.16);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 6rpx 18rpx rgba(82, 121, 133, 0.1);
+  border: 1rpx solid rgba(225, 234, 244, 0.42);
+  background: rgba(13, 24, 39, 0.72);
+  box-shadow: 0 8rpx 22rpx rgba(0, 0, 0, 0.28);
   overflow: hidden;
 }
 
@@ -159,7 +159,7 @@ function onMore() {
 .nav-capsule__divider {
   width: 1rpx;
   height: 32rpx;
-  background: rgba(82, 121, 133, 0.28);
+  background: rgba(225, 234, 244, 0.3);
 }
 
 .nav-btn:active {

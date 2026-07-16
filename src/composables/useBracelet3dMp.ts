@@ -1469,7 +1469,7 @@ export function useBracelet3dMp(
 		const height = size;
 
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xfffdf9);
+		scene.background = new THREE.Color(0x07111f);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();

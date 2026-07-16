@@ -249,13 +249,13 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	border-radius: 0;
 	overflow: hidden;
 	background:
-		radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 1) 0%, rgba(255, 253, 249, 0.96) 48%, rgba(246, 243, 238, 0.92) 100%);
+		radial-gradient(circle at 50% 40%, rgba(54, 69, 93, 0.9) 0%, rgba(16, 29, 47, 0.98) 42%, #07111f 100%);
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
 	background:
-		radial-gradient(circle at 50% 42%, #fff 0%, #fbf9f5 62%, #f3f0eb 100%);
+		radial-gradient(circle at 50% 40%, #33445f 0%, #14243b 44%, #07111f 100%);
 }
 
 /* 3D gl 画布容器 */
@@ -276,7 +276,7 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 
 .canvas-center--overlay {
 	pointer-events: none;
-	filter: drop-shadow(0 4rpx 10rpx rgba(82, 121, 133, 0.14));
+	filter: drop-shadow(0 4rpx 14rpx rgba(0, 0, 0, 0.42));
 }
 
 .canvas-center--mp {
@@ -306,15 +306,15 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	font-weight: 700;
 	font-size: 30rpx;
 	letter-spacing: 0;
-	color: rgba(82, 121, 133, 0.68);
-	text-shadow: 0 1rpx 0 rgba(255, 255, 255, 0.9);
+	color: rgba(245, 248, 252, 0.92);
+	text-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.5);
 }
 
 /* 品牌副标题样式 */
 .canvas-sub {
 	font-size: 22rpx;
 	font-weight: 700;
-	color: rgba(208, 160, 157, 0.78);
+	color: rgba(188, 200, 216, 0.82);
 	opacity: 0.95;
 	margin-top: 0;
 }
@@ -339,7 +339,7 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 }
 
 .canvas-empty-mark__title {
-	color: rgba(59, 85, 92, 0.92);
+	color: rgba(234, 240, 247, 0.92);
 	font-size: 24rpx;
 	font-weight: 900;
 	line-height: 1.2;
@@ -347,7 +347,7 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 
 .canvas-empty-mark__sub {
 	margin-top: 6rpx;
-	color: rgba(108, 113, 110, 0.76);
+	color: rgba(164, 175, 190, 0.82);
 	font-size: 21rpx;
 	font-weight: 800;
 	line-height: 1.2;

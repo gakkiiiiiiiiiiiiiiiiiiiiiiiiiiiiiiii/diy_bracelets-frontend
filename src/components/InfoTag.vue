@@ -29,19 +29,19 @@ withDefaults(
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8rpx 22rpx rgba(83, 90, 116, 0.13);
+  border: 1rpx solid rgba(224, 233, 244, 0.2);
+  box-shadow: 0 8rpx 22rpx rgba(0, 0, 0, 0.22);
   transition: transform u.$duration-state u.$ease-brand, opacity u.$duration-state u.$ease-out;
 }
 
 .info-tag--default {
-  background: rgba(242, 244, 250, 0.88);
-  color: #7f879a;
+  background: rgba(47, 57, 72, 0.88);
+  color: #d3d9e2;
 }
 
 .info-tag--warn {
-  background: rgba(255, 246, 234, 0.9);
-  color: #98704b;
+  background: rgba(65, 69, 77, 0.94);
+  color: #f0d7c8;
 }
 
 .info-tag--warn.info-tag--shake {
@@ -49,16 +49,16 @@ withDefaults(
 }
 
 .info-tag--primary {
-  background: rgba(210, 232, 239, 0.82);
-  color: #3c6d7e;
+  background: rgba(42, 53, 68, 0.9);
+  color: #dce8f4;
 }
 
 .info-tag--notice {
-  background: linear-gradient(135deg, #ff5e73 0%, #d9485f 100%);
+  background: linear-gradient(135deg, #f15045 0%, #d83932 100%);
   color: #fff;
   border-radius: 16rpx;
   border-color: rgba(255, 255, 255, 0.38);
-  box-shadow: 0 10rpx 22rpx rgba(210, 80, 100, 0.28);
+  box-shadow: 0 10rpx 22rpx rgba(216, 57, 50, 0.3);
 }
 
 .info-tag__label {
