@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import type { HomeFeaturedWork, HomeMaterialEntry } from '@/api';
@@ -53,24 +53,7 @@ const heroColumns: HeroBracelet[][] = [
 	],
 ];
 
-const heroColumnIndexes = ref([0, 2, 4]);
-const heroColumnNextIndexes = ref([1, 3, 3]);
-const isHeroTransitioning = ref(false);
-let heroCycleTimer: ReturnType<typeof setInterval> | undefined;
-let heroCommitTimer: ReturnType<typeof setTimeout> | undefined;
-
-function cycleHeroBracelets() {
-	if (isHeroTransitioning.value) return;
-	heroColumnNextIndexes.value = heroColumnIndexes.value.map((currentIndex, columnIndex) => {
-		const length = heroColumns[columnIndex].length;
-		return columnIndex === 2 ? (currentIndex - 1 + length) % length : (currentIndex + 1) % length;
-	});
-	isHeroTransitioning.value = true;
-	heroCommitTimer = setTimeout(() => {
-		heroColumnIndexes.value = [...heroColumnNextIndexes.value];
-		isHeroTransitioning.value = false;
-	}, 760);
-}
+const loopingHeroColumns = heroColumns.map((column) => [...column, ...column]);
 
 const pageStyle = computed(() =>
 	`--brand-primary:${brand.value.primaryColor};--brand-secondary:${brand.value.secondaryColor};`,
@@ -78,12 +61,6 @@ const pageStyle = computed(() =>
 
 onMounted(() => {
 	void contentStore.fetchContent();
-	heroCycleTimer = setInterval(cycleHeroBracelets, 3400);
-});
-
-onUnmounted(() => {
-	if (heroCycleTimer) clearInterval(heroCycleTimer);
-	if (heroCommitTimer) clearTimeout(heroCommitTimer);
 });
 
 function openPrimaryAction() {
@@ -135,34 +112,28 @@ function openWork(work: HomeFeaturedWork) {
 			<text class="hero__description">{{ home.hero.description }}</text>
 
 			<view class="material-stage" aria-hidden="true">
-				<view class="bracelet-carousel">
+				<view class="bracelet-marquee">
 					<view
-						v-for="(column, columnIndex) in heroColumns"
+						v-for="(column, columnIndex) in loopingHeroColumns"
 						:key="columnIndex"
-						class="bracelet-carousel__column"
-						:class="`bracelet-carousel__column--${columnIndex + 1}`"
+						class="bracelet-marquee__column"
 					>
 						<view
-							class="bracelet-carousel__slide bracelet-carousel__slide--current"
-							:class="{ 'is-transitioning': isHeroTransitioning }"
+							class="bracelet-marquee__track"
+							:class="`bracelet-marquee__track--${columnIndex + 1}`"
 						>
-							<image
-								class="bracelet-carousel__image"
-								:src="column[heroColumnIndexes[columnIndex]].image"
-								:style="column[heroColumnIndexes[columnIndex]].style"
-								mode="aspectFit"
-							/>
-						</view>
-						<view
-							v-if="isHeroTransitioning"
-							class="bracelet-carousel__slide bracelet-carousel__slide--next"
-						>
-							<image
-								class="bracelet-carousel__image"
-								:src="column[heroColumnNextIndexes[columnIndex]].image"
-								:style="column[heroColumnNextIndexes[columnIndex]].style"
-								mode="aspectFit"
-							/>
+							<view
+								v-for="(item, itemIndex) in column"
+								:key="`${columnIndex}-${item.id}-${itemIndex}`"
+								class="bracelet-marquee__item"
+							>
+								<image
+									class="bracelet-marquee__image"
+									:src="item.image"
+									:style="item.style"
+									mode="aspectFit"
+								/>
+							</view>
 						</view>
 					</view>
 				</view>
@@ -343,7 +314,7 @@ function openWork(work: HomeFeaturedWork) {
 	background: #018b8d;
 }
 
-.bracelet-carousel {
+.bracelet-marquee {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -356,8 +327,8 @@ function openWork(work: HomeFeaturedWork) {
 		#018b8d;
 }
 
-.bracelet-carousel::before,
-.bracelet-carousel::after {
+.bracelet-marquee::before,
+.bracelet-marquee::after {
 	position: absolute;
 	left: 0;
 	z-index: 2;
@@ -367,138 +338,80 @@ function openWork(work: HomeFeaturedWork) {
 	pointer-events: none;
 }
 
-.bracelet-carousel::before {
+.bracelet-marquee::before {
 	top: 0;
 	background: linear-gradient(180deg, #018b8d, rgba(1, 139, 141, 0));
 }
 
-.bracelet-carousel::after {
+.bracelet-marquee::after {
 	bottom: 0;
 	background: linear-gradient(0deg, #018b8d, rgba(1, 139, 141, 0));
 }
 
-.bracelet-carousel__column {
+.bracelet-marquee__column {
 	position: relative;
 	width: 33.3333%;
 	height: 100%;
 	overflow: hidden;
 }
 
-.bracelet-carousel__slide {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	will-change: opacity, transform;
+.bracelet-marquee__track {
+	width: 100%;
+	will-change: transform;
 }
 
-.bracelet-carousel__image {
+.bracelet-marquee__track--1 {
+	animation: bracelet-column-up 26s linear infinite;
+	animation-delay: -5s;
+}
+
+.bracelet-marquee__track--2 {
+	animation: bracelet-column-up 32s linear infinite;
+	animation-delay: -21s;
+}
+
+.bracelet-marquee__track--3 {
+	animation: bracelet-column-down 28s linear infinite;
+	animation-delay: -13s;
+}
+
+.bracelet-marquee__item {
+	display: flex;
+	height: 515rpx;
+	align-items: center;
+	justify-content: center;
+}
+
+.bracelet-marquee__image {
 	width: 214rpx;
 	height: 214rpx;
 	filter: drop-shadow(0 13rpx 16rpx rgba(0, 45, 47, 0.22));
 	transform-origin: center;
 }
 
-.bracelet-carousel__column--1 .bracelet-carousel__slide--current.is-transitioning {
-	animation: bracelet-slide-out-up 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
-}
-
-.bracelet-carousel__column--1 .bracelet-carousel__slide--next {
-	animation: bracelet-slide-in-up 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
-}
-
-.bracelet-carousel__column--2 .bracelet-carousel__slide--current.is-transitioning {
-	animation: bracelet-fade-out 760ms ease both;
-}
-
-.bracelet-carousel__column--2 .bracelet-carousel__slide--next {
-	animation: bracelet-fade-in 760ms ease both;
-}
-
-.bracelet-carousel__column--3 .bracelet-carousel__slide--current.is-transitioning {
-	animation: bracelet-slide-out-down 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
-}
-
-.bracelet-carousel__column--3 .bracelet-carousel__slide--next {
-	animation: bracelet-slide-in-down 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
-}
-
-@keyframes bracelet-slide-out-up {
+@keyframes bracelet-column-up {
 	from {
 		transform: translate3d(0, 0, 0);
-		opacity: 1;
 	}
 
 	to {
-		transform: translate3d(0, -100%, 0);
-		opacity: 0;
+		transform: translate3d(0, -50%, 0);
 	}
 }
 
-@keyframes bracelet-slide-in-up {
+@keyframes bracelet-column-down {
 	from {
-		transform: translate3d(0, 100%, 0);
-		opacity: 0;
+		transform: translate3d(0, -50%, 0);
 	}
 
 	to {
 		transform: translate3d(0, 0, 0);
-		opacity: 1;
-	}
-}
-
-@keyframes bracelet-slide-out-down {
-	from {
-		transform: translate3d(0, 0, 0);
-		opacity: 1;
-	}
-
-	to {
-		transform: translate3d(0, 100%, 0);
-		opacity: 0;
-	}
-}
-
-@keyframes bracelet-slide-in-down {
-	from {
-		transform: translate3d(0, -100%, 0);
-		opacity: 0;
-	}
-
-	to {
-		transform: translate3d(0, 0, 0);
-		opacity: 1;
-	}
-}
-
-@keyframes bracelet-fade-out {
-	from {
-		opacity: 1;
-		transform: scale(1);
-	}
-
-	to {
-		opacity: 0;
-		transform: scale(0.94);
-	}
-}
-
-@keyframes bracelet-fade-in {
-	from {
-		opacity: 0;
-		transform: scale(1.05);
-	}
-
-	to {
-		opacity: 1;
-		transform: scale(1);
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.bracelet-carousel__slide {
-		animation-duration: 1ms !important;
+	.bracelet-marquee__track {
+		animation-play-state: paused;
 	}
 }
 
