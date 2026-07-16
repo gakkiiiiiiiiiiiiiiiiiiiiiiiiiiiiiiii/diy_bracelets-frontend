@@ -308,8 +308,13 @@ export interface HomeFeaturedSectionContent {
   items: HomeFeaturedWork[];
 }
 
+export interface HomeInspirationCarouselContent {
+  designIds: string[];
+}
+
 export interface HomeContent {
   hero: HomeHeroContent;
+  inspirationCarousel: HomeInspirationCarouselContent;
   materials: HomeMaterialSectionContent;
   featured: HomeFeaturedSectionContent;
 }
@@ -405,6 +410,7 @@ export interface HomePageContent {
   banners: HomeBanner[];
   designs: HomeDesign[];
   hero?: Partial<HomeHeroContent>;
+  inspirationCarousel?: Partial<HomeInspirationCarouselContent>;
   materials?: Partial<HomeMaterialSectionContent>;
   featured?: Partial<HomeFeaturedSectionContent>;
 }

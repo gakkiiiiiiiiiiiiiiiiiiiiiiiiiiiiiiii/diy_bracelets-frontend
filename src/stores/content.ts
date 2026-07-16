@@ -71,6 +71,11 @@ function mergeContent(remote?: PublishedContentConfig | null): ContentConfig {
           path: text(hero?.primaryAction?.path, contentDefaults.home.hero.primaryAction.path),
         },
       },
+      inspirationCarousel: {
+        designIds: Array.isArray(remoteHome?.inspirationCarousel?.designIds)
+          ? remoteHome.inspirationCarousel.designIds.filter((id): id is string => typeof id === 'string' && !!id)
+          : contentDefaults.home.inspirationCarousel.designIds,
+      },
       materials: {
         eyebrow: text(materialSection?.eyebrow, contentDefaults.home.materials.eyebrow),
         title: text(materialSection?.title, contentDefaults.home.materials.title),

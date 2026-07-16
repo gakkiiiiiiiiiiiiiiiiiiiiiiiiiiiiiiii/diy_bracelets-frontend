@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
-import type { HomeFeaturedWork, HomeMaterialEntry } from '@/api';
+import { api, type DesignDetail, type HomeFeaturedWork, type HomeMaterialEntry } from '@/api';
+import { RESOLVED_API_BASE } from '@/config';
 import { useContentStore } from '@/stores/content';
 import { useMaterialsStore } from '@/stores/materials';
 import { openDesignStudio } from '@/utils/designNavigation';
@@ -17,6 +18,7 @@ interface HeroBracelet {
 	id: string;
 	image: string;
 	style: string;
+	path?: string;
 }
 
 const heroBraceletRoot = '/static/brand/hero-bracelets';
@@ -26,7 +28,7 @@ const bracelet = (id: string, style: string): HeroBracelet => ({
 	style,
 });
 
-const heroColumns: HeroBracelet[][] = [
+const defaultHeroColumns: HeroBracelet[][] = [
 	[
 		bracelet('7639051728465270783', 'transform:translate3d(-8rpx, 8rpx, 0) rotate(-9deg) scale(.92)'),
 		bracelet('7655534189181866922', 'transform:translate3d(9rpx, -5rpx, 0) rotate(7deg) scale(1.04)'),
@@ -53,15 +55,64 @@ const heroColumns: HeroBracelet[][] = [
 	],
 ];
 
-const loopingHeroColumns = heroColumns.map((column) => [...column, ...column]);
+const inspirationItems = ref<DesignDetail[]>([]);
+const carouselStyles = [
+	'transform:translate3d(-8rpx, 8rpx, 0) rotate(-9deg) scale(.92)',
+	'transform:translate3d(9rpx, -5rpx, 0) rotate(7deg) scale(1.04)',
+	'transform:translate3d(-4rpx, 2rpx, 0) rotate(4deg) scale(.96)',
+	'transform:translate3d(11rpx, 5rpx, 0) rotate(-6deg) scale(1.06)',
+	'transform:translate3d(-10rpx, -3rpx, 0) rotate(8deg) scale(.9)',
+	'transform:translate3d(6rpx, 7rpx, 0) rotate(-3deg) scale(1)',
+];
+
+function imageUrl(path: string) {
+	if (!path || path.startsWith('http') || path.startsWith('data:')) return path;
+	const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
+	return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+const configuredHeroBracelets = computed<HeroBracelet[]>(() => {
+	const byId = new Map(inspirationItems.value.map((item) => [item.id, item]));
+	return home.value.inspirationCarousel.designIds.flatMap((id, index) => {
+		const item = byId.get(id);
+		if (!item?.image) return [];
+		return [{
+			id: item.id,
+			image: imageUrl(item.image),
+			style: carouselStyles[index % carouselStyles.length],
+			path: `/pages/goods/detail/detail?id=${encodeURIComponent(item.id)}&from=inspiration`,
+		}];
+	});
+});
+
+const heroColumns = computed<HeroBracelet[][]>(() => {
+	const configured = configuredHeroBracelets.value;
+	if (!configured.length) return defaultHeroColumns;
+	const columns: HeroBracelet[][] = [[], [], []];
+	configured.forEach((item, index) => columns[index % 3].push(item));
+	columns.forEach((column, index) => {
+		if (!column.length) column.push(configured[index % configured.length]);
+	});
+	return columns;
+});
+
+const loopingHeroColumns = computed(() => heroColumns.value.map((column) => [...column, ...column]));
 
 const pageStyle = computed(() =>
 	`--brand-primary:${brand.value.primaryColor};--brand-secondary:${brand.value.secondaryColor};`,
 );
 
 onMounted(() => {
-	void contentStore.fetchContent();
+	void Promise.all([contentStore.fetchContent(), loadInspirations()]);
 });
+
+async function loadInspirations() {
+	try {
+		inspirationItems.value = await api.getInspirations();
+	} catch {
+		inspirationItems.value = [];
+	}
+}
 
 function openPrimaryAction() {
 	openPath(home.value.hero.primaryAction.path);
@@ -88,6 +139,10 @@ function openPath(path: string) {
 function openWork(work: HomeFeaturedWork) {
 	openPath(work.path);
 }
+
+function openHeroBracelet(item: HeroBracelet) {
+	if (item.path) openPath(item.path);
+}
 </script>
 
 <template>
@@ -111,7 +166,7 @@ function openWork(work: HomeFeaturedWork) {
 			</view>
 			<text class="hero__description">{{ home.hero.description }}</text>
 
-			<view class="material-stage" aria-hidden="true">
+			<view class="material-stage">
 				<view class="bracelet-marquee">
 					<view
 						v-for="(column, columnIndex) in loopingHeroColumns"
@@ -126,6 +181,8 @@ function openWork(work: HomeFeaturedWork) {
 								v-for="(item, itemIndex) in column"
 								:key="`${columnIndex}-${item.id}-${itemIndex}`"
 								class="bracelet-marquee__item"
+								:class="{ 'bracelet-marquee__item--interactive': !!item.path }"
+								@tap.stop="openHeroBracelet(item)"
 							>
 								<image
 									class="bracelet-marquee__image"
@@ -380,6 +437,14 @@ function openWork(work: HomeFeaturedWork) {
 	height: 515rpx;
 	align-items: center;
 	justify-content: center;
+}
+
+.bracelet-marquee__item--interactive {
+	cursor: pointer;
+}
+
+.bracelet-marquee__item--interactive:active {
+	opacity: 0.78;
 }
 
 .bracelet-marquee__image {

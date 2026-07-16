@@ -24,6 +24,9 @@ export const contentDefaults: ContentConfig = {
         path: '/pages/design/design',
       },
     },
+    inspirationCarousel: {
+      designIds: [],
+    },
     materials: {
       eyebrow: 'MATERIAL LIBRARY',
       title: '从材质开始',
