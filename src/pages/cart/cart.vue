@@ -169,7 +169,7 @@ function goDesign() {
 }
 
 function goGoods() {
-	uni.switchTab({ url: '/pages/goods/goods' });
+	uni.navigateTo({ url: '/pages/goods/search/search' });
 }
 
 </script>

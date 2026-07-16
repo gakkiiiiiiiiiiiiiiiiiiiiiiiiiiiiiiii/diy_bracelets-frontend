@@ -111,7 +111,7 @@ export const mockHomeData: HomeData = {
   logoText: '珠岛',
   tiles: [
     { id: 'diy', label: 'DIY-CUSTOM', sub: '设计手串', image: strawberryCrystal, path: '/pages/design/design' },
-    { id: 'goods', label: 'MUST-HAVE', sub: '好物', image: starryCrystal, path: '/pages/goods/goods' },
+    { id: 'inspiration', label: 'INSPIRATION', sub: '灵感岛', image: starryCrystal, path: '/pages/inspiration/inspiration' },
   ],
   banners: [
     {

@@ -247,6 +247,7 @@ const shareSummary = computed(() => {
 });
 const soundMuted = ref(true);
 const inspirationMode = ref(false);
+const inspirationLoading = ref(false);
 const insufficientHintVisible = ref(false);
 const insufficientToastVisible = ref(false);
 const functionToastVisible = ref(false);
@@ -887,40 +888,37 @@ function openInUseCategory() {
 }
 
 async function onInspirationMode() {
-	if (!materialsStore.loaded) {
-		await materialsStore.fetchFromApi();
+	if (inspirationLoading.value) return;
+	inspirationLoading.value = true;
+	try {
+		const inspiration = await api.useRandomInspiration();
+		let exactApplied = false;
+		if (inspiration.braceletCode) {
+			const resolved = await api.resolveBraceletCode(inspiration.braceletCode);
+			if (resolved.valid) {
+				designStore.applyOrderedBeads(resolved.beads.filter(Boolean) as ResolvedBraceletBead[], {
+					source: 'inspiration', handCircumferenceCm: resolved.payload.wristCm,
+				});
+				exactApplied = true;
+			}
+		}
+		if (!exactApplied) {
+			designStore.applyDesignFromPlaza(inspiration.composition, {
+				source: 'inspiration', handCircumferenceCm: inspiration.wristCm,
+			});
+		}
+		clearEditingSavedDesign();
+		uiStore.setSelectedBeadId(null);
+		inspirationMode.value = true;
+		syncTargetFromAppliedDesign();
+		closeFunctionMenu();
+		showFunctionToast(`灵感 · ${inspiration.title}`, 'play');
+		playDesignFeedback('play');
+	} catch (error: any) {
+		uni.showToast({ title: error?.message || '暂时没有可用灵感', icon: 'none' });
+	} finally {
+		inspirationLoading.value = false;
 	}
-	const pool = materialsStore.materials.filter((material) => material.specs?.length);
-	if (!pool.length) {
-		uni.showToast({ title: '暂无可用材料', icon: 'none' });
-		return;
-	}
-	const categoryOrder = ['yellow-series', 'pink-series', 'green-white-series', 'blue-series', 'purple-series'];
-	const buckets = categoryOrder
-		.map((categoryId) => pool.filter((material) => material.categoryId === categoryId))
-		.filter((list) => list.length > 0);
-	const fallbackBuckets = buckets.length ? buckets : [pool];
-	const beadCount = 7 + Math.floor(Math.random() * 3);
-	const composition = Array.from({ length: beadCount }, (_, index) => {
-		const bucket = fallbackBuckets[index % fallbackBuckets.length];
-		const material = bucket[Math.floor(Math.random() * bucket.length)];
-		const preferredSize = index % 4 === 0 ? 10 : index % 2 === 0 ? 6 : 8;
-		const spec = material.specs.find((item) => item.size === preferredSize) ?? material.specs[Math.min(index, material.specs.length - 1)];
-		return {
-			materialId: material.id,
-			name: material.name,
-			image: material.image,
-			size: spec.size,
-			price: spec.price,
-			quantity: 1,
-		};
-	});
-	clearEditingSavedDesign();
-	designStore.applyDesignFromPlaza(composition, { source: 'inspiration' });
-	uiStore.setSelectedBeadId(null);
-	inspirationMode.value = true;
-	showFunctionToast('灵感模式', 'play');
-	playDesignFeedback('play');
 }
 
 async function onImportDesign() {
@@ -1139,12 +1137,69 @@ async function saveCurrentDesignToList() {
 
 // 源小程序底部红色“保存”会进入「我的设计」，同时保留草稿兜底。
 async function onSave() {
-	await saveCurrentDesignToList();
+	if (await saveCurrentDesignToList()) await offerInspirationSubmission();
 }
 
 // 导航菜单中的保存入口复用同一套保存语义
 async function onSaveToList() {
-	await saveCurrentDesignToList();
+	if (await saveCurrentDesignToList()) await offerInspirationSubmission();
+}
+
+function showModal(options: Parameters<typeof uni.showModal>[0]) {
+	return new Promise<UniApp.ShowModalRes>((resolve) => {
+		uni.showModal({ ...options, success: resolve, fail: () => resolve({ confirm: false, cancel: true } as UniApp.ShowModalRes) });
+	});
+}
+
+function currentOrderedBeads() {
+	return designStore.braceletDesign.flatMap((bead) => {
+		const material = materialsStore.materials.find((item) => item.id === bead.materialId);
+		const specId = bead.specId || material?.specs.find((spec) => spec.size === bead.size && spec.price === bead.price)?.specId;
+		return specId ? [{ materialId: bead.materialId, specId }] : [];
+	});
+}
+
+async function offerInspirationSubmission() {
+	const decision = await showModal({
+		title: '加入灵感岛？',
+		content: '投稿后会进入作品审核，通过后其他岛民就能看到并使用这套设计。',
+		confirmText: '加入',
+		cancelText: '暂不',
+	});
+	if (!decision.confirm) return;
+	const naming = await showModal({
+		title: '给作品取个名字',
+		content: '',
+		editable: true,
+		placeholderText: '例如：雾蓝潮汐',
+		confirmText: '提交审核',
+	});
+	const title = String(naming.content || '').trim();
+	if (!naming.confirm) return;
+	if (!title) {
+		uni.showToast({ title: '请输入作品名', icon: 'none' });
+		return;
+	}
+	const orderedBeads = currentOrderedBeads();
+	if (orderedBeads.length !== designStore.braceletDesign.length) {
+		uni.showToast({ title: '部分珠子规格无法复现，暂不能投稿', icon: 'none' });
+		return;
+	}
+	uni.showLoading({ title: '提交作品中' });
+	try {
+		await api.submitInspiration({
+			title,
+			author: '岛民',
+			composition: beadsToComposition(designStore.braceletDesign),
+			orderedBeads,
+			wristCm: targetCircumference.value,
+		});
+		uni.showToast({ title: '已提交，等待审核', icon: 'success' });
+	} catch (error: any) {
+		uni.showToast({ title: error?.message || '提交失败，请稍后重试', icon: 'none' });
+	} finally {
+		uni.hideLoading();
+	}
 }
 
 // 完成设计，校验输入和显示警告
@@ -1642,6 +1697,7 @@ function hideDesignTabBar() {
 							@click="toggleFunctionMenu"
 						/>
 					</view>
+					<ActionButton type="delete" icon="wand-sparkles" :label="inspirationLoading ? '寻找中' : '灵感'" :disabled="inspirationLoading" @click="onInspirationMode" />
 					<ActionButton v-if="showSaveAction" type="save" icon="save" :label="contentStore.diy.saveLabel" @click="onSave" />
 				</view>
 				<view class="action-row__spacer" />
@@ -1694,7 +1750,7 @@ function hideDesignTabBar() {
 							</view>
 							<view class="function-card" :class="{ 'function-card--active': inspirationMode }" @tap="onInspirationMode">
 								<BrandIcon class="function-card__icon" name="wand-sparkles" />
-								<text class="function-card__label">灵感模式</text>
+								<text class="function-card__label">随机灵感</text>
 							</view>
 						</view>
 					</view>

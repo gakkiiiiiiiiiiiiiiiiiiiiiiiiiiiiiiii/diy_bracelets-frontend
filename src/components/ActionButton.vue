@@ -19,6 +19,7 @@ const props = withDefaults(
 const iconName = computed<BrandIconName>(() => {
 	if (props.type === 'delete' || props.icon === 'layers-3') return 'layers-3';
 	if (props.type === 'save' || props.icon === 'save') return 'save';
+	if (props.icon === 'wand-sparkles') return 'wand-sparkles';
 	if (props.icon === 'single') return 'circle-dot';
 	return 'shopping-bag';
 });

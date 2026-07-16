@@ -63,7 +63,7 @@ export const contentDefaults: ContentConfig = {
       eyebrow: 'NEW SELECTION',
       title: '精选新作',
       actionLabel: '查看全部',
-      actionPath: '/pages/goods/goods',
+      actionPath: '/pages/inspiration/inspiration',
       items: [
         {
           id: 'morganite',

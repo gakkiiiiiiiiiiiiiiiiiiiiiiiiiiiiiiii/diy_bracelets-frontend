@@ -234,7 +234,7 @@ function goOrderDetail() {
 
 function goGoods() {
 	submittedOrder.value = null;
-	uni.switchTab({ url: '/pages/goods/goods' });
+	uni.navigateTo({ url: '/pages/goods/search/search' });
 }
 
 function openCouponSheet() {

@@ -227,6 +227,17 @@ export const api = {
   /** 使用该设计：usageCount+1，返回设计详情 */
   useDesign: (id: string) =>
     request<DesignDetail>(`/api/goods/${id}/use`, 'POST'),
+  getInspirations: () => request<DesignDetail[]>(`/api/inspirations`),
+  getInspiration: (id: string) => request<DesignDetail>(`/api/inspirations/${id}`),
+  useInspiration: (id: string) => request<DesignDetail>(`/api/inspirations/${id}/use`, 'POST'),
+  useRandomInspiration: () => request<DesignDetail>(`/api/inspirations/random/use`, 'POST'),
+  submitInspiration: (body: {
+    title: string;
+    author?: string;
+    composition: DesignCompositionRow[];
+    orderedBeads: Array<{ materialId: string; specId: string }>;
+    wristCm?: number;
+  }) => request<DesignDetail>(`/api/inspirations`, 'POST', body),
   getCart: () => request<CartData>(`/api/cart`),
   getProfile: () => request<ProfileData>(`/api/profile`),
   /** 我的设计：列表、新增、更新、删除 */
@@ -510,6 +521,9 @@ export interface DesignDetail {
   orderedBeads?: Array<{ materialId: string; specId: string }> | null;
   wristCm?: number | null;
   braceletCode?: string | null;
+  isInspiration?: boolean;
+  reviewStatus?: 'pending' | 'approved' | 'rejected';
+  reviewNote?: string | null;
 }
 
 export interface ResolvedBraceletBead {

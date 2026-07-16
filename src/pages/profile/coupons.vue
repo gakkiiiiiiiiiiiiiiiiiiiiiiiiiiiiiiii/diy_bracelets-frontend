@@ -218,7 +218,7 @@ function useCoupon(coupon: CouponRecord) {
 		itemList: ['去设计手串', '去找好物'],
 		success: (res) => {
 			if (res.tapIndex === 0) openDesignStudio('bracelet');
-			if (res.tapIndex === 1) uni.switchTab({ url: '/pages/goods/goods' });
+			if (res.tapIndex === 1) uni.navigateTo({ url: '/pages/goods/search/search' });
 		},
 	});
 }

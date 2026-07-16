@@ -22,6 +22,7 @@ import { isFavoriteDesign, loadFavoriteDesignIds, loadFavoriteDesigns, removeFav
 import type { CartItem } from '@/api';
 
 const designId = ref('');
+const fromInspiration = ref(false);
 const detail = ref<DesignDetail | null>(null);
 const product = ref<ShopGoodsProduct | null>(null);
 const loading = ref(false);
@@ -70,7 +71,11 @@ const supportContextText = computed(() => {
 const favoriteLabel = computed(() => (isFavorite() ? '已收藏' : '收藏'));
 const detailHasComposition = computed(() => !!detail.value?.composition?.length);
 const designUseButtonLabel = computed(() => (detailHasComposition.value ? '使用该设计' : '暂无可套用'));
-const detailPageTitle = computed(() => (product.value ? '商品详情' : '设计详情'));
+const detailPageTitle = computed(() => (product.value ? '商品详情' : fromInspiration.value ? '灵感详情' : '设计详情'));
+const detailAuthorText = computed(() => {
+	const author = detail.value?.author || '岛民';
+	return author.startsWith('@') ? author : `@${author}`;
+});
 
 const beadCount = computed(() =>
 	(detail.value?.composition || []).reduce((sum, row) => sum + row.quantity, 0),
@@ -108,6 +113,7 @@ onBeforeUnmount(() => {
 });
 
 function syncDetailIdFromQuery(query: Record<string, string | undefined>) {
+	fromInspiration.value = query.from === 'inspiration';
 	const nextId = query.id || query.designId || '';
 	if (!nextId) return;
 	if (nextId !== designId.value) {
@@ -145,7 +151,9 @@ async function fetchDetail() {
 	}
 	loading.value = true;
 	try {
-		detail.value = await api.getGoodsDetail(designId.value);
+		detail.value = fromInspiration.value
+			? await api.getInspiration(designId.value)
+			: await api.getGoodsDetail(designId.value);
 	} catch (_e) {
 		detail.value = mockDesignDetails[designId.value] ?? loadFavoriteDesigns().find((item) => item.id === designId.value) ?? null;
 	} finally {
@@ -153,7 +161,7 @@ async function fetchDetail() {
 	}
 }
 
-watch(designId, (id) => {
+watch([designId, fromInspiration], ([id]) => {
 	if (id) fetchDetail();
 }, { immediate: true });
 
@@ -188,7 +196,8 @@ async function useDesign() {
 		}, 420);
 	};
 	try {
-		await api.useDesign(current.id);
+		if (fromInspiration.value) await api.useInspiration(current.id);
+		else await api.useDesign(current.id);
 		await applyCurrentDesign();
 	} catch (_e) {
 		// 仍可套用本地数据
@@ -366,7 +375,7 @@ function goBack() {
 	uni.navigateBack({
 		fail: () => {
 			if (product.value) {
-				uni.switchTab({ url: '/pages/goods/goods' });
+				uni.navigateTo({ url: '/pages/goods/search/search' });
 				return;
 			}
 			uni.navigateTo({ url: '/pages/plaza/plaza' });
@@ -528,7 +537,7 @@ function goBack() {
 				<view class="title-row">
 					<view class="title-copy">
 						<view class="title">{{ detail.title }}</view>
-						<view class="author">作者{{ detail.author }}</view>
+						<view class="author">作者{{ detailAuthorText }}</view>
 						<view class="usage">{{ detail.usageCount }}人使用过</view>
 					</view>
 					<view class="detail-bracelet-preview">
@@ -577,7 +586,10 @@ function goBack() {
 					{{ detailHasComposition ? '点击右下角“使用该设计”，基于此设计开始创作！' : '当前灵感暂不可直接套用，可继续收藏或返回广场选择完整设计。' }}
 				</view>
 			</view>
-			<view class="footer design-footer">
+			<view v-if="fromInspiration" class="footer inspiration-footer">
+				<button class="btn-inspiration-use" :class="{ 'btn-inspiration-use--disabled': !detailHasComposition }" @tap="useDesign">使用该设计</button>
+			</view>
+			<view v-else class="footer design-footer">
 				<view class="design-actions">
 					<view class="design-action" :class="{ active: isFavorite() }" @tap="toggleFavorite">
 						<view class="design-action-icon design-action-icon--favorite" />
@@ -1675,6 +1687,31 @@ function goBack() {
 	align-items: center;
 	justify-content: space-between;
 	box-sizing: border-box;
+}
+
+.inspiration-footer {
+	justify-content: flex-end;
+}
+
+.btn-inspiration-use {
+	width: 326rpx;
+	height: 88rpx;
+	margin: 0;
+	padding: 0 32rpx;
+	line-height: 84rpx;
+	background: #fff;
+	color: #d9485f;
+	border: 2rpx solid #d9485f;
+	border-radius: 44rpx;
+	font-size: 30rpx;
+	font-weight: 900;
+	box-sizing: border-box;
+}
+
+.btn-inspiration-use--disabled {
+	color: #9b9fa8;
+	border-color: #d9dce2;
+	background: #f7f8fa;
 }
 
 .design-actions {

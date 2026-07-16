@@ -36,7 +36,7 @@ function openPath(path: string) {
 		openDesignStudio('bracelet');
 		return;
 	}
-	if (path === '/pages/goods/goods') {
+	if (path === '/pages/inspiration/inspiration') {
 		uni.switchTab({ url: path });
 		return;
 	}

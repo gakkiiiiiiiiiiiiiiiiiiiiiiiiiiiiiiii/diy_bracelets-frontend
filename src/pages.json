@@ -9,17 +9,17 @@
 			}
 		},
 		{
-			"path": "pages/goods/goods",
+			"path": "pages/inspiration/inspiration",
 			"style": {
 				"navigationStyle": "custom",
-				"navigationBarTitleText": "好物"
+				"navigationBarTitleText": "灵感岛"
 			}
 		},
 		{
 			"path": "pages/goods/detail/detail",
 			"style": {
 				"navigationStyle": "custom",
-				"navigationBarTitleText": "商品详情"
+				"navigationBarTitleText": "灵感详情"
 			}
 		},
 		{
@@ -164,8 +164,8 @@
 				"selectedIconPath": "static/tabbar/home-active.png"
 			},
 			{
-				"pagePath": "pages/goods/goods",
-				"text": "好物",
+				"pagePath": "pages/inspiration/inspiration",
+				"text": "灵感岛",
 				"iconPath": "static/tabbar/goods.png",
 				"selectedIconPath": "static/tabbar/goods-active.png"
 			},

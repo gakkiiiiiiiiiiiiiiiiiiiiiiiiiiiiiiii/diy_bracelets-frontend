@@ -62,7 +62,7 @@ function goDesign() {
 
 function goGoods() {
 	uni.showTabBar({ animation: false, fail: () => undefined });
-	uni.switchTab({ url: '/pages/goods/goods' });
+	uni.navigateTo({ url: '/pages/goods/search/search' });
 }
 
 function goBack() {
