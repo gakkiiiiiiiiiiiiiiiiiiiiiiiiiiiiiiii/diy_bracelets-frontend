@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import type { HomeFeaturedWork, HomeMaterialEntry } from '@/api';
@@ -13,12 +13,77 @@ const { brand, home, diy } = storeToRefs(contentStore);
 
 const heroTitleLines = computed(() => home.value.hero.title.split('\n').filter(Boolean));
 
+interface HeroBracelet {
+	id: string;
+	image: string;
+	style: string;
+}
+
+const heroBraceletRoot = '/static/brand/hero-bracelets';
+const bracelet = (id: string, style: string): HeroBracelet => ({
+	id,
+	image: `${heroBraceletRoot}/${id}.png`,
+	style,
+});
+
+const heroColumns: HeroBracelet[][] = [
+	[
+		bracelet('7639051728465270783', 'transform:translate3d(-8rpx, 8rpx, 0) rotate(-9deg) scale(.92)'),
+		bracelet('7655534189181866922', 'transform:translate3d(9rpx, -5rpx, 0) rotate(7deg) scale(1.04)'),
+		bracelet('7649012508712308900', 'transform:translate3d(-4rpx, 2rpx, 0) rotate(4deg) scale(.96)'),
+		bracelet('7657186710090451114', 'transform:translate3d(11rpx, 5rpx, 0) rotate(-6deg) scale(1.06)'),
+		bracelet('7657826630543722323', 'transform:translate3d(-10rpx, -3rpx, 0) rotate(8deg) scale(.9)'),
+		bracelet('7661633324633036230', 'transform:translate3d(6rpx, 7rpx, 0) rotate(-3deg) scale(1)'),
+	],
+	[
+		bracelet('7643345746403059172', 'transform:translate3d(5rpx, -7rpx, 0) rotate(5deg) scale(1.05)'),
+		bracelet('7651209573554940074', 'transform:translate3d(-9rpx, 4rpx, 0) rotate(-7deg) scale(.91)'),
+		bracelet('7652980327619731689', 'transform:translate3d(7rpx, 8rpx, 0) rotate(9deg) scale(.98)'),
+		bracelet('7655178491272693183', 'transform:translate3d(-4rpx, -5rpx, 0) rotate(-4deg) scale(1.07)'),
+		bracelet('7661247813501705956', 'transform:translate3d(8rpx, 2rpx, 0) rotate(6deg) scale(.93)'),
+		bracelet('7655961039758841590', 'transform:translate3d(-6rpx, 7rpx, 0) rotate(-8deg) scale(1.02)'),
+	],
+	[
+		bracelet('7642322075953251654', 'transform:translate3d(8rpx, 6rpx, 0) rotate(8deg) scale(.94)'),
+		bracelet('7642648603174371775', 'transform:translate3d(-7rpx, -4rpx, 0) rotate(-5deg) scale(1.06)'),
+		bracelet('7648464685637100799', 'transform:translate3d(10rpx, 1rpx, 0) rotate(4deg) scale(.9)'),
+		bracelet('7650151679195842259', 'transform:translate3d(-5rpx, 8rpx, 0) rotate(-9deg) scale(1.03)'),
+		bracelet('7653505403360194921', 'transform:translate3d(6rpx, -6rpx, 0) rotate(7deg) scale(.97)'),
+		bracelet('7657483456251294454', 'transform:translate3d(-9rpx, 3rpx, 0) rotate(-3deg) scale(1.05)'),
+	],
+];
+
+const heroColumnIndexes = ref([0, 2, 4]);
+const heroColumnNextIndexes = ref([1, 3, 3]);
+const isHeroTransitioning = ref(false);
+let heroCycleTimer: ReturnType<typeof setInterval> | undefined;
+let heroCommitTimer: ReturnType<typeof setTimeout> | undefined;
+
+function cycleHeroBracelets() {
+	if (isHeroTransitioning.value) return;
+	heroColumnNextIndexes.value = heroColumnIndexes.value.map((currentIndex, columnIndex) => {
+		const length = heroColumns[columnIndex].length;
+		return columnIndex === 2 ? (currentIndex - 1 + length) % length : (currentIndex + 1) % length;
+	});
+	isHeroTransitioning.value = true;
+	heroCommitTimer = setTimeout(() => {
+		heroColumnIndexes.value = [...heroColumnNextIndexes.value];
+		isHeroTransitioning.value = false;
+	}, 760);
+}
+
 const pageStyle = computed(() =>
 	`--brand-primary:${brand.value.primaryColor};--brand-secondary:${brand.value.secondaryColor};`,
 );
 
 onMounted(() => {
 	void contentStore.fetchContent();
+	heroCycleTimer = setInterval(cycleHeroBracelets, 3400);
+});
+
+onUnmounted(() => {
+	if (heroCycleTimer) clearInterval(heroCycleTimer);
+	if (heroCommitTimer) clearTimeout(heroCommitTimer);
 });
 
 function openPrimaryAction() {
@@ -70,7 +135,37 @@ function openWork(work: HomeFeaturedWork) {
 			<text class="hero__description">{{ home.hero.description }}</text>
 
 			<view class="material-stage" aria-hidden="true">
-				<image class="material-stage__image" :src="home.hero.image" mode="aspectFill" />
+				<view class="bracelet-carousel">
+					<view
+						v-for="(column, columnIndex) in heroColumns"
+						:key="columnIndex"
+						class="bracelet-carousel__column"
+						:class="`bracelet-carousel__column--${columnIndex + 1}`"
+					>
+						<view
+							class="bracelet-carousel__slide bracelet-carousel__slide--current"
+							:class="{ 'is-transitioning': isHeroTransitioning }"
+						>
+							<image
+								class="bracelet-carousel__image"
+								:src="column[heroColumnIndexes[columnIndex]].image"
+								:style="column[heroColumnIndexes[columnIndex]].style"
+								mode="aspectFit"
+							/>
+						</view>
+						<view
+							v-if="isHeroTransitioning"
+							class="bracelet-carousel__slide bracelet-carousel__slide--next"
+						>
+							<image
+								class="bracelet-carousel__image"
+								:src="column[heroColumnNextIndexes[columnIndex]].image"
+								:style="column[heroColumnNextIndexes[columnIndex]].style"
+								mode="aspectFit"
+							/>
+						</view>
+					</view>
+				</view>
 				<view class="material-stage__meta">
 					<text class="material-stage__label">{{ diy.stageLabel }}</text>
 					<text class="material-stage__hint">{{ diy.stageHint }}</text>
@@ -245,15 +340,166 @@ function openWork(work: HomeFeaturedWork) {
 	overflow: hidden;
 	margin: 40rpx auto 0;
 	border-radius: 14rpx;
-	background: #ebe9e5;
+	background: #018b8d;
 }
 
-.material-stage__image {
+.bracelet-carousel {
 	position: absolute;
 	left: 0;
 	top: 0;
+	display: flex;
 	width: 100%;
 	height: 100%;
+	overflow: hidden;
+	background:
+		radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.1), transparent 34%),
+		#018b8d;
+}
+
+.bracelet-carousel::before,
+.bracelet-carousel::after {
+	position: absolute;
+	left: 0;
+	z-index: 2;
+	width: 100%;
+	height: 54rpx;
+	content: '';
+	pointer-events: none;
+}
+
+.bracelet-carousel::before {
+	top: 0;
+	background: linear-gradient(180deg, #018b8d, rgba(1, 139, 141, 0));
+}
+
+.bracelet-carousel::after {
+	bottom: 0;
+	background: linear-gradient(0deg, #018b8d, rgba(1, 139, 141, 0));
+}
+
+.bracelet-carousel__column {
+	position: relative;
+	width: 33.3333%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.bracelet-carousel__slide {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	will-change: opacity, transform;
+}
+
+.bracelet-carousel__image {
+	width: 214rpx;
+	height: 214rpx;
+	filter: drop-shadow(0 13rpx 16rpx rgba(0, 45, 47, 0.22));
+	transform-origin: center;
+}
+
+.bracelet-carousel__column--1 .bracelet-carousel__slide--current.is-transitioning {
+	animation: bracelet-slide-out-up 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
+}
+
+.bracelet-carousel__column--1 .bracelet-carousel__slide--next {
+	animation: bracelet-slide-in-up 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
+}
+
+.bracelet-carousel__column--2 .bracelet-carousel__slide--current.is-transitioning {
+	animation: bracelet-fade-out 760ms ease both;
+}
+
+.bracelet-carousel__column--2 .bracelet-carousel__slide--next {
+	animation: bracelet-fade-in 760ms ease both;
+}
+
+.bracelet-carousel__column--3 .bracelet-carousel__slide--current.is-transitioning {
+	animation: bracelet-slide-out-down 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
+}
+
+.bracelet-carousel__column--3 .bracelet-carousel__slide--next {
+	animation: bracelet-slide-in-down 760ms cubic-bezier(0.55, 0, 0.45, 1) both;
+}
+
+@keyframes bracelet-slide-out-up {
+	from {
+		transform: translate3d(0, 0, 0);
+		opacity: 1;
+	}
+
+	to {
+		transform: translate3d(0, -100%, 0);
+		opacity: 0;
+	}
+}
+
+@keyframes bracelet-slide-in-up {
+	from {
+		transform: translate3d(0, 100%, 0);
+		opacity: 0;
+	}
+
+	to {
+		transform: translate3d(0, 0, 0);
+		opacity: 1;
+	}
+}
+
+@keyframes bracelet-slide-out-down {
+	from {
+		transform: translate3d(0, 0, 0);
+		opacity: 1;
+	}
+
+	to {
+		transform: translate3d(0, 100%, 0);
+		opacity: 0;
+	}
+}
+
+@keyframes bracelet-slide-in-down {
+	from {
+		transform: translate3d(0, -100%, 0);
+		opacity: 0;
+	}
+
+	to {
+		transform: translate3d(0, 0, 0);
+		opacity: 1;
+	}
+}
+
+@keyframes bracelet-fade-out {
+	from {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	to {
+		opacity: 0;
+		transform: scale(0.94);
+	}
+}
+
+@keyframes bracelet-fade-in {
+	from {
+		opacity: 0;
+		transform: scale(1.05);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bracelet-carousel__slide {
+		animation-duration: 1ms !important;
+	}
 }
 
 .material-stage__meta {
