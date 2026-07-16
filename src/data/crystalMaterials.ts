@@ -155,7 +155,7 @@ function materialFor(definition: CrystalDefinition): CrystalPhysicalMaterialConf
 		clearcoatRoughness: definition.clearcoatRoughness ?? 0.1,
 		reflectivity: 0.7,
 		ior: definition.ior ?? 1.22,
-		envMapIntensity: definition.envMapIntensity ?? 0.85,
+		envMapIntensity: definition.envMapIntensity ?? 1.02,
 		normalScale: definition.normalScale ?? 0.55,
 	};
 }

@@ -384,7 +384,7 @@ export function useBracelet3d(
 			clearcoatRoughness: config?.clearcoatRoughness ?? 0.08,
 			reflectivity: config?.reflectivity ?? 0.72,
 			ior: config?.ior ?? 1.18,
-			envMapIntensity: config?.envMapIntensity ?? 0.92,
+				envMapIntensity: config?.envMapIntensity ?? 1.08,
 			attenuationColor: new THREE.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.8,
 			emissive: new THREE.Color(0xffffff),
@@ -780,12 +780,12 @@ export function useBracelet3d(
 			new THREE.MeshBasicMaterial({
 				map: gradientTex ?? undefined,
 				transparent: true,
-				opacity: gradientTex ? 0.22 : 0.02,
+				opacity: gradientTex ? 0.28 : 0.025,
 				depthWrite: false,
 				color: gradientTex ? 0xffffff : SHADOW_TINT,
 			}),
 		);
-		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.22 : 0.02;
+		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.28 : 0.025;
 		shadowMesh.rotation.x = -Math.PI / 2;
 		shadowMesh.rotation.z = SHADOW_SLANT;
 		shadowMesh.position.set(-radius * 0.56, -radius * 1.05, radius * 0.22);
@@ -1733,7 +1733,7 @@ export function useBracelet3d(
 
 		// 创建threejs基本对象
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xfaf8f5);
+		scene.background = new THREE.Color(0xfffdf9);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
@@ -1743,21 +1743,21 @@ export function useBracelet3d(
 		renderer.setSize(width, height, false);
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping;
-		renderer.toneMappingExposure = 0.82;
+		renderer.toneMappingExposure = 0.9;
 		pmremGenerator = new THREE.PMREMGenerator(renderer);
 		environmentTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
 		scene.environment = environmentTexture;
 
 		// 灯光：低环境光保留通透层次，左上柔主光塑造参考图里的实拍高光。
-		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.28);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 1.08);
+		const key = new THREE.DirectionalLight(0xffffff, 1.2);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.24);
+		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.32);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
-		const rim = new THREE.PointLight(0xffffff, 0.44, 8);
+		const rim = new THREE.PointLight(0xffffff, 0.56, 8);
 		rim.position.set(0.7, 2.6, 1.7);
 		scene.add(rim);
 		const glow = new THREE.PointLight(0xf2dfdc, 0.1, 6);

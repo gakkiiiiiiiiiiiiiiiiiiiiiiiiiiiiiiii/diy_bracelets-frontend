@@ -340,7 +340,7 @@ export function useBracelet3dMp(
 			clearcoatRoughness: config?.clearcoatRoughness ?? 0.08,
 			reflectivity: config?.reflectivity ?? 0.72,
 			ior: config?.ior ?? 1.18,
-			envMapIntensity: config?.envMapIntensity ?? 0.92,
+			envMapIntensity: config?.envMapIntensity ?? 1.08,
 			attenuationColor: new THREE!.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.8,
 			emissive: new THREE!.Color(0xffffff),
@@ -1469,7 +1469,7 @@ export function useBracelet3dMp(
 		const height = size;
 
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xfaf8f5);
+		scene.background = new THREE.Color(0xfffdf9);
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
@@ -1483,18 +1483,18 @@ export function useBracelet3dMp(
 		else if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
 		if (renderer.toneMapping !== undefined && THREE.ACESFilmicToneMapping !== undefined) {
 			renderer.toneMapping = THREE.ACESFilmicToneMapping;
-			renderer.toneMappingExposure = 0.82;
+			renderer.toneMappingExposure = 0.9;
 		}
 
-		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.28);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 1.08);
+		const key = new THREE.DirectionalLight(0xffffff, 1.2);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.24);
+		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.32);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
-		const rim = new THREE.PointLight(0xffffff, 0.44, 8);
+		const rim = new THREE.PointLight(0xffffff, 0.56, 8);
 		rim.position.set(0.7, 2.6, 1.7);
 		scene.add(rim);
 		const glow = new THREE.PointLight(0xf2dfdc, 0.1, 6);

@@ -5311,7 +5311,7 @@ function hideDesignTabBar() {
 .material-panel {
 	display: flex;
 	flex-direction: column;
-	height: 492rpx;
+	height: 420rpx;
 	border-top: 1rpx solid rgba(82, 121, 133, 0.14);
 }
 

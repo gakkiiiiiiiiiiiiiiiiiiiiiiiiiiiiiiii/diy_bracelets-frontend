@@ -248,12 +248,14 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	bottom: 0;
 	border-radius: 0;
 	overflow: hidden;
-	background: #faf8f5;
+	background:
+		radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 1) 0%, rgba(255, 253, 249, 0.96) 48%, rgba(246, 243, 238, 0.92) 100%);
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
-	background: #f8f6f2;
+	background:
+		radial-gradient(circle at 50% 42%, #fff 0%, #fbf9f5 62%, #f3f0eb 100%);
 }
 
 /* 3D gl 画布容器 */
