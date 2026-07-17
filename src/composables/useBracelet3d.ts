@@ -387,13 +387,14 @@ export function useBracelet3d(
 	) {
 		const usesBaseColorMap = !!params.map;
 		const opticalTransmission = Math.min(1, Math.max(0, config?.transmission ?? 0.5));
-		const mappedRoughness = Math.min(0.38, Math.max(0.24, (config?.roughness ?? 0.22) * 0.55 + 0.18));
-		const mappedClearcoat = Math.min(0.38, Math.max(0.24, 0.22 + opticalTransmission * 0.18));
-		const mappedClearcoatRoughness = Math.min(0.4, Math.max(0.27, 0.39 - opticalTransmission * 0.15));
-		const mappedReflectivity = Math.min(0.36, Math.max(0.28, 0.28 + opticalTransmission * 0.08));
-		const mappedSpecularIntensity = Math.min(0.32, Math.max(0.2, 0.2 + opticalTransmission * 0.12));
-		const mappedEnvironmentIntensity = Math.min(0.52, Math.max(0.4, 0.38 + opticalTransmission * 0.15));
-		const mappedFillIntensity = Math.min(0.095, Math.max(0.04, 0.04 + (1 - opticalTransmission) * 0.055));
+		// 颜色贴图保留矿物纹理，摄影棚环境负责表面长条柔光；避免用点光源制造同位置圆斑。
+		const mappedRoughness = Math.min(0.3, Math.max(0.18, (config?.roughness ?? 0.22) * 0.48 + 0.14));
+		const mappedClearcoat = Math.min(0.74, Math.max(0.54, 0.5 + opticalTransmission * 0.25));
+		const mappedClearcoatRoughness = Math.min(0.28, Math.max(0.16, 0.3 - opticalTransmission * 0.17));
+		const mappedReflectivity = Math.min(0.54, Math.max(0.42, 0.4 + opticalTransmission * 0.16));
+		const mappedSpecularIntensity = Math.min(0.5, Math.max(0.36, 0.34 + opticalTransmission * 0.2));
+		const mappedEnvironmentIntensity = Math.min(0.98, Math.max(0.72, 0.68 + opticalTransmission * 0.38));
+		const mappedFillIntensity = Math.min(0.075, Math.max(0.03, 0.03 + (1 - opticalTransmission) * 0.045));
 		const material = new THREE.MeshPhysicalMaterial({
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			emissive: usesBaseColorMap ? 0xffffff : 0x000000,
@@ -1611,15 +1612,15 @@ export function useBracelet3d(
 		scene.environment = environmentTexture;
 
 		// 以环境反射和柔和方向光塑形，避免点光源在每颗珠子上形成相同的白色圆斑。
-		const ambient = new THREE.AmbientLight(0xffffff, 0.26);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.21);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xfffdf8, 0.42);
+		const key = new THREE.DirectionalLight(0xfffdf8, 0.34);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.18);
+		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.14);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
-		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.12);
+		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.1);
 		rim.position.set(0.4, 2.1, -3.4);
 		scene.add(rim);
 		// 创建手串Group（珠子/环都放到group中场景里只加group）
