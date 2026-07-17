@@ -38,7 +38,6 @@ const INERTIA_DECAY = 0.96;
 const INERTIA_STOP = 0.0008;
 /** 水晶珠子：降亮度、冷色 tint，避免过曝 */
 const CRYSTAL_OPACITY = 0.9;
-const CRYSTAL_COLOR = 0xe0dce8;
 const RING_COLOR = 0xd8ceca;
 const BEAD_FLOAT_Y = 0.026;
 const SHADOW_TINT = 0x4e4958;
@@ -60,10 +59,6 @@ const BRACELET_IDLE_BREATHE_SCALE = 0.006;
 const BRACELET_IDLE_BREATHE_SPEED = 0.58;
 const STAGE_GLOW_BASE_OPACITY = 0.16;
 const STAGE_REFLECTION_BASE_OPACITY = 0.07;
-const HIGHLIGHT_SWEEP_X = 0.16;
-const HIGHLIGHT_SWEEP_Z = 0.035;
-const INNER_GLOW_BASE_OPACITY = 0.095;
-const CAUSTIC_SWEEP_BASE_OPACITY = 0.18;
 const DRAG_LIFT_Y = 0.16;
 const DRAG_SCALE = 1.16;
 const VISUAL_LERP = 0.22;
@@ -82,12 +77,6 @@ function getSphereSegments(beadCount: number): number {
 	if (beadCount >= 24) return 20;
 	if (beadCount >= 16) return 24;
 	return 32;
-}
-
-function getInnerSphereSegments(beadCount: number): number {
-	if (beadCount >= 24) return 14;
-	if (beadCount >= 16) return 18;
-	return 24;
 }
 
 export type BraceletLayoutMode = 'bracelet' | 'single';
@@ -235,11 +224,8 @@ export function useBracelet3d(
 	const textureLoader = new THREE.TextureLoader();
 	const textureCache = new Map<string, THREE.Texture>();
 	let shadowGradientTexture: THREE.CanvasTexture | null = null;
-	let highlightBandTexture: THREE.CanvasTexture | null = null;
-	let sparkleTexture: THREE.CanvasTexture | null = null;
 	let stageGlowTexture: THREE.CanvasTexture | null = null;
 	let stageReflectionTexture: THREE.CanvasTexture | null = null;
-	let centerTransparencyTexture: THREE.DataTexture | null = null;
 	let environmentTexture: THREE.Texture | null = null;
 	let pmremGenerator: THREE.PMREMGenerator | null = null;
 	let showcaseSurfaceGroup: THREE.Group | null = null;
@@ -259,17 +245,8 @@ export function useBracelet3d(
 
 	function applyAdaptiveQuality() {
 		const count = beads.value.length;
-		const reduceEffects = count >= 16;
 		const minimalEffects = count >= 24;
 		if (renderer) renderer.setPixelRatio(getAdaptivePixelRatio(count));
-		beadMeshMap.forEach(({ root }) => {
-			const sparkleGroup = root.userData.sparkleGroup as THREE.Group | undefined;
-			const causticGroup = root.userData.causticGroup as THREE.Group | undefined;
-			const highlightGroup = root.userData.highlightGroup as THREE.Group | undefined;
-			if (sparkleGroup) sparkleGroup.visible = !reduceEffects;
-			if (causticGroup) causticGroup.visible = !minimalEffects;
-			if (highlightGroup) highlightGroup.visible = !minimalEffects;
-		});
 		if (stageReflectionMesh) stageReflectionMesh.visible = !minimalEffects;
 	}
 
@@ -374,50 +351,24 @@ export function useBracelet3d(
 		const usesBaseColorMap = !!params.map;
 		const material = new THREE.MeshPhysicalMaterial({
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
-			transparent: true,
-			opacity: config?.opacity ?? 0.82,
-			roughness: config?.roughness ?? 0.13,
+			transparent: false,
+			opacity: 1,
+			roughness: Math.max(config?.roughness ?? 0.2, 0.16),
 			metalness: config?.metalness ?? 0.0,
-			transmission: config?.transmission ?? 0.78,
-			thickness: config?.thickness ?? 0.62,
-			clearcoat: config?.clearcoat ?? 0.94,
-			clearcoatRoughness: config?.clearcoatRoughness ?? 0.08,
-			reflectivity: config?.reflectivity ?? 0.72,
-			ior: config?.ior ?? 1.18,
-				envMapIntensity: config?.envMapIntensity ?? 1.08,
+			transmission: config?.transmission ?? 0.7,
+			thickness: config?.thickness ?? 0.72,
+			clearcoat: Math.min(config?.clearcoat ?? 0.72, 0.82),
+			clearcoatRoughness: Math.max(config?.clearcoatRoughness ?? 0.14, 0.12),
+			reflectivity: config?.reflectivity ?? 0.62,
+			ior: Math.max(config?.ior ?? 1.46, 1.42),
+			envMapIntensity: config?.envMapIntensity ?? 0.9,
 			attenuationColor: new THREE.Color(config?.attenuationColor ?? 0xded8ea),
-			attenuationDistance: config?.attenuationDistance ?? 2.8,
-			emissive: new THREE.Color(0xffffff),
-			emissiveIntensity: 0.004,
+			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
 		});
-		const normalScale = config?.normalScale ?? 0.55;
+		const normalScale = Math.min(config?.normalScale ?? 0.38, 0.48);
 		material.normalScale.set(normalScale, normalScale);
 		return material;
-	}
-
-	function getCenterTransparencyTexture(): THREE.DataTexture {
-		if (centerTransparencyTexture) return centerTransparencyTexture;
-		const size = 64;
-		const data = new Uint8Array(size * size * 4);
-		for (let y = 0; y < size; y += 1) {
-			for (let x = 0; x < size; x += 1) {
-				const nx = (x / (size - 1)) * 2 - 1;
-				const ny = (y / (size - 1)) * 2 - 1;
-				const distance = Math.min(1, Math.sqrt(nx * nx + ny * ny));
-				const edgeWeight = Math.pow(distance, 1.4);
-				const alpha = Math.round(122 + edgeWeight * 133);
-				const idx = (y * size + x) * 4;
-				data[idx] = 255;
-				data[idx + 1] = 255;
-				data[idx + 2] = 255;
-				data[idx + 3] = alpha;
-			}
-		}
-		centerTransparencyTexture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-		centerTransparencyTexture.needsUpdate = true;
-		centerTransparencyTexture.wrapS = centerTransparencyTexture.wrapT = THREE.ClampToEdgeWrapping;
-		return centerTransparencyTexture;
 	}
 
 	/** 参考图：阴影是左下方向的柔和拖尾，而不是规则圆斑 */
@@ -454,58 +405,6 @@ export function useBracelet3d(
 		shadowGradientTexture = new THREE.CanvasTexture(canvas);
 		shadowGradientTexture.needsUpdate = true;
 		return shadowGradientTexture;
-	}
-
-	/** 参考图：珠体中间有一条横向柔光带 */
-	function getHighlightBandTexture(): THREE.CanvasTexture | null {
-		if (highlightBandTexture) return highlightBandTexture;
-		if (typeof document === 'undefined') return null;
-		const canvas = document.createElement('canvas');
-		canvas.width = 256;
-		canvas.height = 64;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return null;
-		const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-		gradient.addColorStop(0, 'rgba(255,255,255,0)');
-		gradient.addColorStop(0.18, 'rgba(255,255,255,0.08)');
-		gradient.addColorStop(0.5, 'rgba(255,255,255,0.82)');
-		gradient.addColorStop(0.82, 'rgba(255,255,255,0.08)');
-		gradient.addColorStop(1, 'rgba(255,255,255,0)');
-		ctx.fillStyle = gradient;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		highlightBandTexture = new THREE.CanvasTexture(canvas);
-		highlightBandTexture.needsUpdate = true;
-		return highlightBandTexture;
-	}
-
-	function getSparkleTexture(): THREE.CanvasTexture | null {
-		if (sparkleTexture) return sparkleTexture;
-		if (typeof document === 'undefined') return null;
-		const size = 96;
-		const canvas = document.createElement('canvas');
-		canvas.width = size;
-		canvas.height = size;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return null;
-		const center = size / 2;
-		const glow = ctx.createRadialGradient(center, center, 0, center, center, center);
-		glow.addColorStop(0, 'rgba(255,255,255,0.98)');
-		glow.addColorStop(0.22, 'rgba(255,255,255,0.78)');
-		glow.addColorStop(0.42, 'rgba(255,255,255,0.24)');
-		glow.addColorStop(1, 'rgba(255,255,255,0)');
-		ctx.fillStyle = glow;
-		ctx.fillRect(0, 0, size, size);
-		ctx.strokeStyle = 'rgba(255,255,255,0.52)';
-		ctx.lineWidth = 2;
-		ctx.beginPath();
-		ctx.moveTo(center - 26, center);
-		ctx.lineTo(center + 26, center);
-		ctx.moveTo(center, center - 26);
-		ctx.lineTo(center, center + 26);
-		ctx.stroke();
-		sparkleTexture = new THREE.CanvasTexture(canvas);
-		sparkleTexture.needsUpdate = true;
-		return sparkleTexture;
 	}
 
 	function getStageGlowTexture(): THREE.CanvasTexture | null {
@@ -750,28 +649,11 @@ export function useBracelet3d(
 		const renderConfig = getCrystalMaterialRenderConfig(bead.materialId);
 		const textureUrls = imageUrl ? getTextureUrlsForBead(bead, imageUrl) : renderConfig?.maps;
 		const hasTexture = !!(textureUrls?.map && (textureUrls.map.startsWith('http') || textureUrls.map.startsWith('/')));
-		// 水晶质感：透光、折射、柔和高光（参考图：半透、冷色、柔和反光）
-		const centerTransparencyMap = getCenterTransparencyTexture();
-		const material = createCrystalMaterial({ alphaMap: centerTransparencyMap }, renderConfig?.material);
+		// 物理透射负责水晶的明暗与反光，避免 Alpha 混合把珠子压扁成塑料贴图。
+		const material = createCrystalMaterial({}, renderConfig?.material);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
 		mesh.userData = { beadId: bead.id, radius, sphereSegments };
-		const glowColor = new THREE.Color(renderConfig?.material?.attenuationColor ?? renderConfig?.material?.color ?? CRYSTAL_COLOR)
-			.lerp(new THREE.Color(0xffffff), 0.34);
-		const innerGlowMaterial = new THREE.MeshBasicMaterial({
-			color: glowColor,
-			transparent: true,
-			opacity: INNER_GLOW_BASE_OPACITY,
-			depthWrite: false,
-			blending: THREE.AdditiveBlending,
-		});
-		innerGlowMaterial.userData.baseOpacity = INNER_GLOW_BASE_OPACITY;
-		const innerGlow = new THREE.Mesh(
-			new THREE.SphereGeometry(radius * 0.82, getInnerSphereSegments(total), getInnerSphereSegments(total)),
-			innerGlowMaterial,
-		);
-		innerGlow.position.set(radius * 0.04, BEAD_FLOAT_Y + radius * 0.03, -radius * 0.04);
-		innerGlow.renderOrder = 2;
 		// 参考图：阴影是顺着左下方向被拉开的柔焦投影
 		const shadowGroup = new THREE.Group();
 		const gradientTex = getShadowGradientTexture();
@@ -823,104 +705,13 @@ export function useBracelet3d(
 		selectionGroup.add(selectionGlow);
 		selectionGroup.add(selectionRing);
 		selectionGroup.visible = false;
-		const highlightGroup = new THREE.Group();
-		const highlightBandTex = getHighlightBandTexture();
-		const highlightGlow = new THREE.Mesh(
-			new THREE.PlaneGeometry(radius * 1.72, radius * 0.36),
-			new THREE.MeshBasicMaterial({
-				map: highlightBandTex ?? undefined,
-				color: 0xffffff,
-				transparent: true,
-				opacity: highlightBandTex ? 0.28 : 0.12,
-				depthWrite: false,
-				blending: THREE.AdditiveBlending,
-			}),
-		);
-		(highlightGlow.material as THREE.MeshBasicMaterial).userData.baseOpacity = highlightBandTex ? 0.28 : 0.12;
-		highlightGlow.rotation.x = -Math.PI / 2;
-		highlightGlow.rotation.z = -0.08;
-		highlightGlow.position.set(0, BEAD_FLOAT_Y + radius * 0.82, radius * 0.03);
-		const highlightCore = new THREE.Mesh(
-			new THREE.PlaneGeometry(radius * 1.66, radius * 0.08),
-			new THREE.MeshBasicMaterial({
-				color: 0xffffff,
-				transparent: true,
-				opacity: 0.34,
-				depthWrite: false,
-				blending: THREE.AdditiveBlending,
-			}),
-		);
-		(highlightCore.material as THREE.MeshBasicMaterial).userData.baseOpacity = 0.34;
-		highlightCore.rotation.x = -Math.PI / 2;
-		highlightCore.rotation.z = -0.08;
-		highlightCore.position.set(0, BEAD_FLOAT_Y + radius * 0.86, radius * 0.04);
-		highlightGroup.add(highlightGlow);
-		highlightGroup.add(highlightCore);
-		const causticGroup = new THREE.Group();
-		const causticBands = [
-			{ x: -0.18, z: -0.04, width: 0.34, height: 1.52, opacity: CAUSTIC_SWEEP_BASE_OPACITY, tilt: 0.58 },
-			{ x: 0.22, z: 0.08, width: 0.18, height: 1.1, opacity: 0.095, tilt: 0.58 },
-		];
-		for (const band of causticBands) {
-			const bandMesh = new THREE.Mesh(
-				new THREE.PlaneGeometry(radius * band.width, radius * band.height),
-				new THREE.MeshBasicMaterial({
-					color: 0xffffff,
-					transparent: true,
-					opacity: band.opacity,
-					depthWrite: false,
-					depthTest: false,
-					blending: THREE.AdditiveBlending,
-				}),
-			);
-			(bandMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = band.opacity;
-			bandMesh.rotation.x = -Math.PI / 2;
-			bandMesh.rotation.z = band.tilt;
-			bandMesh.position.set(radius * band.x, BEAD_FLOAT_Y + radius * 1.02, radius * band.z);
-			bandMesh.renderOrder = 3;
-			causticGroup.add(bandMesh);
-		}
-		const sparkleGroup = new THREE.Group();
-		const sparkleTex = getSparkleTexture();
-		const sparklePoints = [
-			{ x: -0.34, z: -0.26, size: 0.38, opacity: 0.34 },
-			{ x: 0.2, z: -0.15, size: 0.24, opacity: 0.24 },
-			{ x: 0.42, z: 0.28, size: 0.2, opacity: 0.18 },
-		];
-		for (const point of sparklePoints) {
-			const sparkle = new THREE.Mesh(
-				new THREE.PlaneGeometry(radius * point.size, radius * point.size),
-				new THREE.MeshBasicMaterial({
-					map: sparkleTex ?? undefined,
-					color: 0xffffff,
-					transparent: true,
-					opacity: point.opacity,
-					depthWrite: false,
-					depthTest: false,
-					blending: THREE.AdditiveBlending,
-				}),
-			);
-			sparkle.rotation.x = -Math.PI / 2;
-			sparkle.position.set(radius * point.x, BEAD_FLOAT_Y + radius * 1.04, radius * point.z);
-			sparkle.userData.baseOpacity = point.opacity;
-			sparkle.userData.phase = point.x * 7 + point.z * 5;
-			sparkleGroup.add(sparkle);
-		}
 		const root = new THREE.Group();
 		root.position.set(x, 0, z);
 		root.add(shadowGroup);
 		root.add(selectionGroup);
-		root.add(highlightGroup);
-		root.add(sparkleGroup);
 		root.add(mesh);
-		root.add(innerGlow);
-		root.add(causticGroup);
 		root.userData = {
-			highlightGroup,
-			innerGlow,
-			causticGroup,
 			selectionGroup,
-			sparkleGroup,
 			shadowGroup,
 			phase: index * 0.73,
 			radius,
@@ -935,12 +726,9 @@ export function useBracelet3d(
 				const optionalEntries = [
 					['roughnessMap', textureUrls.roughnessMap],
 					['normalMap', textureUrls.normalMap],
-					['alphaMap', textureUrls.alphaMap],
 				] as const;
 				const loadedParams: Partial<THREE.MeshPhysicalMaterialParameters> = {
 					map,
-					alphaMap: centerTransparencyMap,
-					transparent: true,
 				};
 				let pending = optionalEntries.filter(([, url]) => !!url).length;
 				if (pending === 0) {
@@ -954,7 +742,6 @@ export function useBracelet3d(
 						if (tex) {
 							if (slot === 'roughnessMap') loadedParams.roughnessMap = tex;
 							if (slot === 'normalMap') loadedParams.normalMap = tex;
-							if (slot === 'alphaMap') loadedParams.alphaMap = tex;
 						}
 						pending -= 1;
 						if (pending === 0 && mesh.parent) {
@@ -1075,12 +862,6 @@ export function useBracelet3d(
 					mesh.geometry = new THREE.SphereGeometry(radius, sphereSegments, sphereSegments);
 					mesh.userData.radius = radius;
 					mesh.userData.sphereSegments = sphereSegments;
-					const innerGlow = root.userData.innerGlow as THREE.Mesh<THREE.SphereGeometry> | undefined;
-					if (innerGlow) {
-						innerGlow.geometry.dispose();
-						const innerSegments = getInnerSphereSegments(total);
-						innerGlow.geometry = new THREE.SphereGeometry(radius * 0.82, innerSegments, innerSegments);
-					}
 				}
 				return;
 			}
@@ -1396,46 +1177,6 @@ export function useBracelet3d(
 			mesh.rotation.y += BEAD_TEXTURE_SPIN * deltaMs;
 			mesh.rotation.x = Math.sin(phase) * 0.025;
 			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
-			const highlightGroup = root.userData.highlightGroup as THREE.Group | undefined;
-			if (highlightGroup?.visible) {
-				highlightGroup.position.x = Math.sin(phase * 0.42) * radius * HIGHLIGHT_SWEEP_X;
-				highlightGroup.position.z = Math.cos(phase * 0.38) * radius * HIGHLIGHT_SWEEP_Z;
-				highlightGroup.rotation.z = -0.025 + Math.sin(phase * 0.78) * 0.045;
-				highlightGroup.scale.x = 1 + Math.sin(phase * 0.66) * 0.045;
-				highlightGroup.children.forEach((child: any, childIndex: number) => {
-					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
-					if (!material) return;
-					const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity ?? 0.18);
-					material.userData.baseOpacity = baseOpacity;
-					material.opacity = baseOpacity * (0.82 + Math.sin(phase * 0.72 + childIndex * 0.9) * 0.16);
-				});
-			}
-			const innerGlow = root.userData.innerGlow as THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | undefined;
-			if (innerGlow?.material) {
-				const baseOpacity = Number(innerGlow.material.userData.baseOpacity ?? INNER_GLOW_BASE_OPACITY);
-				innerGlow.material.opacity = baseOpacity * (0.78 + Math.sin(phase * 0.92) * 0.16);
-				innerGlow.scale.setScalar(1 + Math.sin(phase * 0.7) * 0.035);
-			}
-			const causticGroup = root.userData.causticGroup as THREE.Group | undefined;
-			if (causticGroup?.visible) {
-				causticGroup.position.x = Math.sin(phase * 0.52) * radius * 0.2;
-				causticGroup.position.z = Math.cos(phase * 0.48) * radius * 0.08;
-				causticGroup.rotation.z = Math.sin(phase * 0.5) * 0.08;
-				causticGroup.children.forEach((child: any, childIndex: number) => {
-					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
-					if (!material) return;
-					const baseOpacity = Number(material.userData.baseOpacity ?? CAUSTIC_SWEEP_BASE_OPACITY);
-					material.opacity = baseOpacity * (0.62 + Math.sin(phase * 0.98 + childIndex * 1.4) * 0.28);
-				});
-			}
-			const sparkleGroup = root.userData.sparkleGroup as THREE.Group | undefined;
-			if (sparkleGroup?.visible) sparkleGroup.children.forEach((child: any, childIndex: number) => {
-				const sparkleMesh = child as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
-				const material = sparkleMesh.material;
-				const pulse = 0.68 + Math.sin(phase * 1.4 + childIndex * 1.7) * 0.32;
-				material.opacity = Number(sparkleMesh.userData.baseOpacity ?? 0.22) * pulse;
-				sparkleMesh.scale.setScalar(0.92 + pulse * 0.18);
-			});
 			const shadowGroup = root.userData.shadowGroup as THREE.Group | undefined;
 			if (shadowGroup) {
 				const shadowLift = root.userData.dragActive ? 1 : isSelected ? 0.68 : idleLift / BEAD_IDLE_FLOAT_Y;
@@ -1867,16 +1608,10 @@ export function useBracelet3d(
 		textureCache.clear();
 		shadowGradientTexture?.dispose();
 		shadowGradientTexture = null;
-		highlightBandTexture?.dispose();
-		highlightBandTexture = null;
-		sparkleTexture?.dispose();
-		sparkleTexture = null;
 		stageGlowTexture?.dispose();
 		stageGlowTexture = null;
 		stageReflectionTexture?.dispose();
 		stageReflectionTexture = null;
-		centerTransparencyTexture?.dispose();
-		centerTransparencyTexture = null;
 		environmentTexture?.dispose();
 		environmentTexture = null;
 		showcaseSurfaceGroup?.traverse((child) => {
