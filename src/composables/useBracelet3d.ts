@@ -366,8 +366,12 @@ export function useBracelet3d(
 		const mappedReflectivity = Math.min(0.36, Math.max(0.28, 0.28 + opticalTransmission * 0.08));
 		const mappedSpecularIntensity = Math.min(0.32, Math.max(0.2, 0.2 + opticalTransmission * 0.12));
 		const mappedEnvironmentIntensity = Math.min(0.52, Math.max(0.4, 0.38 + opticalTransmission * 0.15));
+		const mappedFillIntensity = Math.min(0.095, Math.max(0.04, 0.04 + (1 - opticalTransmission) * 0.055));
 		const material = new THREE.MeshPhysicalMaterial({
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
+			emissive: usesBaseColorMap ? 0xffffff : 0x000000,
+			emissiveMap: usesBaseColorMap ? (params.map as THREE.Texture) : null,
+			emissiveIntensity: usesBaseColorMap ? mappedFillIntensity : 0,
 			transparent: false,
 			opacity: 1,
 			roughness: usesBaseColorMap ? mappedRoughness : Math.max(config?.roughness ?? 0.25, 0.2),
