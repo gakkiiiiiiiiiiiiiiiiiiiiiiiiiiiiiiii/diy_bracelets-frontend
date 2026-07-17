@@ -280,6 +280,46 @@ export function useBracelet3dMp(
 		return list.map((b) => ({ ...b }));
 	}
 
+	function setMaterialOpacity(material: any, opacity: number) {
+		material.opacity = opacity;
+		if (material.uniforms?.shadowOpacity) material.uniforms.shadowOpacity.value = opacity;
+	}
+
+	function createSoftShadowMaterial(baseOpacity: number) {
+		const material = new THREE!.ShaderMaterial({
+			uniforms: {
+				shadowColor: { value: new THREE!.Color(SHADOW_TINT) },
+				shadowOpacity: { value: baseOpacity },
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				}
+			`,
+			fragmentShader: `
+				uniform vec3 shadowColor;
+				uniform float shadowOpacity;
+				varying vec2 vUv;
+				void main() {
+					vec2 centered = (vUv - 0.5) * 2.0;
+					float radius = length(centered);
+					float feather = 1.0 - smoothstep(0.08, 1.0, radius);
+					float contact = 1.0 - smoothstep(0.0, 0.48, radius);
+					float alpha = (feather * feather * 0.78 + contact * 0.22) * shadowOpacity;
+					gl_FragColor = vec4(shadowColor, alpha);
+				}
+			`,
+			transparent: true,
+			depthWrite: false,
+			depthTest: true,
+		});
+		material.opacity = baseOpacity;
+		material.userData.baseOpacity = baseOpacity;
+		return material;
+	}
+
 	function setObjectOpacity(object: any, opacity: number) {
 		object.traverse?.((child: any) => {
 			const material = child.material;
@@ -289,7 +329,7 @@ export function useBracelet3dMp(
 				if (mat.userData == null) mat.userData = {};
 				if (mat.userData.baseOpacity == null) mat.userData.baseOpacity = mat.opacity;
 				mat.transparent = true;
-				mat.opacity = Number(mat.userData.baseOpacity) * opacity;
+				setMaterialOpacity(mat, Number(mat.userData.baseOpacity) * opacity);
 			});
 		});
 	}
@@ -591,44 +631,41 @@ export function useBracelet3dMp(
 			sphereSegments: quality.sphereSegments,
 			textureBaseRotation: mesh.rotation.y,
 		};
-		// 参考图：阴影是单向拖开的柔焦投影，不是圆片堆叠
+		// 双层径向柔影模拟棚拍接触阴影；透明珠更轻，深色/不透明珠更重。
 		const shadowGroup = new THREE.Group();
+		const opticalTransmission = Math.min(1, Math.max(0, renderConfig?.material.transmission ?? 0.5));
+		const shadowDensity = Math.min(1.04, 0.74 + (1 - opticalTransmission) * 0.34);
 		const shadowLayers = [
 			{
-				width: 3.35,
-				height: 2.35,
-				offsetX: -0.6,
+				width: 3.5,
+				height: 2.5,
+				offsetX: -0.52,
 				offsetY: -1.05,
-				offsetZ: 0.24,
-				opacity: 0.036,
+				offsetZ: 0.22,
+				opacity: 0.075,
 			},
 			{
-				width: 2.45,
-				height: 1.66,
-				offsetX: -0.4,
-				offsetY: -1.02,
-				offsetZ: 0.13,
-				opacity: 0.056,
+				width: 2.05,
+				height: 1.34,
+				offsetX: -0.16,
+				offsetY: -1.01,
+				offsetZ: 0.07,
+				opacity: 0.13,
 			},
 		];
 		for (const layer of shadowLayers) {
 			const shadowMesh = new THREE.Mesh(
 				new THREE.PlaneGeometry(radius * layer.width, radius * layer.height),
-				new THREE.MeshBasicMaterial({
-					color: SHADOW_TINT,
-					transparent: true,
-					opacity: layer.opacity,
-					depthWrite: false,
-				}),
+				createSoftShadowMaterial(layer.opacity * shadowDensity),
 			);
-			shadowMesh.material.userData.baseOpacity = layer.opacity;
 			shadowMesh.rotation.x = -Math.PI / 2;
 			shadowMesh.rotation.z = SHADOW_SLANT;
 			shadowMesh.position.set(
 				radius * layer.offsetX,
 				radius * layer.offsetY,
-				radius * layer.offsetZ,
+					radius * layer.offsetZ,
 			);
+			shadowMesh.renderOrder = -1;
 			shadowGroup.add(shadowMesh);
 		}
 		const selectionGroup = new THREE.Group();
@@ -1139,7 +1176,7 @@ export function useBracelet3dMp(
 					const baseOpacity = Number(child.material.userData?.baseOpacity ?? child.material.opacity ?? 0.06);
 					if (!child.material.userData) child.material.userData = {};
 					child.material.userData.baseOpacity = baseOpacity;
-					child.material.opacity = baseOpacity * (1 - shadowLift * 0.24);
+					setMaterialOpacity(child.material, baseOpacity * (1 - shadowLift * 0.24));
 				});
 			}
 			const selectionGroup = root.userData.selectionGroup;

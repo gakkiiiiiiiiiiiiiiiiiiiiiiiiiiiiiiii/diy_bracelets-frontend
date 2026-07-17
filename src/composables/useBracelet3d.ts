@@ -233,7 +233,6 @@ export function useBracelet3d(
 	// threejs 纹理加载器和缓存
 	const textureLoader = new THREE.TextureLoader();
 	const textureCache = new Map<string, THREE.Texture>();
-	let shadowGradientTexture: THREE.CanvasTexture | null = null;
 	let stageGlowTexture: THREE.CanvasTexture | null = null;
 	let stageReflectionTexture: THREE.CanvasTexture | null = null;
 	let environmentTexture: THREE.Texture | null = null;
@@ -311,6 +310,47 @@ export function useBracelet3d(
 		return list.map((b) => ({ ...b }));
 	}
 
+	function setMaterialOpacity(material: THREE.Material, opacity: number) {
+		material.opacity = opacity;
+		const shadowUniform = (material as THREE.ShaderMaterial).uniforms?.shadowOpacity;
+		if (shadowUniform) shadowUniform.value = opacity;
+	}
+
+	function createSoftShadowMaterial(baseOpacity: number) {
+		const material = new THREE.ShaderMaterial({
+			uniforms: {
+				shadowColor: { value: new THREE.Color(SHADOW_TINT) },
+				shadowOpacity: { value: baseOpacity },
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				}
+			`,
+			fragmentShader: `
+				uniform vec3 shadowColor;
+				uniform float shadowOpacity;
+				varying vec2 vUv;
+				void main() {
+					vec2 centered = (vUv - 0.5) * 2.0;
+					float radius = length(centered);
+					float feather = 1.0 - smoothstep(0.08, 1.0, radius);
+					float contact = 1.0 - smoothstep(0.0, 0.48, radius);
+					float alpha = (feather * feather * 0.78 + contact * 0.22) * shadowOpacity;
+					gl_FragColor = vec4(shadowColor, alpha);
+				}
+			`,
+			transparent: true,
+			depthWrite: false,
+			depthTest: true,
+		});
+		material.opacity = baseOpacity;
+		material.userData.baseOpacity = baseOpacity;
+		return material;
+	}
+
 	function setObjectOpacity(object: THREE.Object3D, opacity: number) {
 		object.traverse((child) => {
 			const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
@@ -322,7 +362,7 @@ export function useBracelet3d(
 					transparentMaterial.userData.baseOpacity = transparentMaterial.opacity;
 				}
 				transparentMaterial.transparent = true;
-				transparentMaterial.opacity = Number(transparentMaterial.userData.baseOpacity) * opacity;
+				setMaterialOpacity(mat, Number(transparentMaterial.userData.baseOpacity) * opacity);
 			});
 		});
 	}
@@ -423,42 +463,6 @@ export function useBracelet3d(
 			: Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale.set(normalScale, normalScale);
 		return material;
-	}
-
-	/** 参考图：阴影是左下方向的柔和拖尾，而不是规则圆斑 */
-	function getShadowGradientTexture(): THREE.CanvasTexture | null {
-		if (shadowGradientTexture) return shadowGradientTexture;
-		if (typeof document === 'undefined') return null;
-		const size = 192;
-		const canvas = document.createElement('canvas');
-		canvas.width = size;
-		canvas.height = size;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return null;
-		ctx.clearRect(0, 0, size, size);
-		ctx.translate(size / 2, size / 2);
-		ctx.rotate(SHADOW_SLANT);
-		ctx.scale(1, 0.72);
-
-		const farGlow = ctx.createRadialGradient(-18, 16, 14, -10, 22, 92);
-		farGlow.addColorStop(0, 'rgba(84, 80, 94, 0.105)');
-		farGlow.addColorStop(0.22, 'rgba(76, 72, 86, 0.068)');
-		farGlow.addColorStop(0.52, 'rgba(64, 60, 72, 0.022)');
-		farGlow.addColorStop(0.82, 'rgba(56, 52, 62, 0.004)');
-		farGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-		ctx.fillStyle = farGlow;
-		ctx.fillRect(-110, -92, 220, 184);
-
-		const coreGlow = ctx.createRadialGradient(14, -8, 0, 18, -6, 58);
-		coreGlow.addColorStop(0, 'rgba(88, 84, 98, 0.13)');
-		coreGlow.addColorStop(0.24, 'rgba(78, 74, 88, 0.075)');
-		coreGlow.addColorStop(0.58, 'rgba(64, 60, 72, 0.018)');
-		coreGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-		ctx.fillStyle = coreGlow;
-		ctx.fillRect(-90, -74, 180, 148);
-		shadowGradientTexture = new THREE.CanvasTexture(canvas);
-		shadowGradientTexture.needsUpdate = true;
-		return shadowGradientTexture;
 	}
 
 	function getStageGlowTexture(): THREE.CanvasTexture | null {
@@ -718,24 +722,25 @@ export function useBracelet3d(
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
 		mesh.rotation.y = getBeadTextureRotation(bead.id);
 		mesh.userData = { beadId: bead.id, radius, sphereSegments, textureBaseRotation: mesh.rotation.y };
-		// 参考图：阴影是顺着左下方向被拉开的柔焦投影
+		// 双层径向柔影模拟棚拍接触阴影；透明珠更轻，深色/不透明珠更重。
 		const shadowGroup = new THREE.Group();
-		const gradientTex = getShadowGradientTexture();
-		const shadowMesh = new THREE.Mesh(
-			new THREE.PlaneGeometry(radius * 3.55, radius * 2.65),
-			new THREE.MeshBasicMaterial({
-				map: gradientTex ?? undefined,
-				transparent: true,
-				opacity: gradientTex ? 0.56 : 0.052,
-				depthWrite: false,
-				color: gradientTex ? 0xffffff : SHADOW_TINT,
-			}),
-		);
-		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.56 : 0.052;
-		shadowMesh.rotation.x = -Math.PI / 2;
-		shadowMesh.rotation.z = SHADOW_SLANT;
-		shadowMesh.position.set(-radius * 0.56, -radius * 1.05, radius * 0.22);
-		shadowGroup.add(shadowMesh);
+		const opticalTransmission = Math.min(1, Math.max(0, renderConfig?.material.transmission ?? 0.5));
+		const shadowDensity = Math.min(1.04, 0.74 + (1 - opticalTransmission) * 0.34);
+		const shadowLayers = [
+			{ width: 3.5, height: 2.5, x: -0.52, y: -1.05, z: 0.22, opacity: 0.075 },
+			{ width: 2.05, height: 1.34, x: -0.16, y: -1.01, z: 0.07, opacity: 0.13 },
+		];
+		for (const layer of shadowLayers) {
+			const shadowMesh = new THREE.Mesh(
+				new THREE.PlaneGeometry(radius * layer.width, radius * layer.height),
+				createSoftShadowMaterial(layer.opacity * shadowDensity),
+			);
+			shadowMesh.rotation.x = -Math.PI / 2;
+			shadowMesh.rotation.z = SHADOW_SLANT;
+			shadowMesh.position.set(radius * layer.x, radius * layer.y, radius * layer.z);
+			shadowMesh.renderOrder = -1;
+			shadowGroup.add(shadowMesh);
+		}
 		const selectionGroup = new THREE.Group();
 		const selectionGlowMaterial = new THREE.MeshBasicMaterial({
 			color: 0xd0a09d,
@@ -1261,11 +1266,11 @@ export function useBracelet3d(
 				const shadowLift = root.userData.dragActive ? 1 : isSelected ? 0.68 : idleLift / BEAD_IDLE_FLOAT_Y;
 				shadowGroup.scale.setScalar(1 + shadowLift * 0.05);
 				shadowGroup.children.forEach((child: any) => {
-					const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+					const material = (child as THREE.Mesh).material as THREE.Material | undefined;
 					if (!material) return;
 					const baseOpacity = Number(material.userData.baseOpacity ?? material.opacity ?? 0.06);
 					material.userData.baseOpacity = baseOpacity;
-					material.opacity = baseOpacity * (1 - shadowLift * 0.24);
+					setMaterialOpacity(material, baseOpacity * (1 - shadowLift * 0.24));
 				});
 			}
 			const selectionGroup = root.userData.selectionGroup as THREE.Group | undefined;
@@ -1728,8 +1733,6 @@ export function useBracelet3d(
 		beadMeshMap.clear();
 		textureCache.forEach((tex) => tex.dispose());
 		textureCache.clear();
-		shadowGradientTexture?.dispose();
-		shadowGradientTexture = null;
 		stageGlowTexture?.dispose();
 		stageGlowTexture = null;
 		stageReflectionTexture?.dispose();
