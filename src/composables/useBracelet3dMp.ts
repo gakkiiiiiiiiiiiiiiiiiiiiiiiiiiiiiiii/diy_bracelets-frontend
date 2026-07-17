@@ -554,7 +554,7 @@ export function useBracelet3dMp(
 				offsetX: -0.6,
 				offsetY: -1.05,
 				offsetZ: 0.24,
-				opacity: 0.024,
+				opacity: 0.036,
 			},
 			{
 				width: 2.45,
@@ -562,7 +562,7 @@ export function useBracelet3dMp(
 				offsetX: -0.4,
 				offsetY: -1.02,
 				offsetZ: 0.13,
-				opacity: 0.038,
+				opacity: 0.056,
 			},
 		];
 		for (const layer of shadowLayers) {

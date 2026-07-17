@@ -400,18 +400,18 @@ export function useBracelet3d(
 		ctx.scale(1, 0.72);
 
 		const farGlow = ctx.createRadialGradient(-18, 16, 14, -10, 22, 92);
-		farGlow.addColorStop(0, 'rgba(84, 80, 94, 0.072)');
-		farGlow.addColorStop(0.22, 'rgba(76, 72, 86, 0.046)');
-		farGlow.addColorStop(0.52, 'rgba(64, 60, 72, 0.016)');
+		farGlow.addColorStop(0, 'rgba(84, 80, 94, 0.105)');
+		farGlow.addColorStop(0.22, 'rgba(76, 72, 86, 0.068)');
+		farGlow.addColorStop(0.52, 'rgba(64, 60, 72, 0.022)');
 		farGlow.addColorStop(0.82, 'rgba(56, 52, 62, 0.004)');
 		farGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
 		ctx.fillStyle = farGlow;
 		ctx.fillRect(-110, -92, 220, 184);
 
 		const coreGlow = ctx.createRadialGradient(14, -8, 0, 18, -6, 58);
-		coreGlow.addColorStop(0, 'rgba(88, 84, 98, 0.052)');
-		coreGlow.addColorStop(0.24, 'rgba(78, 74, 88, 0.03)');
-		coreGlow.addColorStop(0.58, 'rgba(64, 60, 72, 0.008)');
+		coreGlow.addColorStop(0, 'rgba(88, 84, 98, 0.13)');
+		coreGlow.addColorStop(0.24, 'rgba(78, 74, 88, 0.075)');
+		coreGlow.addColorStop(0.58, 'rgba(64, 60, 72, 0.018)');
 		coreGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
 		ctx.fillStyle = coreGlow;
 		ctx.fillRect(-90, -74, 180, 148);
@@ -685,12 +685,12 @@ export function useBracelet3d(
 			new THREE.MeshBasicMaterial({
 				map: gradientTex ?? undefined,
 				transparent: true,
-				opacity: gradientTex ? 0.42 : 0.036,
+				opacity: gradientTex ? 0.56 : 0.052,
 				depthWrite: false,
 				color: gradientTex ? 0xffffff : SHADOW_TINT,
 			}),
 		);
-		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.42 : 0.036;
+		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.56 : 0.052;
 		shadowMesh.rotation.x = -Math.PI / 2;
 		shadowMesh.rotation.z = SHADOW_SLANT;
 		shadowMesh.position.set(-radius * 0.56, -radius * 1.05, radius * 0.22);
