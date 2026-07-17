@@ -12,7 +12,7 @@ import { getCrystalMaterialRenderConfig, type CrystalPhysicalMaterialConfig } fr
 const INITIAL_RING_RADIUS = 0.7;
 const MAX_RING_RADIUS = 1.08;
 const RING_GROWTH_PER_BEAD = 0.036;
-const RING_TUBE = 0.014;
+const RING_TUBE = 0.0105;
 const BEAD_SCALE = 0.018;
 const DELETE_MARGIN = 0.5;
 
@@ -36,7 +36,8 @@ const nowMs = () => Date.now();
 const INERTIA_DECAY = 0.96;
 const INERTIA_STOP = 0.0008;
 const CRYSTAL_OPACITY = 0.9;
-const RING_COLOR = 0xd8ceca;
+const RING_COLOR = 0xf2ede8;
+const RING_OPACITY = 0.48;
 const BEAD_FLOAT_Y = 0.026;
 const SHADOW_TINT = 0x4e4958;
 const SHADOW_SLANT = -0.72;
@@ -215,7 +216,7 @@ export function useBracelet3dMp(
 	let stageGlowMesh: any = null;
 	let stageReflectionMesh: any = null;
 	let targetRingRadius = getRingRadius(beads.value.length);
-	let targetRingOpacity = 0.72;
+	let targetRingOpacity = RING_OPACITY;
 	let lastInteractionTime = nowMs();
 	let lastFrameTime = nowMs();
 	let lastRenderedAt = 0;
@@ -804,7 +805,7 @@ export function useBracelet3dMp(
 			});
 		});
 		targetRingRadius = ringR;
-		targetRingOpacity = layoutMode === 'single' ? 0 : 0.72;
+		targetRingOpacity = layoutMode === 'single' ? 0 : RING_OPACITY;
 		applyAdaptiveQuality();
 	}
 
@@ -1354,17 +1355,21 @@ export function useBracelet3dMp(
 		const ringMat = new THREE.MeshPhysicalMaterial({
 			color: RING_COLOR,
 			transparent: true,
-			opacity: 0.72,
-			roughness: 0.34,
-			metalness: 0.02,
-			transmission: 0.24,
-			clearcoat: 0.58,
+			opacity: RING_OPACITY,
+			roughness: 0.2,
+			metalness: 0,
+			transmission: 0.58,
+			thickness: 0.06,
+			ior: 1.38,
+			reflectivity: 0.34,
+			envMapIntensity: 0.42,
+			clearcoat: 0.42,
 			clearcoatRoughness: 0.22,
 		});
 		ringMesh = new THREE.Mesh(ringGeom, ringMat);
 		ringMesh.rotation.x = -Math.PI / 2;
 		targetRingRadius = isSingleLayout() ? 0.74 : getRingRadius(beads.value.length);
-		targetRingOpacity = isSingleLayout() ? 0 : 0.72;
+		targetRingOpacity = isSingleLayout() ? 0 : RING_OPACITY;
 		ringMesh.scale.setScalar(targetRingRadius);
 		ringMesh.material.opacity = targetRingOpacity;
 		ringMesh.visible = targetRingOpacity > 0;
