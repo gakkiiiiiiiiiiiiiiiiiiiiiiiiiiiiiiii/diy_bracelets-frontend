@@ -73,14 +73,44 @@ const SINGLE_SLOT_SPACING_Z = 0.42;
 const SINGLE_DELETE_DISTANCE = 1.46;
 const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
 
-/** 同款天然水晶也不会拥有完全相同的纹理朝向；限制在正面安全角度内，避免贴图接缝转入镜头。 */
-function getBeadTextureRotation(beadId: string): number {
+interface BeadSurfaceVariation {
+	rotationX: number;
+	rotationY: number;
+	rotationZ: number;
+	tone: number;
+	warmth: number;
+	roughness: number;
+	clearcoat: number;
+	environment: number;
+	normal: number;
+}
+
+function stableVariationUnit(beadId: string, salt: string): number {
 	let hash = 2166136261;
-	for (let index = 0; index < beadId.length; index += 1) {
-		hash ^= beadId.charCodeAt(index);
+	const input = `${beadId}:${salt}`;
+	for (let index = 0; index < input.length; index += 1) {
+		hash ^= input.charCodeAt(index);
 		hash = Math.imul(hash, 16777619);
 	}
-	return ((hash >>> 0) / 0xffffffff - 0.5) * 1.1;
+	return (hash >>> 0) / 0xffffffff;
+}
+
+/** 同款天然水晶保留稳定微差；限制旋转范围，避免贴图接缝进入正面。 */
+function getBeadSurfaceVariation(beadId: string): BeadSurfaceVariation {
+	const toneSeed = stableVariationUnit(beadId, 'tone');
+	const warmSeed = stableVariationUnit(beadId, 'warm');
+	const surfaceSeed = stableVariationUnit(beadId, 'surface');
+	return {
+		rotationX: (stableVariationUnit(beadId, 'rotation-x') - 0.5) * 0.22,
+		rotationY: (stableVariationUnit(beadId, 'rotation-y') - 0.5) * 1.1,
+		rotationZ: (stableVariationUnit(beadId, 'rotation-z') - 0.5) * 0.2,
+		tone: 0.975 + toneSeed * 0.04,
+		warmth: (warmSeed - 0.5) * 0.024,
+		roughness: 0.92 + surfaceSeed * 0.16,
+		clearcoat: 0.94 + toneSeed * 0.12,
+		environment: 0.94 + warmSeed * 0.12,
+		normal: 0.92 + surfaceSeed * 0.16,
+	};
 }
 
 function getSphereSegments(beadCount: number): number {
@@ -424,19 +454,35 @@ export function useBracelet3d(
 	function createCrystalMaterial(
 		params: Partial<THREE.MeshPhysicalMaterialParameters> = {},
 		config?: Partial<CrystalPhysicalMaterialConfig> | null,
+		variation?: BeadSurfaceVariation,
 	) {
 		const usesBaseColorMap = !!params.map;
 		const opticalTransmission = Math.min(1, Math.max(0, config?.transmission ?? 0.5));
 		// 颜色贴图保留矿物纹理，摄影棚环境负责表面长条柔光；避免用点光源制造同位置圆斑。
-		const mappedRoughness = Math.min(0.3, Math.max(0.18, (config?.roughness ?? 0.22) * 0.48 + 0.14));
-		const mappedClearcoat = Math.min(0.74, Math.max(0.54, 0.5 + opticalTransmission * 0.25));
+		const mappedRoughness = Math.min(
+			0.32,
+			Math.max(0.17, ((config?.roughness ?? 0.22) * 0.48 + 0.14) * (variation?.roughness ?? 1)),
+		);
+		const mappedClearcoat = Math.min(
+			0.78,
+			Math.max(0.5, (0.5 + opticalTransmission * 0.25) * (variation?.clearcoat ?? 1)),
+		);
 		const mappedClearcoatRoughness = Math.min(0.28, Math.max(0.16, 0.3 - opticalTransmission * 0.17));
 		const mappedReflectivity = Math.min(0.54, Math.max(0.42, 0.4 + opticalTransmission * 0.16));
 		const mappedSpecularIntensity = Math.min(0.5, Math.max(0.36, 0.34 + opticalTransmission * 0.2));
-		const mappedEnvironmentIntensity = Math.min(0.98, Math.max(0.72, 0.68 + opticalTransmission * 0.38));
+		const mappedEnvironmentIntensity = Math.min(
+			1.04,
+			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
+		);
 		const mappedFillIntensity = Math.min(0.075, Math.max(0.03, 0.03 + (1 - opticalTransmission) * 0.045));
+		const tint = new THREE.Color(
+			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
+			variation?.tone ?? 1,
+			(variation?.tone ?? 1) - (variation?.warmth ?? 0),
+		);
+		const surfaceColor = new THREE.Color(usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb).multiply(tint);
 		const material = new THREE.MeshPhysicalMaterial({
-			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
+			color: surfaceColor,
 			emissive: usesBaseColorMap ? 0xffffff : 0x000000,
 			emissiveMap: usesBaseColorMap ? (params.map as THREE.Texture) : null,
 			emissiveIntensity: usesBaseColorMap ? mappedFillIntensity : 0,
@@ -459,9 +505,10 @@ export function useBracelet3d(
 			...params,
 		});
 		const normalScale = usesBaseColorMap
-			? Math.min(0.22, Math.max(0.1, (config?.normalScale ?? 0.5) * 0.25))
+			? Math.min(0.24, Math.max(0.09, (config?.normalScale ?? 0.5) * 0.25 * (variation?.normal ?? 1)))
 			: Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale.set(normalScale, normalScale);
+		material.userData.surfaceVariation = variation;
 		return material;
 	}
 
@@ -716,12 +763,20 @@ export function useBracelet3d(
 		const renderConfig = getCrystalMaterialRenderConfig(bead.materialId);
 		const textureUrls = imageUrl ? getTextureUrlsForBead(bead, imageUrl) : renderConfig?.maps;
 		const hasTexture = !!(textureUrls?.map && (textureUrls.map.startsWith('http') || textureUrls.map.startsWith('/')));
+		const surfaceVariation = getBeadSurfaceVariation(bead.id);
 		// 物理透射负责水晶的明暗与反光，避免 Alpha 混合把珠子压扁成塑料贴图。
-		const material = createCrystalMaterial({}, renderConfig?.material);
+		const material = createCrystalMaterial({}, renderConfig?.material, surfaceVariation);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
-		mesh.rotation.y = getBeadTextureRotation(bead.id);
-		mesh.userData = { beadId: bead.id, radius, sphereSegments, textureBaseRotation: mesh.rotation.y };
+		mesh.rotation.set(surfaceVariation.rotationX, surfaceVariation.rotationY, surfaceVariation.rotationZ);
+		mesh.userData = {
+			beadId: bead.id,
+			radius,
+			sphereSegments,
+			textureBaseRotationX: surfaceVariation.rotationX,
+			textureBaseRotationY: surfaceVariation.rotationY,
+			textureBaseRotationZ: surfaceVariation.rotationZ,
+		};
 		// 双层径向柔影模拟棚拍接触阴影；透明珠更轻，深色/不透明珠更重。
 		const shadowGroup = new THREE.Group();
 		const opticalTransmission = Math.min(1, Math.max(0, renderConfig?.material.transmission ?? 0.5));
@@ -802,7 +857,7 @@ export function useBracelet3d(
 				let pending = optionalEntries.filter(([, url]) => !!url).length;
 				if (pending === 0) {
 					(material as THREE.Material).dispose();
-					mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material);
+					mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material, surfaceVariation);
 					return;
 				}
 				for (const [slot, url] of optionalEntries) {
@@ -815,7 +870,7 @@ export function useBracelet3d(
 						pending -= 1;
 						if (pending === 0 && mesh.parent) {
 							(material as THREE.Material).dispose();
-							mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material);
+							mesh.material = createCrystalMaterial(loadedParams, renderConfig?.material, surfaceVariation);
 						}
 					});
 				}
@@ -1258,9 +1313,9 @@ export function useBracelet3d(
 			const idleWave = Math.sin(phase * BEAD_IDLE_FLOAT_SPEED);
 			const idleLift = (idleWave + 1) * 0.5 * BEAD_IDLE_FLOAT_Y;
 			const idleScale = 1 + Math.sin(phase * 0.64) * BEAD_IDLE_SCALE;
-			mesh.rotation.y = Number(mesh.userData.textureBaseRotation ?? 0) + Math.sin(phase * 0.31) * 0.16;
-			mesh.rotation.x = Math.sin(phase) * 0.025;
-			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
+			mesh.rotation.y = Number(mesh.userData.textureBaseRotationY ?? 0) + Math.sin(phase * 0.31) * 0.16;
+			mesh.rotation.x = Number(mesh.userData.textureBaseRotationX ?? 0) + Math.sin(phase) * 0.025;
+			mesh.rotation.z = Number(mesh.userData.textureBaseRotationZ ?? 0) + Math.sin(phase * 0.47) * 0.018;
 			const shadowGroup = root.userData.shadowGroup as THREE.Group | undefined;
 			if (shadowGroup) {
 				const shadowLift = root.userData.dragActive ? 1 : isSelected ? 0.68 : idleLift / BEAD_IDLE_FLOAT_Y;
