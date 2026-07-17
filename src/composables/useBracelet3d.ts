@@ -1296,11 +1296,29 @@ export function useBracelet3d(
 	function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): string | null {
 		if (!inited || !renderer || !scene || !camera || !canvasEl) return null;
 		const size = Math.round(Math.min(2048, Math.max(256, outputSize)));
+		const exportSphereSegments = size >= 1024 ? 56 : 40;
 		const previousSize = renderer.getSize(new THREE.Vector2());
 		const previousPixelRatio = renderer.getPixelRatio();
 		const previousCameraAspect = camera.aspect;
 		const previousTrackedAspect = cameraAspect;
+		const temporaryGeometries: Array<{
+			mesh: THREE.Mesh;
+			original: THREE.BufferGeometry;
+			temporary: THREE.BufferGeometry;
+		}> = [];
 		try {
+			beadMeshMap.forEach(({ mesh }) => {
+				const radius = Number(mesh.userData.radius ?? 0);
+				if (!(radius > 0)) return;
+				const temporary = new THREE.SphereGeometry(radius, exportSphereSegments, exportSphereSegments);
+				temporaryGeometries.push({ mesh, original: mesh.geometry, temporary });
+				mesh.geometry = temporary;
+			});
+			if (ringMesh) {
+				const temporary = new THREE.TorusGeometry(1, RING_TUBE, 24, size >= 1024 ? 128 : 96);
+				temporaryGeometries.push({ mesh: ringMesh, original: ringMesh.geometry, temporary });
+				ringMesh.geometry = temporary;
+			}
 			renderer.setPixelRatio(1);
 			renderer.setSize(size, size, false);
 			cameraAspect = 1;
@@ -1309,6 +1327,10 @@ export function useBracelet3d(
 			renderer.render(scene, camera);
 			return canvasEl.toDataURL(type, quality);
 		} finally {
+			for (const { mesh, original, temporary } of temporaryGeometries) {
+				mesh.geometry = original;
+				temporary.dispose();
+			}
 			renderer.setPixelRatio(previousPixelRatio);
 			renderer.setSize(previousSize.x, previousSize.y, false);
 			cameraAspect = previousTrackedAspect;
