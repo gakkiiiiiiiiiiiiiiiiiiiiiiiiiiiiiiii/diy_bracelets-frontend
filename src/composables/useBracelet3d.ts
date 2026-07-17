@@ -1292,11 +1292,30 @@ export function useBracelet3d(
 		startRenderLoop();
 	}
 
-	/** 截图时同步渲染并立即读取，无需常驻 preserveDrawingBuffer。 */
-	function captureImage(type = 'image/png', quality = 0.92): string | null {
+	/** 截图时临时切到方形高分辨率画布，读取后完整恢复实时渲染尺寸。 */
+	function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): string | null {
 		if (!inited || !renderer || !scene || !camera || !canvasEl) return null;
-		renderer.render(scene, camera);
-		return canvasEl.toDataURL(type, quality);
+		const size = Math.round(Math.min(2048, Math.max(256, outputSize)));
+		const previousSize = renderer.getSize(new THREE.Vector2());
+		const previousPixelRatio = renderer.getPixelRatio();
+		const previousCameraAspect = camera.aspect;
+		const previousTrackedAspect = cameraAspect;
+		try {
+			renderer.setPixelRatio(1);
+			renderer.setSize(size, size, false);
+			cameraAspect = 1;
+			camera.aspect = 1;
+			camera.updateProjectionMatrix();
+			renderer.render(scene, camera);
+			return canvasEl.toDataURL(type, quality);
+		} finally {
+			renderer.setPixelRatio(previousPixelRatio);
+			renderer.setSize(previousSize.x, previousSize.y, false);
+			cameraAspect = previousTrackedAspect;
+			camera.aspect = previousCameraAspect;
+			camera.updateProjectionMatrix();
+			renderer.render(scene, camera);
+		}
 	}
 
 	/**

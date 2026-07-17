@@ -153,10 +153,10 @@ function resumeRendering() {
 	// #endif
 }
 
-function captureImage(type = 'image/png', quality = 0.92): string | null {
+function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): string | null {
 	let image: string | null = null;
 	// #ifdef H5
-	image = h5Renderer.captureImage(type, quality);
+	image = h5Renderer.captureImage(type, quality, outputSize);
 	// #endif
 	return image;
 }
