@@ -319,15 +319,16 @@ export function useBracelet3dMp(
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			transparent: false,
 			opacity: 1,
-			roughness: Math.max(config?.roughness ?? 0.2, 0.16),
+			roughness: Math.max(config?.roughness ?? 0.28, 0.24),
 			metalness: config?.metalness ?? 0.0,
 			transmission: config?.transmission ?? 0.7,
 			thickness: config?.thickness ?? 0.72,
-			clearcoat: Math.min(config?.clearcoat ?? 0.72, 0.82),
-			clearcoatRoughness: Math.max(config?.clearcoatRoughness ?? 0.14, 0.12),
-			reflectivity: config?.reflectivity ?? 0.62,
+			clearcoat: Math.min(config?.clearcoat ?? 0.36, 0.42),
+			clearcoatRoughness: Math.max(config?.clearcoatRoughness ?? 0.34, 0.3),
+			reflectivity: Math.min(config?.reflectivity ?? 0.38, 0.42),
+			specularIntensity: 0.38,
 			ior: Math.max(config?.ior ?? 1.46, 1.42),
-			envMapIntensity: config?.envMapIntensity ?? 0.9,
+			envMapIntensity: Math.min(config?.envMapIntensity ?? 0.7, 0.75),
 			attenuationColor: new THREE!.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
@@ -1302,21 +1303,14 @@ export function useBracelet3dMp(
 			renderer.toneMappingExposure = 0.9;
 		}
 
-		const ambient = new THREE.AmbientLight(0xffffff, 0.28);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 1.2);
+		const key = new THREE.DirectionalLight(0xffffff, 0.62);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.32);
+		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.16);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
-		const rim = new THREE.PointLight(0xffffff, 0.56, 8);
-		rim.position.set(0.7, 2.6, 1.7);
-		scene.add(rim);
-		const glow = new THREE.PointLight(0xf2dfdc, 0.1, 6);
-		glow.position.set(-0.9, 0.9, 1.8);
-		scene.add(glow);
-
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
 		createShowcaseSurface();
