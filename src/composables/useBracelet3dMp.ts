@@ -453,7 +453,10 @@ export function useBracelet3dMp(
 			if (tex.colorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
 			else if (tex.encoding !== undefined) tex.encoding = THREE.sRGBEncoding;
 		}
-		tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+		// 裁掉圆珠方形贴图外围白底，避免俯视时白底在球面 UV 两端形成白色缺口。
+		tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+		tex.repeat?.set?.(0.66, 0.66);
+		tex.offset?.set?.(0.17, 0.17);
 		tex.needsUpdate = true;
 		return tex;
 	}

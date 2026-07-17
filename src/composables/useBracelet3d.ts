@@ -578,7 +578,10 @@ export function useBracelet3d(
 	}
 
 	function configureTexture(tex: THREE.Texture, isColor = false) {
-		tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+		// 素材是“圆珠置于方形画布”的正视图。只采样圆内中央区域，避免方图四角白底被包到球面形成白色缺口。
+		tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+		tex.repeat.set(0.66, 0.66);
+		tex.offset.set(0.17, 0.17);
 		if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
 		tex.needsUpdate = true;
 		return tex;
