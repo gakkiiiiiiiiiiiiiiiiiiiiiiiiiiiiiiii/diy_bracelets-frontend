@@ -50,7 +50,6 @@ const WHEEL_ZOOM_SPEED = 0.0022;
 const ADD_STAGGER_MS = 44;
 const IDLE_ROTATION_DELAY_MS = 760;
 const IDLE_ROTATION_SPEED = 0.0001;
-const BEAD_TEXTURE_SPIN = 0.00016;
 const BEAD_IDLE_FLOAT_Y = 0.018;
 const BEAD_IDLE_FLOAT_SPEED = 0.76;
 const BEAD_IDLE_SCALE = 0.008;
@@ -73,14 +72,14 @@ const SINGLE_SLOT_SPACING_Z = 0.42;
 const SINGLE_DELETE_DISTANCE = 1.46;
 const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
 
-/** 同款天然水晶也不会拥有完全相同的纹理朝向；按珠子 id 生成稳定旋转，避免每次渲染跳变。 */
+/** 同款天然水晶也不会拥有完全相同的纹理朝向；限制在正面安全角度内，避免贴图接缝转入镜头。 */
 function getBeadTextureRotation(beadId: string): number {
 	let hash = 2166136261;
 	for (let index = 0; index < beadId.length; index += 1) {
 		hash ^= beadId.charCodeAt(index);
 		hash = Math.imul(hash, 16777619);
 	}
-	return ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+	return ((hash >>> 0) / 0xffffffff - 0.5) * 1.1;
 }
 
 function getSphereSegments(beadCount: number): number {
@@ -685,7 +684,7 @@ export function useBracelet3d(
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
 		mesh.rotation.y = getBeadTextureRotation(bead.id);
-		mesh.userData = { beadId: bead.id, radius, sphereSegments };
+		mesh.userData = { beadId: bead.id, radius, sphereSegments, textureBaseRotation: mesh.rotation.y };
 		// 参考图：阴影是顺着左下方向被拉开的柔焦投影
 		const shadowGroup = new THREE.Group();
 		const gradientTex = getShadowGradientTexture();
@@ -1206,7 +1205,7 @@ export function useBracelet3d(
 			const idleWave = Math.sin(phase * BEAD_IDLE_FLOAT_SPEED);
 			const idleLift = (idleWave + 1) * 0.5 * BEAD_IDLE_FLOAT_Y;
 			const idleScale = 1 + Math.sin(phase * 0.64) * BEAD_IDLE_SCALE;
-			mesh.rotation.y += BEAD_TEXTURE_SPIN * deltaMs;
+			mesh.rotation.y = Number(mesh.userData.textureBaseRotation ?? 0) + Math.sin(phase * 0.31) * 0.16;
 			mesh.rotation.x = Math.sin(phase) * 0.025;
 			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
 			const shadowGroup = root.userData.shadowGroup as THREE.Group | undefined;

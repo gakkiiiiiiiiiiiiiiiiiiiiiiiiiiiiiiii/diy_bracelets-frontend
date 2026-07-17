@@ -47,7 +47,6 @@ const PINCH_ZOOM_SPEED = 0.0045;
 const ADD_STAGGER_MS = 44;
 const IDLE_ROTATION_DELAY_MS = 760;
 const IDLE_ROTATION_SPEED = 0.0001;
-const BEAD_TEXTURE_SPIN = 0.00016;
 const BEAD_IDLE_FLOAT_Y = 0.018;
 const BEAD_IDLE_FLOAT_SPEED = 0.76;
 const BEAD_IDLE_SCALE = 0.008;
@@ -76,7 +75,7 @@ function getBeadTextureRotation(beadId: string): number {
 		hash ^= beadId.charCodeAt(index);
 		hash = Math.imul(hash, 16777619);
 	}
-	return ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+	return ((hash >>> 0) / 0xffffffff - 0.5) * 1.1;
 }
 
 function getMpQualityProfile(beadCount: number) {
@@ -553,7 +552,12 @@ export function useBracelet3dMp(
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
 		mesh.rotation.y = getBeadTextureRotation(bead.id);
-		mesh.userData = { beadId: bead.id, radius, sphereSegments: quality.sphereSegments };
+		mesh.userData = {
+			beadId: bead.id,
+			radius,
+			sphereSegments: quality.sphereSegments,
+			textureBaseRotation: mesh.rotation.y,
+		};
 		// 参考图：阴影是单向拖开的柔焦投影，不是圆片堆叠
 		const shadowGroup = new THREE.Group();
 		const shadowLayers = [
@@ -1075,7 +1079,7 @@ export function useBracelet3dMp(
 			const idleLift = (idleWave + 1) * 0.5 * BEAD_IDLE_FLOAT_Y;
 			const idleScale = 1 + Math.sin(phase * 0.64) * BEAD_IDLE_SCALE;
 			visualIndex += 1;
-			mesh.rotation.y += BEAD_TEXTURE_SPIN * deltaMs;
+			mesh.rotation.y = Number(mesh.userData.textureBaseRotation ?? 0) + Math.sin(phase * 0.31) * 0.16;
 			mesh.rotation.x = Math.sin(phase) * 0.025;
 			mesh.rotation.z = Math.sin(phase * 0.47) * 0.018;
 			const shadowGroup = root.userData.shadowGroup;
