@@ -359,27 +359,36 @@ export function useBracelet3d(
 		config?: Partial<CrystalPhysicalMaterialConfig> | null,
 	) {
 		const usesBaseColorMap = !!params.map;
+		const opticalTransmission = Math.min(1, Math.max(0, config?.transmission ?? 0.5));
+		const mappedRoughness = Math.min(0.38, Math.max(0.24, (config?.roughness ?? 0.22) * 0.55 + 0.18));
+		const mappedClearcoat = Math.min(0.38, Math.max(0.24, 0.22 + opticalTransmission * 0.18));
+		const mappedClearcoatRoughness = Math.min(0.4, Math.max(0.27, 0.39 - opticalTransmission * 0.15));
+		const mappedReflectivity = Math.min(0.36, Math.max(0.28, 0.28 + opticalTransmission * 0.08));
+		const mappedSpecularIntensity = Math.min(0.32, Math.max(0.2, 0.2 + opticalTransmission * 0.12));
+		const mappedEnvironmentIntensity = Math.min(0.52, Math.max(0.4, 0.38 + opticalTransmission * 0.15));
 		const material = new THREE.MeshPhysicalMaterial({
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			transparent: false,
 			opacity: 1,
-			roughness: usesBaseColorMap ? 0.32 : Math.max(config?.roughness ?? 0.25, 0.2),
+			roughness: usesBaseColorMap ? mappedRoughness : Math.max(config?.roughness ?? 0.25, 0.2),
 			metalness: config?.metalness ?? 0.0,
 			// 当前颜色图来自实拍/生成后的完整珠子外观，已经包含透光与明暗，不能再二次折射白色背景。
 			transmission: usesBaseColorMap ? 0 : config?.transmission ?? 0.7,
 			thickness: config?.thickness ?? 0.72,
-			clearcoat: usesBaseColorMap ? 0.28 : Math.min(config?.clearcoat ?? 0.42, 0.52),
-			clearcoatRoughness: usesBaseColorMap ? 0.34 : Math.max(config?.clearcoatRoughness ?? 0.28, 0.24),
-			reflectivity: usesBaseColorMap ? 0.32 : Math.min(config?.reflectivity ?? 0.42, 0.5),
-			specularIntensity: usesBaseColorMap ? 0.28 : 0.42,
+			clearcoat: usesBaseColorMap ? mappedClearcoat : Math.min(config?.clearcoat ?? 0.42, 0.52),
+			clearcoatRoughness: usesBaseColorMap ? mappedClearcoatRoughness : Math.max(config?.clearcoatRoughness ?? 0.28, 0.24),
+			reflectivity: usesBaseColorMap ? mappedReflectivity : Math.min(config?.reflectivity ?? 0.42, 0.5),
+			specularIntensity: usesBaseColorMap ? mappedSpecularIntensity : 0.42,
 			specularColor: new THREE.Color(0xf4f7f5),
 			ior: Math.max(config?.ior ?? 1.46, 1.42),
-			envMapIntensity: usesBaseColorMap ? 0.48 : Math.min(config?.envMapIntensity ?? 0.82, 0.9),
+			envMapIntensity: usesBaseColorMap ? mappedEnvironmentIntensity : Math.min(config?.envMapIntensity ?? 0.82, 0.9),
 			attenuationColor: new THREE.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
 		});
-		const normalScale = usesBaseColorMap ? 0.16 : Math.min(config?.normalScale ?? 0.34, 0.44);
+		const normalScale = usesBaseColorMap
+			? Math.min(0.22, Math.max(0.1, (config?.normalScale ?? 0.5) * 0.25))
+			: Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale.set(normalScale, normalScale);
 		return material;
 	}
