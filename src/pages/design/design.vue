@@ -41,7 +41,6 @@ const TARGET_HAND_CIRCUMFERENCE_STORAGE_KEY = 'diy-bracelets-target-hand-circumf
 const WRIST_TARGET_MIN_CM = 12;
 const WRIST_TARGET_MAX_CM = 22;
 const WRIST_TARGET_STEP_CM = 0.5;
-const BEAD_FLIGHT_START_ANGLE = (5 * Math.PI) / 12;
 const wristTargetOptions = [14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18];
 const loadingReady = ref(false);
 const loadingProgress = ref(0);
@@ -53,7 +52,6 @@ let recentActionTimer: ReturnType<typeof setTimeout> | null = null;
 let insufficientHintTimer: ReturnType<typeof setTimeout> | null = null;
 let insufficientToastTimer: ReturnType<typeof setTimeout> | null = null;
 let functionToastTimer: ReturnType<typeof setTimeout> | null = null;
-let beadFlightTimer: ReturnType<typeof setTimeout> | null = null;
 
 function onRouteHashChange() {
 	syncEntrySource(readRouteSource());
@@ -122,7 +120,6 @@ onUnmounted(() => {
 	if (insufficientHintTimer) clearTimeout(insufficientHintTimer);
 	if (insufficientToastTimer) clearTimeout(insufficientToastTimer);
 	if (functionToastTimer) clearTimeout(functionToastTimer);
-	if (beadFlightTimer) clearTimeout(beadFlightTimer);
 	if (typeof window !== 'undefined') {
 		window.removeEventListener('hashchange', onRouteHashChange);
 	}
@@ -429,40 +426,6 @@ interface MaterialAddPayload {
 	image: string;
 	point: { x: number; y: number } | null;
 }
-
-interface BeadFlightState {
-	id: number;
-	image: string;
-	sizePx: number;
-	fromX: number;
-	fromY: number;
-	midX: number;
-	midY: number;
-	toX: number;
-	toY: number;
-}
-
-interface RectLike {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
-}
-
-const beadFlight = ref<BeadFlightState | null>(null);
-const beadFlightStyle = computed(() => {
-	const flight = beadFlight.value;
-	if (!flight) return '';
-	return [
-		`--flight-size: ${flight.sizePx}px`,
-		`--flight-from-x: ${flight.fromX}px`,
-		`--flight-from-y: ${flight.fromY}px`,
-		`--flight-mid-x: ${flight.midX}px`,
-		`--flight-mid-y: ${flight.midY}px`,
-		`--flight-to-x: ${flight.toX}px`,
-		`--flight-to-y: ${flight.toY}px`,
-	].join(';');
-});
 
 onLoad((query: Record<string, string | undefined>) => {
 	syncEntrySource(query?.source);
@@ -1389,105 +1352,8 @@ function openBeadPreview(beadId: string) {
 	};
 }
 
-function getViewportSize() {
-	if (typeof window !== 'undefined') {
-		return { width: window.innerWidth, height: window.innerHeight };
-	}
-	try {
-		const info = uni.getWindowInfo?.();
-		if (info?.windowWidth && info?.windowHeight) return { width: info.windowWidth, height: info.windowHeight };
-	} catch {}
-	return { width: 375, height: 812 };
-}
-
-function getCanvasRect(callback: (rect: RectLike | null) => void) {
-	if (typeof document !== 'undefined') {
-		const el = document.querySelector('.canvas-section');
-		if (el) {
-			const rect = el.getBoundingClientRect();
-			callback({ left: rect.left, top: rect.top, width: rect.width, height: rect.height });
-			return;
-		}
-	}
-	try {
-		uni.createSelectorQuery()
-			.select('.canvas-section')
-			.boundingClientRect((rect) => {
-				const candidate = Array.isArray(rect) ? rect[0] : rect;
-				if (
-					candidate &&
-					Number.isFinite(Number(candidate.left)) &&
-					Number.isFinite(Number(candidate.top)) &&
-					Number.isFinite(Number(candidate.width)) &&
-					Number.isFinite(Number(candidate.height))
-				) {
-					callback({
-						left: Number(candidate.left),
-						top: Number(candidate.top),
-						width: Number(candidate.width),
-						height: Number(candidate.height),
-					});
-					return;
-				}
-				callback(null);
-			})
-			.exec();
-	} catch {
-		callback(null);
-	}
-}
-
-function getFlightTarget(rect: RectLike | null, sizePx: number) {
-	const viewport = getViewportSize();
-	const frame = rect ?? {
-		left: 0,
-		top: Math.round(viewport.height * 0.18),
-		width: viewport.width,
-		height: Math.round(viewport.height * 0.48),
-	};
-	const total = Math.max(1, designStore.braceletDesign.length);
-	const index = Math.max(0, total - 1);
-	const angle = BEAD_FLIGHT_START_ANGLE + (index / total) * Math.PI * 2;
-	const centerX = frame.left + frame.width / 2;
-	const centerY = frame.top + frame.height / 2;
-	const radius = Math.min(frame.width, frame.height) * (0.23 + Math.min(total, 18) * 0.004);
-	return {
-		x: centerX + Math.cos(angle) * radius - sizePx / 2,
-		y: centerY + Math.sin(angle) * radius - sizePx / 2,
-	};
-}
-
-function onMaterialAdd(payload: MaterialAddPayload) {
+function onMaterialAdd(_payload: MaterialAddPayload) {
 	playDesignFeedback('add');
-	const viewport = getViewportSize();
-	const sizePx = Math.round(Math.max(30, Math.min(54, payload.spec.size * 4.2)));
-	const start = payload.point ?? {
-		x: viewport.width * 0.5,
-		y: viewport.height * 0.82,
-	};
-	getCanvasRect((rect) => {
-		const target = getFlightTarget(rect, sizePx);
-		const fromX = start.x - sizePx / 2;
-		const fromY = start.y - sizePx / 2;
-		const arcLift = Math.max(68, Math.abs(fromY - target.y) * 0.22);
-		const midX = (fromX + target.x) / 2;
-		const midY = Math.min(fromY, target.y) - arcLift;
-		if (beadFlightTimer) clearTimeout(beadFlightTimer);
-		beadFlight.value = {
-			id: Date.now(),
-			image: payload.image,
-			sizePx,
-			fromX,
-			fromY,
-			midX,
-			midY,
-			toX: target.x,
-			toY: target.y,
-		};
-		beadFlightTimer = setTimeout(() => {
-			beadFlight.value = null;
-		}, 680);
-	});
 }
 
 function closeMaterialPreview() {
@@ -1751,11 +1617,6 @@ function hideDesignTabBar() {
 			</view>
 			</view>
 			</template>
-			<view v-if="beadFlight" :key="beadFlight.id" class="bead-flight" :style="beadFlightStyle">
-				<view class="bead-flight__shadow" />
-				<image v-if="beadFlight.image" class="bead-flight__img" :src="beadFlight.image" mode="aspectFill" />
-				<view v-else class="bead-flight__fallback" />
-			</view>
 			<view v-if="designConfirmOpen" class="design-confirm-mask" @tap="closeDesignConfirm">
 				<view class="design-confirm-sheet" @tap.stop>
 					<view class="design-confirm-grip" />
@@ -5016,128 +4877,6 @@ function hideDesignTabBar() {
 	to {
 		opacity: 1;
 		transform: translateY(0);
-	}
-}
-
-.bead-flight {
-	position: fixed;
-	left: 0;
-	top: 0;
-	width: var(--flight-size);
-	height: var(--flight-size);
-	z-index: 40;
-	pointer-events: none;
-	border-radius: 50%;
-	animation: bead-flight-path 0.64s cubic-bezier(0.2, 0.86, 0.24, 1) both;
-	will-change: transform, opacity;
-}
-
-.bead-flight__img,
-.bead-flight__fallback {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	border-radius: 50%;
-	overflow: hidden;
-	box-shadow:
-		inset -5rpx -7rpx 12rpx rgba(44, 48, 58, 0.16),
-		inset 5rpx 5rpx 11rpx rgba(255, 255, 255, 0.7),
-		0 16rpx 28rpx rgba(42, 46, 58, 0.22);
-	animation: bead-flight-spin 0.64s cubic-bezier(0.2, 0.86, 0.24, 1) both;
-}
-
-.bead-flight__fallback {
-	background:
-		radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0 15%, rgba(255, 255, 255, 0) 31%),
-		linear-gradient(135deg, #f3edf4 0%, #dfe8ee 100%);
-}
-
-.bead-flight::after {
-	content: '';
-	position: absolute;
-	left: 18%;
-	top: 13%;
-	width: 34%;
-	height: 22%;
-	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.82);
-	filter: blur(1rpx);
-	transform: rotate(-22deg);
-	animation: bead-flight-glint 0.64s ease-out both;
-}
-
-.bead-flight__shadow {
-	position: absolute;
-	left: 9%;
-	right: 9%;
-	bottom: -22%;
-	height: 46%;
-	border-radius: 50%;
-	background: radial-gradient(ellipse at center, rgba(50, 48, 58, 0.28), rgba(50, 48, 58, 0) 68%);
-	filter: blur(7rpx);
-	transform: rotate(-18deg);
-	animation: bead-flight-shadow 0.64s cubic-bezier(0.2, 0.86, 0.24, 1) both;
-}
-
-@keyframes bead-flight-path {
-	0% {
-		opacity: 0.92;
-		transform: translate3d(var(--flight-from-x), var(--flight-from-y), 0) scale(0.82);
-	}
-	44% {
-		opacity: 1;
-		transform: translate3d(var(--flight-mid-x), var(--flight-mid-y), 0) scale(1.16);
-	}
-	78% {
-		opacity: 0.92;
-		transform: translate3d(var(--flight-to-x), var(--flight-to-y), 0) scale(0.92);
-	}
-	100% {
-		opacity: 0;
-		transform: translate3d(var(--flight-to-x), var(--flight-to-y), 0) scale(0.68);
-	}
-}
-
-@keyframes bead-flight-spin {
-	0% {
-		transform: rotate(-16deg) scale(0.92);
-	}
-	56% {
-		transform: rotate(24deg) scale(1.04);
-	}
-	100% {
-		transform: rotate(38deg) scale(1);
-	}
-}
-
-@keyframes bead-flight-shadow {
-	0% {
-		opacity: 0.16;
-		transform: translateY(16rpx) rotate(-18deg) scale(0.72);
-	}
-	44% {
-		opacity: 0.12;
-		transform: translateY(46rpx) rotate(-18deg) scale(0.92);
-	}
-	100% {
-		opacity: 0;
-		transform: translateY(8rpx) rotate(-18deg) scale(0.58);
-	}
-}
-
-@keyframes bead-flight-glint {
-	0% {
-		opacity: 0.42;
-		transform: rotate(-22deg) translateX(-4rpx);
-	}
-	50% {
-		opacity: 0.9;
-		transform: rotate(-22deg) translateX(4rpx);
-	}
-	100% {
-		opacity: 0;
-		transform: rotate(-22deg) translateX(7rpx);
 	}
 }
 
