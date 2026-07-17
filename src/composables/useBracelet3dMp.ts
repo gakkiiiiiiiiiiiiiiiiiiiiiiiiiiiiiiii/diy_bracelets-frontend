@@ -70,6 +70,15 @@ const SINGLE_SLOT_SPACING_Z = 0.42;
 const SINGLE_DELETE_DISTANCE = 1.46;
 const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
 
+function getBeadTextureRotation(beadId: string): number {
+	let hash = 2166136261;
+	for (let index = 0; index < beadId.length; index += 1) {
+		hash ^= beadId.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	return ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+}
+
 function getMpQualityProfile(beadCount: number) {
 	if (beadCount >= 24) return { sphereSegments: 16, innerSegments: 12, pixelRatio: 1, frameInterval: 34 };
 	if (beadCount >= 16) return { sphereSegments: 20, innerSegments: 14, pixelRatio: 1.25, frameInterval: 25 };
@@ -319,22 +328,23 @@ export function useBracelet3dMp(
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			transparent: false,
 			opacity: 1,
-			roughness: usesBaseColorMap ? 0.46 : Math.max(config?.roughness ?? 0.28, 0.24),
+			roughness: usesBaseColorMap ? 0.32 : Math.max(config?.roughness ?? 0.25, 0.2),
 			metalness: config?.metalness ?? 0.0,
 			// 颜色图已经包含珠子的透光与明暗，避免再折射浅色工作台形成白色光圈。
 			transmission: usesBaseColorMap ? 0 : config?.transmission ?? 0.7,
 			thickness: config?.thickness ?? 0.72,
-			clearcoat: usesBaseColorMap ? 0.08 : Math.min(config?.clearcoat ?? 0.36, 0.42),
-			clearcoatRoughness: usesBaseColorMap ? 0.55 : Math.max(config?.clearcoatRoughness ?? 0.34, 0.3),
-			reflectivity: usesBaseColorMap ? 0.16 : Math.min(config?.reflectivity ?? 0.38, 0.42),
-			specularIntensity: usesBaseColorMap ? 0.1 : 0.38,
+			clearcoat: usesBaseColorMap ? 0.28 : Math.min(config?.clearcoat ?? 0.42, 0.52),
+			clearcoatRoughness: usesBaseColorMap ? 0.34 : Math.max(config?.clearcoatRoughness ?? 0.28, 0.24),
+			reflectivity: usesBaseColorMap ? 0.32 : Math.min(config?.reflectivity ?? 0.42, 0.5),
+			specularIntensity: usesBaseColorMap ? 0.28 : 0.42,
+			specularColor: new THREE!.Color(0xf4f7f5),
 			ior: Math.max(config?.ior ?? 1.46, 1.42),
-			envMapIntensity: usesBaseColorMap ? 0.2 : Math.min(config?.envMapIntensity ?? 0.7, 0.75),
+			envMapIntensity: usesBaseColorMap ? 0.48 : Math.min(config?.envMapIntensity ?? 0.82, 0.9),
 			attenuationColor: new THREE!.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
 		});
-		const normalScale = usesBaseColorMap ? 0.22 : Math.min(config?.normalScale ?? 0.38, 0.48);
+		const normalScale = usesBaseColorMap ? 0.16 : Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale?.set?.(normalScale, normalScale);
 		return material;
 	}
@@ -457,6 +467,9 @@ export function useBracelet3dMp(
 		tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
 		tex.repeat?.set?.(0.66, 0.66);
 		tex.offset?.set?.(0.17, 0.17);
+		if (THREE.LinearFilter !== undefined) tex.magFilter = THREE.LinearFilter;
+		if (THREE.LinearMipmapLinearFilter !== undefined) tex.minFilter = THREE.LinearMipmapLinearFilter;
+		tex.generateMipmaps = true;
 		tex.needsUpdate = true;
 		return tex;
 	}
@@ -530,6 +543,7 @@ export function useBracelet3dMp(
 		const material = createCrystalMaterial({}, renderConfig?.material);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
+		mesh.rotation.y = getBeadTextureRotation(bead.id);
 		mesh.userData = { beadId: bead.id, radius, sphereSegments: quality.sphereSegments };
 		// 参考图：阴影是单向拖开的柔焦投影，不是圆片堆叠
 		const shadowGroup = new THREE.Group();
@@ -540,7 +554,7 @@ export function useBracelet3dMp(
 				offsetX: -0.6,
 				offsetY: -1.05,
 				offsetZ: 0.24,
-				opacity: 0.014,
+				opacity: 0.024,
 			},
 			{
 				width: 2.45,
@@ -548,7 +562,7 @@ export function useBracelet3dMp(
 				offsetX: -0.4,
 				offsetY: -1.02,
 				offsetZ: 0.13,
-				opacity: 0.022,
+				opacity: 0.038,
 			},
 		];
 		for (const layer of shadowLayers) {
@@ -1304,17 +1318,20 @@ export function useBracelet3dMp(
 		else if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
 		if (renderer.toneMapping !== undefined && THREE.ACESFilmicToneMapping !== undefined) {
 			renderer.toneMapping = THREE.ACESFilmicToneMapping;
-			renderer.toneMappingExposure = 0.9;
+			renderer.toneMappingExposure = 0.94;
 		}
 
-		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.26);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 0.62);
+		const key = new THREE.DirectionalLight(0xfffdf8, 0.5);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.16);
+		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.18);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
+		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.1);
+		rim.position.set(0.4, 2.1, -3.4);
+		scene.add(rim);
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
 		createShowcaseSurface();

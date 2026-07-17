@@ -73,6 +73,16 @@ const SINGLE_SLOT_SPACING_Z = 0.42;
 const SINGLE_DELETE_DISTANCE = 1.46;
 const SINGLE_BEAD_PREVIEW_SCALE = 1.24;
 
+/** 同款天然水晶也不会拥有完全相同的纹理朝向；按珠子 id 生成稳定旋转，避免每次渲染跳变。 */
+function getBeadTextureRotation(beadId: string): number {
+	let hash = 2166136261;
+	for (let index = 0; index < beadId.length; index += 1) {
+		hash ^= beadId.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	return ((hash >>> 0) / 0xffffffff) * Math.PI * 2;
+}
+
 function getSphereSegments(beadCount: number): number {
 	if (beadCount >= 24) return 20;
 	if (beadCount >= 16) return 24;
@@ -353,22 +363,23 @@ export function useBracelet3d(
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			transparent: false,
 			opacity: 1,
-			roughness: usesBaseColorMap ? 0.46 : Math.max(config?.roughness ?? 0.28, 0.24),
+			roughness: usesBaseColorMap ? 0.32 : Math.max(config?.roughness ?? 0.25, 0.2),
 			metalness: config?.metalness ?? 0.0,
 			// 当前颜色图来自实拍/生成后的完整珠子外观，已经包含透光与明暗，不能再二次折射白色背景。
 			transmission: usesBaseColorMap ? 0 : config?.transmission ?? 0.7,
 			thickness: config?.thickness ?? 0.72,
-			clearcoat: usesBaseColorMap ? 0.08 : Math.min(config?.clearcoat ?? 0.36, 0.42),
-			clearcoatRoughness: usesBaseColorMap ? 0.55 : Math.max(config?.clearcoatRoughness ?? 0.34, 0.3),
-			reflectivity: usesBaseColorMap ? 0.16 : Math.min(config?.reflectivity ?? 0.38, 0.42),
-			specularIntensity: usesBaseColorMap ? 0.1 : 0.38,
+			clearcoat: usesBaseColorMap ? 0.28 : Math.min(config?.clearcoat ?? 0.42, 0.52),
+			clearcoatRoughness: usesBaseColorMap ? 0.34 : Math.max(config?.clearcoatRoughness ?? 0.28, 0.24),
+			reflectivity: usesBaseColorMap ? 0.32 : Math.min(config?.reflectivity ?? 0.42, 0.5),
+			specularIntensity: usesBaseColorMap ? 0.28 : 0.42,
+			specularColor: new THREE.Color(0xf4f7f5),
 			ior: Math.max(config?.ior ?? 1.46, 1.42),
-			envMapIntensity: usesBaseColorMap ? 0.2 : Math.min(config?.envMapIntensity ?? 0.7, 0.75),
+			envMapIntensity: usesBaseColorMap ? 0.48 : Math.min(config?.envMapIntensity ?? 0.82, 0.9),
 			attenuationColor: new THREE.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
 		});
-		const normalScale = usesBaseColorMap ? 0.22 : Math.min(config?.normalScale ?? 0.38, 0.48);
+		const normalScale = usesBaseColorMap ? 0.16 : Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale.set(normalScale, normalScale);
 		return material;
 	}
@@ -582,6 +593,12 @@ export function useBracelet3d(
 		tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
 		tex.repeat.set(0.66, 0.66);
 		tex.offset.set(0.17, 0.17);
+		tex.magFilter = THREE.LinearFilter;
+		tex.minFilter = THREE.LinearMipmapLinearFilter;
+		tex.generateMipmaps = true;
+		if (renderer?.capabilities) {
+			tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+		}
 		if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
 		tex.needsUpdate = true;
 		return tex;
@@ -658,6 +675,7 @@ export function useBracelet3d(
 		const material = createCrystalMaterial({}, renderConfig?.material);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.position.set(0, BEAD_FLOAT_Y, 0);
+		mesh.rotation.y = getBeadTextureRotation(bead.id);
 		mesh.userData = { beadId: bead.id, radius, sphereSegments };
 		// 参考图：阴影是顺着左下方向被拉开的柔焦投影
 		const shadowGroup = new THREE.Group();
@@ -667,12 +685,12 @@ export function useBracelet3d(
 			new THREE.MeshBasicMaterial({
 				map: gradientTex ?? undefined,
 				transparent: true,
-				opacity: gradientTex ? 0.28 : 0.025,
+				opacity: gradientTex ? 0.42 : 0.036,
 				depthWrite: false,
 				color: gradientTex ? 0xffffff : SHADOW_TINT,
 			}),
 		);
-		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.28 : 0.025;
+		(shadowMesh.material as THREE.MeshBasicMaterial).userData.baseOpacity = gradientTex ? 0.42 : 0.036;
 		shadowMesh.rotation.x = -Math.PI / 2;
 		shadowMesh.rotation.z = SHADOW_SLANT;
 		shadowMesh.position.set(-radius * 0.56, -radius * 1.05, radius * 0.22);
@@ -1489,20 +1507,23 @@ export function useBracelet3d(
 		renderer.setSize(width, height, false);
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping;
-		renderer.toneMappingExposure = 0.9;
+		renderer.toneMappingExposure = 0.94;
 		pmremGenerator = new THREE.PMREMGenerator(renderer);
-		environmentTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
+		environmentTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.065).texture;
 		scene.environment = environmentTexture;
 
 		// 以环境反射和柔和方向光塑形，避免点光源在每颗珠子上形成相同的白色圆斑。
-		const ambient = new THREE.AmbientLight(0xffffff, 0.34);
+		const ambient = new THREE.AmbientLight(0xffffff, 0.26);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xffffff, 0.62);
+		const key = new THREE.DirectionalLight(0xfffdf8, 0.42);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe6f0ef, 0.16);
+		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.18);
 		fill.position.set(2.8, 1.6, 2.2);
 		scene.add(fill);
+		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.12);
+		rim.position.set(0.4, 2.1, -3.4);
+		scene.add(rim);
 		// 创建手串Group（珠子/环都放到group中场景里只加group）
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
