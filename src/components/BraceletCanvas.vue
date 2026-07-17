@@ -249,13 +249,16 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	border-radius: 0;
 	overflow: hidden;
 	background:
-		radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 1) 0%, rgba(255, 253, 249, 0.96) 48%, rgba(246, 243, 238, 0.92) 100%);
+		radial-gradient(ellipse 72% 56% at 38% 28%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.72) 42%, rgba(255, 255, 255, 0) 76%),
+		radial-gradient(ellipse 58% 34% at 68% 78%, rgba(202, 214, 212, 0.14) 0%, rgba(202, 214, 212, 0) 72%),
+		linear-gradient(148deg, #f7f3ed 0%, #fffdf9 48%, #f1eee9 100%);
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
 	background:
-		radial-gradient(circle at 50% 42%, #fff 0%, #fbf9f5 62%, #f3f0eb 100%);
+		radial-gradient(ellipse 74% 58% at 38% 28%, #fff 0%, rgba(255, 255, 255, 0.72) 44%, rgba(255, 255, 255, 0) 78%),
+		linear-gradient(148deg, #f7f3ed 0%, #fffdf9 50%, #f0ede8 100%);
 }
 
 /* 3D gl 画布容器 */

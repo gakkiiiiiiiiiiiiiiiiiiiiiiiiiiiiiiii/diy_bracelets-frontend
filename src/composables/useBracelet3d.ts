@@ -1497,7 +1497,8 @@ export function useBracelet3d(
 
 		// 创建threejs基本对象
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xfffdf9);
+		// 保持 WebGL 背景透明，让同一套 CSS 摄影棚渐变同时服务 H5 与小程序，并让导出图保留 Alpha。
+		scene.background = null;
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
@@ -1505,6 +1506,7 @@ export function useBracelet3d(
 		renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: false });
 		renderer.setPixelRatio(getAdaptivePixelRatio());
 		renderer.setSize(width, height, false);
+		renderer.setClearColor(0x000000, 0);
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping;
 		renderer.toneMappingExposure = 0.94;

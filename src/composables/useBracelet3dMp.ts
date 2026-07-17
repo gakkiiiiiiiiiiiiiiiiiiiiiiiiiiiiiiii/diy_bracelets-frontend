@@ -1304,7 +1304,7 @@ export function useBracelet3dMp(
 		const height = size;
 
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0xfffdf9);
+		scene.background = null;
 
 		camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
 		applyCameraView();
@@ -1314,6 +1314,7 @@ export function useBracelet3dMp(
 		const quality = getMpQualityProfile(beads.value.length);
 		renderer.setPixelRatio(Math.min(devicePixelRatio, quality.pixelRatio));
 		renderer.setSize(width, height, false);
+		renderer.setClearColor?.(0x000000, 0);
 		if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
 		else if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
 		if (renderer.toneMapping !== undefined && THREE.ACESFilmicToneMapping !== undefined) {
