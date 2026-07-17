@@ -335,6 +335,33 @@ export function useBracelet3d(
 			if (Array.isArray(material)) material.forEach((m) => m.dispose());
 			else material?.dispose?.();
 		});
+		object.clear();
+	}
+
+	function cancelMotionAnimations(object: THREE.Object3D) {
+		for (let index = addAnimations.length - 1; index >= 0; index -= 1) {
+			if (addAnimations[index].mesh === object) addAnimations.splice(index, 1);
+		}
+		for (let index = positionAnimations.length - 1; index >= 0; index -= 1) {
+			if (positionAnimations[index].mesh === object) positionAnimations.splice(index, 1);
+		}
+	}
+
+	function retargetAddAnimation(object: THREE.Object3D, toX: number, toZ: number) {
+		const animation = addAnimations.find((item) => item.mesh === object);
+		if (!animation) return false;
+		for (let index = positionAnimations.length - 1; index >= 0; index -= 1) {
+			if (positionAnimations[index].mesh === object) positionAnimations.splice(index, 1);
+		}
+		animation.fromX = object.position.x;
+		animation.fromY = object.position.y;
+		animation.fromZ = object.position.z;
+		animation.toX = toX;
+		animation.toZ = toZ;
+		animation.fromScale = object.scale.x;
+		animation.startTime = nowMs();
+		animation.duration = ADD_BEAD_DURATION_MS;
+		return true;
 	}
 
 	function noteInteraction() {
@@ -801,6 +828,10 @@ export function useBracelet3d(
 		noteInteraction();
 		const oldIds = new Set(oldBeads.map((b) => b.id));
 		const newIds = new Set(newBeads.map((b) => b.id));
+		const replacingEmptyStage =
+			oldBeads.length > 0 &&
+			oldBeads.every((bead) => bead.id.startsWith('empty-')) &&
+			newBeads.some((bead) => !bead.id.startsWith('empty-'));
 		const updateTime = nowMs();
 		let addOrdinal = 0;
 
@@ -808,6 +839,13 @@ export function useBracelet3d(
 		for (const id of beadMeshMap.keys()) {
 			if (!newIds.has(id)) {
 				const { root } = beadMeshMap.get(id)!;
+				cancelMotionAnimations(root);
+				if (replacingEmptyStage) {
+					braceletGroup.remove(root);
+					disposeObject(root);
+					beadMeshMap.delete(id);
+					continue;
+				}
 				const dist = Math.sqrt(root.position.x ** 2 + root.position.z ** 2) || 1;
 				const push = 0.42;
 				removeAnimations.push({
@@ -844,6 +882,7 @@ export function useBracelet3d(
 				const nextKey = beadContentKey(bead);
 				if (entry.key !== nextKey) {
 					const oldRoot = root;
+					cancelMotionAnimations(oldRoot);
 					const replacement = createBeadMesh(bead, index, total);
 					replacement.root.position.set(curX, 0, curZ);
 					replacement.root.scale.setScalar(0.48);
@@ -876,15 +915,18 @@ export function useBracelet3d(
 				}
 				// 位置有变化时，触发动画平滑过渡
 				if (Math.abs(curX - x) > 1e-5 || Math.abs(curZ - z) > 1e-5) {
-					positionAnimations.push({
-						mesh: root,
-						fromX: curX,
-						fromZ: curZ,
-						toX: x,
-						toZ: z,
-						startTime: nowMs(),
-						duration: REFLOW_DURATION_MS,
-					});
+					if (!retargetAddAnimation(root, x, z)) {
+						cancelMotionAnimations(root);
+						positionAnimations.push({
+							mesh: root,
+							fromX: curX,
+							fromZ: curZ,
+							toX: x,
+							toZ: z,
+							startTime: nowMs(),
+							duration: REFLOW_DURATION_MS,
+						});
+					}
 				} else {
 					root.position.set(x, 0, z);
 				}
