@@ -319,21 +319,22 @@ export function useBracelet3dMp(
 			color: usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb,
 			transparent: false,
 			opacity: 1,
-			roughness: Math.max(config?.roughness ?? 0.28, 0.24),
+			roughness: usesBaseColorMap ? 0.46 : Math.max(config?.roughness ?? 0.28, 0.24),
 			metalness: config?.metalness ?? 0.0,
-			transmission: config?.transmission ?? 0.7,
+			// 颜色图已经包含珠子的透光与明暗，避免再折射浅色工作台形成白色光圈。
+			transmission: usesBaseColorMap ? 0 : config?.transmission ?? 0.7,
 			thickness: config?.thickness ?? 0.72,
-			clearcoat: Math.min(config?.clearcoat ?? 0.36, 0.42),
-			clearcoatRoughness: Math.max(config?.clearcoatRoughness ?? 0.34, 0.3),
-			reflectivity: Math.min(config?.reflectivity ?? 0.38, 0.42),
-			specularIntensity: 0.38,
+			clearcoat: usesBaseColorMap ? 0.08 : Math.min(config?.clearcoat ?? 0.36, 0.42),
+			clearcoatRoughness: usesBaseColorMap ? 0.55 : Math.max(config?.clearcoatRoughness ?? 0.34, 0.3),
+			reflectivity: usesBaseColorMap ? 0.16 : Math.min(config?.reflectivity ?? 0.38, 0.42),
+			specularIntensity: usesBaseColorMap ? 0.1 : 0.38,
 			ior: Math.max(config?.ior ?? 1.46, 1.42),
-			envMapIntensity: Math.min(config?.envMapIntensity ?? 0.7, 0.75),
+			envMapIntensity: usesBaseColorMap ? 0.2 : Math.min(config?.envMapIntensity ?? 0.7, 0.75),
 			attenuationColor: new THREE!.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
 			...params,
 		});
-		const normalScale = Math.min(config?.normalScale ?? 0.38, 0.48);
+		const normalScale = usesBaseColorMap ? 0.22 : Math.min(config?.normalScale ?? 0.38, 0.48);
 		material.normalScale?.set?.(normalScale, normalScale);
 		return material;
 	}
