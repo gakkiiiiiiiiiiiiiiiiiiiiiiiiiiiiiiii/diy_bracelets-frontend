@@ -12,7 +12,7 @@ import { getCrystalMaterialRenderConfig, type CrystalPhysicalMaterialConfig } fr
 const INITIAL_RING_RADIUS = 0.7;
 const MAX_RING_RADIUS = 1.08;
 const RING_GROWTH_PER_BEAD = 0.036;
-const RING_TUBE = 0.0105;
+const RING_TUBE = 0.0082;
 const BEAD_SCALE = 0.018;
 const DELETE_MARGIN = 0.5;
 
@@ -37,7 +37,7 @@ const INERTIA_DECAY = 0.96;
 const INERTIA_STOP = 0.0008;
 const CRYSTAL_OPACITY = 0.9;
 const RING_COLOR = 0xf2ede8;
-const RING_OPACITY = 0.48;
+const RING_OPACITY = 0.34;
 const BEAD_FLOAT_Y = 0.026;
 const SHADOW_TINT = 0x4e4958;
 const SHADOW_SLANT = -0.72;
@@ -74,6 +74,11 @@ interface BeadSurfaceVariation {
 	rotationX: number;
 	rotationY: number;
 	rotationZ: number;
+	projectionAngle: number;
+	projectionScale: number;
+	projectionOffsetX: number;
+	projectionOffsetY: number;
+	projectionMirror: number;
 	tone: number;
 	warmth: number;
 	roughness: number;
@@ -100,6 +105,11 @@ function getBeadSurfaceVariation(beadId: string): BeadSurfaceVariation {
 		rotationX: (stableVariationUnit(beadId, 'rotation-x') - 0.5) * 0.22,
 		rotationY: (stableVariationUnit(beadId, 'rotation-y') - 0.5) * 1.1,
 		rotationZ: (stableVariationUnit(beadId, 'rotation-z') - 0.5) * 0.2,
+		projectionAngle: (stableVariationUnit(beadId, 'projection-angle') - 0.5) * 1.4,
+		projectionScale: 0.965 + stableVariationUnit(beadId, 'projection-scale') * 0.07,
+		projectionOffsetX: (stableVariationUnit(beadId, 'projection-offset-x') - 0.5) * 0.034,
+		projectionOffsetY: (stableVariationUnit(beadId, 'projection-offset-y') - 0.5) * 0.034,
+		projectionMirror: stableVariationUnit(beadId, 'projection-mirror') < 0.5 ? -1 : 1,
 		tone: 0.975 + toneSeed * 0.04,
 		warmth: (warmSeed - 0.5) * 0.024,
 		roughness: 0.92 + surfaceSeed * 0.16,
@@ -492,9 +502,12 @@ export function useBracelet3dMp(
 		opticalTransmission = 0.5,
 		colorlessClarity = 0,
 	) {
-		const projectionAngle = (variation?.rotationY ?? 0) * 0.28 + (variation?.rotationZ ?? 0) * 0.4;
+		const projectionAngle = variation?.projectionAngle ?? 0;
 		const toneUnit = Math.min(1, Math.max(0, ((variation?.tone ?? 0.995) - 0.975) / 0.04));
-		const projectionScale = 0.448 + toneUnit * 0.014;
+		const projectionScale = (0.448 + toneUnit * 0.014) * (variation?.projectionScale ?? 1);
+		const projectionOffsetX = variation?.projectionOffsetX ?? 0;
+		const projectionOffsetY = variation?.projectionOffsetY ?? 0;
+		const projectionMirror = variation?.projectionMirror ?? 1;
 		const projectionLift = Math.min(0.26, Math.max(0.1, 0.08 + (1 - opticalTransmission) * 0.24));
 		const softboxVariation = Math.min(
 			1.12,
@@ -504,6 +517,9 @@ export function useBracelet3dMp(
 		material.onBeforeCompile = (shader: any) => {
 			shader.uniforms.beadProjectionAngle = { value: projectionAngle };
 			shader.uniforms.beadProjectionScale = { value: projectionScale };
+			shader.uniforms.beadProjectionOffsetX = { value: projectionOffsetX };
+			shader.uniforms.beadProjectionOffsetY = { value: projectionOffsetY };
+			shader.uniforms.beadProjectionMirror = { value: projectionMirror };
 			shader.uniforms.beadProjectionLift = { value: projectionLift };
 			shader.uniforms.beadSoftboxStrength = { value: softboxStrength };
 			shader.uniforms.beadColorlessClarity = { value: colorlessClarity };
@@ -511,6 +527,9 @@ export function useBracelet3dMp(
 			shader.fragmentShader = `
 				uniform float beadProjectionAngle;
 				uniform float beadProjectionScale;
+				uniform float beadProjectionOffsetX;
+				uniform float beadProjectionOffsetY;
+				uniform float beadProjectionMirror;
 				uniform float beadProjectionLift;
 				uniform float beadSoftboxStrength;
 				uniform float beadColorlessClarity;
@@ -521,17 +540,22 @@ export function useBracelet3dMp(
 				vec3 beadProjectionViewDir = normalize( vViewPosition );
 				vec3 beadProjectionX = normalize( vec3( beadProjectionViewDir.z, 0.0, -beadProjectionViewDir.x ) );
 				vec3 beadProjectionY = cross( beadProjectionViewDir, beadProjectionX );
-				vec2 beadProjectionLocal = vec2(
+				vec2 beadLightingLocal = vec2(
 					dot( beadProjectionX, beadProjectionNormal ),
 					dot( beadProjectionY, beadProjectionNormal )
 				);
+				vec2 beadProjectionLocal = beadLightingLocal;
+				beadProjectionLocal.x *= beadProjectionMirror;
 				float beadProjectionCos = cos( beadProjectionAngle );
 				float beadProjectionSin = sin( beadProjectionAngle );
 				beadProjectionLocal = mat2(
 					beadProjectionCos, -beadProjectionSin,
 					beadProjectionSin, beadProjectionCos
 				) * beadProjectionLocal;
-				vec2 beadProjectionUv = beadProjectionLocal * beadProjectionScale + 0.5;
+				vec2 beadProjectionUv = beadProjectionLocal * beadProjectionScale + vec2(
+					0.5 + beadProjectionOffsetX,
+					0.5 + beadProjectionOffsetY
+				);
 
 				#ifdef USE_MAP
 					vec4 sampledDiffuseColor = texture2D( map, beadProjectionUv );
@@ -576,31 +600,31 @@ export function useBracelet3dMp(
 						outgoingLight = mix( outgoingLight, beadRaisedInterior, beadInteriorLift );
 						float beadBackdropTransmission = pow( beadProjectionFacing, 1.35 ) * beadColorlessClarity * 0.42;
 						outgoingLight = mix( outgoingLight, vec3( 0.94, 0.955, 0.95 ), beadBackdropTransmission );
-						float beadTableBounce = smoothstep( 0.02, 0.82, -beadProjectionLocal.y ) * smoothstep( 0.16, 0.82, beadProjectionFacing );
+						float beadTableBounce = smoothstep( 0.02, 0.82, -beadLightingLocal.y ) * smoothstep( 0.16, 0.82, beadProjectionFacing );
 						outgoingLight += diffuseColor.rgb * vec3( 0.11, 0.082, 0.06 ) * beadTableBounce * beadOpticalTransmission;
 						float beadColorlessRim = pow( 1.0 - beadProjectionFacing, 3.2 ) * beadColorlessClarity;
-						float beadWarmRim = smoothstep( -0.12, 0.72, beadProjectionLocal.x );
-						float beadCoolRim = smoothstep( -0.12, 0.72, -beadProjectionLocal.x );
+						float beadWarmRim = smoothstep( -0.12, 0.72, beadLightingLocal.x );
+						float beadCoolRim = smoothstep( -0.12, 0.72, -beadLightingLocal.x );
 						outgoingLight += vec3( 0.075, 0.035, 0.006 ) * beadColorlessRim * beadWarmRim;
 						outgoingLight += vec3( 0.006, 0.034, 0.07 ) * beadColorlessRim * beadCoolRim;
-						float beadSoftboxHaloX = 1.0 - smoothstep( 0.055, 0.19, abs( beadProjectionLocal.x + 0.3 ) );
-						float beadSoftboxHaloY = 1.0 - smoothstep( 0.36, 0.72, abs( beadProjectionLocal.y - 0.16 ) );
-						float beadSoftboxCoreX = 1.0 - smoothstep( 0.025, 0.075, abs( beadProjectionLocal.x + 0.3 ) );
-						float beadSoftboxCoreY = 1.0 - smoothstep( 0.28, 0.54, abs( beadProjectionLocal.y - 0.16 ) );
+						float beadSoftboxHaloX = 1.0 - smoothstep( 0.055, 0.19, abs( beadLightingLocal.x + 0.3 ) );
+						float beadSoftboxHaloY = 1.0 - smoothstep( 0.36, 0.72, abs( beadLightingLocal.y - 0.16 ) );
+						float beadSoftboxCoreX = 1.0 - smoothstep( 0.025, 0.075, abs( beadLightingLocal.x + 0.3 ) );
+						float beadSoftboxCoreY = 1.0 - smoothstep( 0.28, 0.54, abs( beadLightingLocal.y - 0.16 ) );
 						float beadSoftboxReflection = (
 							beadSoftboxHaloX * beadSoftboxHaloY * 0.42 +
 							beadSoftboxCoreX * beadSoftboxCoreY * 0.58
 						) * smoothstep( 0.14, 0.66, beadProjectionFacing );
 						outgoingLight += vec3( 1.0, 0.985, 0.955 ) * beadSoftboxReflection * beadSoftboxStrength;
-						float beadTopboxX = 1.0 - smoothstep( 0.42, 0.86, abs( beadProjectionLocal.x + 0.04 ) );
-						float beadTopboxY = 1.0 - smoothstep( 0.07, 0.2, abs( beadProjectionLocal.y - 0.34 ) );
+						float beadTopboxX = 1.0 - smoothstep( 0.42, 0.86, abs( beadLightingLocal.x + 0.04 ) );
+						float beadTopboxY = 1.0 - smoothstep( 0.07, 0.2, abs( beadLightingLocal.y - 0.34 ) );
 						float beadTopboxReflection = beadTopboxX * beadTopboxY * smoothstep( 0.18, 0.72, beadProjectionFacing );
 						outgoingLight += vec3( 0.965, 0.99, 1.0 ) * beadTopboxReflection * beadSoftboxStrength * 0.34;
 						#include <opaque_fragment>
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v9';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v10';
 		material.needsUpdate = true;
 	}
 
@@ -1615,15 +1639,15 @@ export function useBracelet3dMp(
 			color: RING_COLOR,
 			transparent: true,
 			opacity: RING_OPACITY,
-			roughness: 0.2,
+			roughness: 0.3,
 			metalness: 0,
-			transmission: 0.58,
+			transmission: 0.42,
 			thickness: 0.06,
 			ior: 1.38,
-			reflectivity: 0.34,
+			reflectivity: 0.22,
 			envMapIntensity: 0.42,
-			clearcoat: 0.42,
-			clearcoatRoughness: 0.22,
+			clearcoat: 0.2,
+			clearcoatRoughness: 0.34,
 		});
 		ringMesh = new THREE.Mesh(ringGeom, ringMat);
 		ringMesh.rotation.x = -Math.PI / 2;
