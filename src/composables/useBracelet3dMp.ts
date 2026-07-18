@@ -441,7 +441,7 @@ export function useBracelet3dMp(
 			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
 		);
 		const mappedFillIntensity =
-			config?.photoFill ?? Math.min(0.16, Math.max(0.055, 0.055 + (1 - opticalTransmission) * 0.15));
+			config?.photoFill ?? Math.min(0.24, Math.max(0.075, 0.07 + (1 - opticalTransmission) * 0.24));
 		const tint = new THREE!.Color(
 			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
 			variation?.tone ?? 1,
@@ -507,12 +507,14 @@ export function useBracelet3dMp(
 			shader.uniforms.beadProjectionLift = { value: projectionLift };
 			shader.uniforms.beadSoftboxStrength = { value: softboxStrength };
 			shader.uniforms.beadColorlessClarity = { value: colorlessClarity };
+			shader.uniforms.beadOpticalTransmission = { value: opticalTransmission };
 			shader.fragmentShader = `
 				uniform float beadProjectionAngle;
 				uniform float beadProjectionScale;
 				uniform float beadProjectionLift;
 				uniform float beadSoftboxStrength;
 				uniform float beadColorlessClarity;
+				uniform float beadOpticalTransmission;
 			${shader.fragmentShader}`;
 			const projectionChunk = /* glsl */ `
 				vec3 beadProjectionNormal = normalize( vNormal );
@@ -566,8 +568,16 @@ export function useBracelet3dMp(
 						float beadProjectionFacing = saturate( dot( beadProjectionNormal, beadProjectionViewDir ) );
 						float beadEdgeSculpt = smoothstep( 0.08, 0.92, beadProjectionFacing );
 						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
-						float beadBackdropTransmission = pow( beadProjectionFacing, 1.35 ) * beadColorlessClarity;
+						float beadInterior = pow( beadProjectionFacing, 1.7 );
+						float beadPhotoLuma = dot( outgoingLight, vec3( 0.2126, 0.7152, 0.0722 ) );
+						float beadDarkMaterial = 1.0 - smoothstep( 0.07, 0.34, beadPhotoLuma );
+						vec3 beadRaisedInterior = pow( max( outgoingLight, vec3( 0.0 ) ), vec3( 0.78 ) );
+						float beadInteriorLift = beadInterior * beadOpticalTransmission * beadDarkMaterial * ( 1.0 - beadColorlessClarity ) * 1.15;
+						outgoingLight = mix( outgoingLight, beadRaisedInterior, beadInteriorLift );
+						float beadBackdropTransmission = pow( beadProjectionFacing, 1.35 ) * beadColorlessClarity * 0.42;
 						outgoingLight = mix( outgoingLight, vec3( 0.94, 0.955, 0.95 ), beadBackdropTransmission );
+						float beadTableBounce = smoothstep( 0.02, 0.82, -beadProjectionLocal.y ) * smoothstep( 0.16, 0.82, beadProjectionFacing );
+						outgoingLight += diffuseColor.rgb * vec3( 0.11, 0.082, 0.06 ) * beadTableBounce * beadOpticalTransmission;
 						float beadColorlessRim = pow( 1.0 - beadProjectionFacing, 3.2 ) * beadColorlessClarity;
 						float beadWarmRim = smoothstep( -0.12, 0.72, beadProjectionLocal.x );
 						float beadCoolRim = smoothstep( -0.12, 0.72, -beadProjectionLocal.x );
@@ -582,11 +592,15 @@ export function useBracelet3dMp(
 							beadSoftboxCoreX * beadSoftboxCoreY * 0.58
 						) * smoothstep( 0.14, 0.66, beadProjectionFacing );
 						outgoingLight += vec3( 1.0, 0.985, 0.955 ) * beadSoftboxReflection * beadSoftboxStrength;
+						float beadTopboxX = 1.0 - smoothstep( 0.42, 0.86, abs( beadProjectionLocal.x + 0.04 ) );
+						float beadTopboxY = 1.0 - smoothstep( 0.07, 0.2, abs( beadProjectionLocal.y - 0.34 ) );
+						float beadTopboxReflection = beadTopboxX * beadTopboxY * smoothstep( 0.18, 0.72, beadProjectionFacing );
+						outgoingLight += vec3( 0.965, 0.99, 1.0 ) * beadTopboxReflection * beadSoftboxStrength * 0.34;
 						#include <opaque_fragment>
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v8';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v9';
 		material.needsUpdate = true;
 	}
 

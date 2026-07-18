@@ -234,7 +234,7 @@ function clearQuartzSourceMaterial(): ReferenceCrystalMaterial {
 			envMapIntensity: 1.06,
 			normalScale: 0,
 			photoFill: 0.24,
-			colorlessClarity: 0.52,
+			colorlessClarity: 0.38,
 		},
 	};
 }
