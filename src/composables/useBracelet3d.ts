@@ -1636,20 +1636,62 @@ export function useBracelet3d(
 
 	/** 截图时临时切到方形高分辨率画布，读取后完整恢复实时渲染尺寸。 */
 	function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): string | null {
-		if (!inited || !renderer || !scene || !camera || !canvasEl) return null;
+		if (!inited || !renderer || !scene || !camera || !canvasEl || !braceletGroup) return null;
 		const size = Math.round(Math.min(2048, Math.max(256, outputSize)));
 		const exportSphereSegments = size >= 1024 ? 56 : 40;
 		const previousSize = renderer.getSize(new THREE.Vector2());
 		const previousPixelRatio = renderer.getPixelRatio();
 		const previousCameraAspect = camera.aspect;
 		const previousTrackedAspect = cameraAspect;
+		const previousCameraPosition = camera.position.clone();
+		const previousCameraUp = camera.up.clone();
+		const previousBraceletPosition = braceletGroup.position.clone();
+		const previousBraceletScale = braceletGroup.scale.clone();
+		const previousRingScale = ringMesh?.scale.clone();
+		const previousRingVisible = ringMesh?.visible;
+		const ringMaterial = ringMesh?.material as THREE.MeshPhysicalMaterial | undefined;
+		const previousRingOpacity = ringMaterial?.opacity;
+		const hiddenObjects: Array<{ object: THREE.Object3D; visible: boolean }> = [];
+		const rootStates: Array<{
+			root: THREE.Group;
+			position: THREE.Vector3;
+			scale: THREE.Vector3;
+			visible: boolean;
+		}> = [];
 		const temporaryGeometries: Array<{
 			mesh: THREE.Mesh;
 			original: THREE.BufferGeometry;
 			temporary: THREE.BufferGeometry;
 		}> = [];
+		const hideForExport = (object: THREE.Object3D | null | undefined) => {
+			if (!object || hiddenObjects.some((item) => item.object === object)) return;
+			hiddenObjects.push({ object, visible: object.visible });
+			object.visible = false;
+		};
 		try {
-			beadMeshMap.forEach(({ mesh }) => {
+			// 摄影台光晕属于屏幕布景；交互选择态与待删除旧 mesh 也不能进入标准透明商品图。
+			hideForExport(showcaseSurfaceGroup);
+			removeAnimations.forEach((animation) => hideForExport(animation.mesh));
+			braceletGroup.position.set(0, 0, 0);
+			braceletGroup.scale.setScalar(1);
+			const beadIndexById = new Map<string, number>(
+				beads.value.map((bead, index) => [bead.id, index] as const),
+			);
+			beadMeshMap.forEach(({ mesh, root, beadId }) => {
+				rootStates.push({
+					root,
+					position: root.position.clone(),
+					scale: root.scale.clone(),
+					visible: root.visible,
+				});
+				const index = beadIndexById.get(beadId);
+				if (index != null) {
+					const slot = slotForIndex(index, beads.value.length);
+					root.position.set(slot.x, 0, slot.z);
+				}
+				root.scale.setScalar(1);
+				root.visible = true;
+				hideForExport(root.userData.selectionGroup as THREE.Group | undefined);
 				const radius = Number(mesh.userData.radius ?? 0);
 				if (!(radius > 0)) return;
 				const temporary = new THREE.SphereGeometry(radius, exportSphereSegments, exportSphereSegments);
@@ -1660,11 +1702,15 @@ export function useBracelet3d(
 				const temporary = new THREE.TorusGeometry(1, RING_TUBE, 24, size >= 1024 ? 128 : 96);
 				temporaryGeometries.push({ mesh: ringMesh, original: ringMesh.geometry, temporary });
 				ringMesh.geometry = temporary;
+				ringMesh.scale.setScalar(targetRingRadius);
+				ringMesh.visible = targetRingOpacity > 0.012;
+				if (ringMaterial) ringMaterial.opacity = targetRingOpacity;
 			}
 			renderer.setPixelRatio(1);
 			renderer.setSize(size, size, false);
 			cameraAspect = 1;
 			camera.aspect = 1;
+			applyCameraView();
 			camera.updateProjectionMatrix();
 			renderer.render(scene, camera);
 			return canvasEl.toDataURL(type, quality);
@@ -1673,10 +1719,28 @@ export function useBracelet3d(
 				mesh.geometry = original;
 				temporary.dispose();
 			}
+			rootStates.forEach(({ root, position, scale, visible }) => {
+				root.position.copy(position);
+				root.scale.copy(scale);
+				root.visible = visible;
+			});
+			hiddenObjects.forEach(({ object, visible }) => {
+				object.visible = visible;
+			});
+			braceletGroup.position.copy(previousBraceletPosition);
+			braceletGroup.scale.copy(previousBraceletScale);
+			if (ringMesh && previousRingScale) {
+				ringMesh.scale.copy(previousRingScale);
+				ringMesh.visible = previousRingVisible ?? true;
+				if (ringMaterial && previousRingOpacity != null) ringMaterial.opacity = previousRingOpacity;
+			}
 			renderer.setPixelRatio(previousPixelRatio);
 			renderer.setSize(previousSize.x, previousSize.y, false);
 			cameraAspect = previousTrackedAspect;
 			camera.aspect = previousCameraAspect;
+			camera.position.copy(previousCameraPosition);
+			camera.up.copy(previousCameraUp);
+			camera.lookAt(0, 0, 0);
 			camera.updateProjectionMatrix();
 			renderer.render(scene, camera);
 		}
