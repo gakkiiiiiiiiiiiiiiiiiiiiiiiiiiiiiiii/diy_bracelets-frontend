@@ -24,6 +24,7 @@ export interface CrystalPhysicalMaterialConfig {
 	envMapIntensity: number;
 	normalScale: number;
 	photoFill?: number;
+	photoTint?: number;
 	colorlessClarity?: number;
 }
 
@@ -48,6 +49,7 @@ interface CrystalDefinition {
 	clearcoatRoughness?: number;
 	normalScale?: number;
 	envMapIntensity?: number;
+	photoTint?: number;
 }
 
 const ROOT = '/static/materials/reference-crystals';
@@ -100,25 +102,25 @@ export const referenceMaterialSearchAliases: Record<string, string[]> = {
 };
 
 const definitions: CrystalDefinition[] = [
-	{ slug: 'yellow-crystal', name: '黄水晶', categoryId: 'yellow-series', tone: 0xd7bd75, priceTier: 2, opacity: 0.86, transmission: 0.78 },
+	{ slug: 'yellow-crystal', name: '黄水晶', categoryId: 'yellow-series', tone: 0xe8c45f, priceTier: 2, opacity: 0.86, transmission: 0.78, photoTint: 0.58 },
 	{ slug: 'golden-rutile', name: '金发晶', categoryId: 'yellow-series', tone: 0xe4c264, priceTier: 4, opacity: 0.88, transmission: 0.72, normalScale: 0.72 },
 	{ slug: 'yellow-ase', name: '黄阿塞', categoryId: 'yellow-series', tone: 0xe0c367, priceTier: 3, opacity: 0.88, transmission: 0.76 },
 	{ slug: 'yellow-tower', name: '黄塔晶', categoryId: 'yellow-series', tone: 0x9c7a54, priceTier: 3, opacity: 0.9, transmission: 0.68, normalScale: 0.68 },
 	{ slug: 'yellow-tiger-eye', name: '黄虎眼', categoryId: 'yellow-series', tone: 0xb07028, priceTier: 3, opacity: 0.96, transmission: 0.28, roughness: 0.26, ior: 1.28, normalScale: 0.8 },
 	{ slug: 'red-garden-quartz', name: '红胶花', categoryId: 'yellow-series', tone: 0xd56247, priceTier: 3, opacity: 0.91, transmission: 0.48, normalScale: 0.7 },
-	{ slug: 'pink-crystal', name: '粉水晶', categoryId: 'pink-series', tone: 0xd8c4d2, priceTier: 1, opacity: 0.84, transmission: 0.72 },
+	{ slug: 'pink-crystal', name: '粉水晶', categoryId: 'pink-series', tone: 0xe1bfcf, priceTier: 1, opacity: 0.84, transmission: 0.72, photoTint: 0.46 },
 	{ slug: 'pink-phantom', name: '粉幽灵', categoryId: 'pink-series', tone: 0xe6d0cc, priceTier: 2, opacity: 0.86, transmission: 0.68 },
 	{ slug: 'pink-ase', name: '粉阿塞', categoryId: 'pink-series', tone: 0xe2c5d2, priceTier: 2, opacity: 0.86, transmission: 0.7 },
 	{ slug: 'rose-stone', name: '蔷薇石', categoryId: 'pink-series', tone: 0xcf5677, priceTier: 2, opacity: 0.9, transmission: 0.52, normalScale: 0.7 },
 	{ slug: 'strawberry-crystal', name: '草莓晶', categoryId: 'pink-series', tone: 0x9e536b, priceTier: 3, opacity: 0.92, transmission: 0.42, normalScale: 0.78 },
 	{ slug: 'rhodochrosite', name: '红纹石', categoryId: 'pink-series', tone: 0xd66e68, priceTier: 2, opacity: 0.96, transmission: 0.3, roughness: 0.3, normalScale: 0.65 },
 	{ slug: 'starry-quartz', name: '满天星', categoryId: 'green-white-series', tone: 0xdde0da, priceTier: 1, opacity: 0.88, transmission: 0.64, normalScale: 0.82 },
-	{ slug: 'layered-green-phantom', name: '绿幽灵千层', categoryId: 'green-white-series', tone: 0x81907d, priceTier: 3, opacity: 0.9, transmission: 0.48, normalScale: 0.9 },
+	{ slug: 'layered-green-phantom', name: '绿幽灵千层', categoryId: 'green-white-series', tone: 0x718e78, priceTier: 3, opacity: 0.9, transmission: 0.48, normalScale: 0.9, photoTint: 0.42 },
 	{ slug: 'green-rutile', name: '绿发晶', categoryId: 'green-white-series', tone: 0xa9b491, priceTier: 4, opacity: 0.88, transmission: 0.66, normalScale: 0.78 },
 	{ slug: 'prehnite', name: '葡萄石', categoryId: 'green-white-series', tone: 0xb9d7b7, priceTier: 2, opacity: 0.86, transmission: 0.7 },
 	{ slug: 'peridot', name: '橄榄石', categoryId: 'green-white-series', tone: 0xb1bc21, priceTier: 3, opacity: 0.9, transmission: 0.7, roughness: 0.14 },
 	{ slug: 'green-phantom', name: '绿幽灵', categoryId: 'green-white-series', tone: 0x578072, priceTier: 3, opacity: 0.9, transmission: 0.55, normalScale: 0.78 },
-	{ slug: 'blue-moonstone', name: '蓝月光', categoryId: 'blue-series', tone: 0xccd7e5, priceTier: 2, opacity: 0.84, transmission: 0.74 },
+	{ slug: 'blue-moonstone', name: '蓝月光', categoryId: 'blue-series', tone: 0xc4d8ed, priceTier: 2, opacity: 0.84, transmission: 0.74, photoTint: 0.38 },
 	{ slug: 'aquamarine-ice', name: '海蓝宝冰种', categoryId: 'blue-series', tone: 0xadc9e2, priceTier: 3, opacity: 0.84, transmission: 0.78 },
 	{ slug: 'devil-blue', name: '魔鬼蓝', categoryId: 'blue-series', tone: 0x2468ad, priceTier: 3, opacity: 0.92, transmission: 0.44, normalScale: 0.64 },
 	{ slug: 'kyanite', name: '蓝晶石', categoryId: 'blue-series', tone: 0x627aad, priceTier: 3, opacity: 0.9, transmission: 0.42, normalScale: 0.78 },
@@ -159,6 +161,7 @@ function materialFor(definition: CrystalDefinition): CrystalPhysicalMaterialConf
 		ior: definition.ior ?? 1.22,
 		envMapIntensity: definition.envMapIntensity ?? 1.02,
 		normalScale: definition.normalScale ?? 0.55,
+		photoTint: definition.photoTint,
 	};
 }
 
@@ -223,7 +226,7 @@ function clearQuartzSourceMaterial(): ReferenceCrystalMaterial {
 			color: 0xf4f7f6,
 			attenuationColor: 0xf2f7f5,
 			attenuationDistance: 3.8,
-			opacity: 0.74,
+			opacity: 0.88,
 			roughness: 0.12,
 			transmission: 0.9,
 			thickness: 1.05,
@@ -233,8 +236,8 @@ function clearQuartzSourceMaterial(): ReferenceCrystalMaterial {
 			ior: 1.46,
 			envMapIntensity: 1.06,
 			normalScale: 0,
-			photoFill: 0.24,
-			colorlessClarity: 0.38,
+			photoFill: 0.16,
+			colorlessClarity: 0.22,
 		},
 	};
 }

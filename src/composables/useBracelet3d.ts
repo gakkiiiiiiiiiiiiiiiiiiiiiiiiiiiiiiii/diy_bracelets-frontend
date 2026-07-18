@@ -468,14 +468,14 @@ export function useBracelet3d(
 		const opticalTransmission = Math.min(1, Math.max(0, config?.transmission ?? 0.5));
 		// 颜色贴图保留矿物纹理，摄影棚环境负责表面长条柔光；避免用点光源制造同位置圆斑。
 		const mappedRoughness = Math.min(
-			0.32,
-			Math.max(0.17, ((config?.roughness ?? 0.22) * 0.48 + 0.14) * (variation?.roughness ?? 1)),
+			0.3,
+			Math.max(0.11, ((config?.roughness ?? 0.22) * 0.48 + 0.07) * (variation?.roughness ?? 1)),
 		);
 		const mappedClearcoat = Math.min(
 			0.78,
 			Math.max(0.5, (0.5 + opticalTransmission * 0.25) * (variation?.clearcoat ?? 1)),
 		);
-		const mappedClearcoatRoughness = Math.min(0.28, Math.max(0.16, 0.3 - opticalTransmission * 0.17));
+		const mappedClearcoatRoughness = Math.min(0.24, Math.max(0.1, 0.22 - opticalTransmission * 0.12));
 		const mappedReflectivity = Math.min(0.54, Math.max(0.42, 0.4 + opticalTransmission * 0.16));
 		const mappedSpecularIntensity = Math.min(0.5, Math.max(0.36, 0.34 + opticalTransmission * 0.2));
 		const mappedEnvironmentIntensity = Math.min(
@@ -489,7 +489,12 @@ export function useBracelet3d(
 			variation?.tone ?? 1,
 			(variation?.tone ?? 1) - (variation?.warmth ?? 0),
 		);
-		const surfaceColor = new THREE.Color(usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb).multiply(tint);
+		const mappedTone = new THREE.Color(config?.color ?? 0xffffff);
+		const mappedTonePeak = Math.max(mappedTone.r, mappedTone.g, mappedTone.b, 0.001);
+		const mappedTintStrength = Math.min(0.72, Math.max(0, config?.photoTint ?? 0.32));
+		mappedTone.multiplyScalar(1 / mappedTonePeak).lerp(new THREE.Color(0xffffff), 1 - mappedTintStrength);
+		// 贴图保留矿物纹理，材质色仅作弱色相校正，避免黄晶偏绿、粉晶偏灰而不压暗照片曝光。
+		const surfaceColor = (usesBaseColorMap ? mappedTone : new THREE.Color(config?.color ?? 0xe3dfeb)).multiply(tint);
 		const usesColorlessAlpha = usesBaseColorMap && (config?.colorlessClarity ?? 0) > 0;
 		const materialParams = usesBaseColorMap ? { ...params, normalMap: null } : params;
 		const material = new THREE.MeshPhysicalMaterial({
