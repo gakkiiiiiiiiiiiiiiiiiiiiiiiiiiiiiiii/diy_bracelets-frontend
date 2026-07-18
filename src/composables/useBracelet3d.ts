@@ -603,6 +603,11 @@ export function useBracelet3d(
 						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
 						float beadBackdropTransmission = pow( beadProjectionFacing, 1.35 ) * beadColorlessClarity;
 						outgoingLight = mix( outgoingLight, vec3( 0.94, 0.955, 0.95 ), beadBackdropTransmission );
+						float beadColorlessRim = pow( 1.0 - beadProjectionFacing, 3.2 ) * beadColorlessClarity;
+						float beadWarmRim = smoothstep( -0.12, 0.72, beadProjectionLocal.x );
+						float beadCoolRim = smoothstep( -0.12, 0.72, -beadProjectionLocal.x );
+						outgoingLight += vec3( 0.075, 0.035, 0.006 ) * beadColorlessRim * beadWarmRim;
+						outgoingLight += vec3( 0.006, 0.034, 0.07 ) * beadColorlessRim * beadCoolRim;
 						float beadSoftboxHaloX = 1.0 - smoothstep( 0.055, 0.19, abs( beadProjectionLocal.x + 0.3 ) );
 						float beadSoftboxHaloY = 1.0 - smoothstep( 0.36, 0.72, abs( beadProjectionLocal.y - 0.16 ) );
 						float beadSoftboxCoreX = 1.0 - smoothstep( 0.025, 0.075, abs( beadProjectionLocal.x + 0.3 ) );
@@ -616,7 +621,7 @@ export function useBracelet3d(
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v7';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v8';
 		material.needsUpdate = true;
 	}
 
