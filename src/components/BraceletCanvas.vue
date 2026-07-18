@@ -249,16 +249,18 @@ defineExpose({ pauseRendering, resumeRendering, captureImage });
 	border-radius: 0;
 	overflow: hidden;
 	background:
-		radial-gradient(ellipse 72% 56% at 38% 28%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.72) 42%, rgba(255, 255, 255, 0) 76%),
-		radial-gradient(ellipse 58% 34% at 68% 78%, rgba(202, 214, 212, 0.14) 0%, rgba(202, 214, 212, 0) 72%),
-		linear-gradient(148deg, #f7f3ed 0%, #fffdf9 48%, #f1eee9 100%);
+		radial-gradient(ellipse 70% 54% at 38% 26%, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.42) 43%, rgba(255, 255, 255, 0) 76%),
+		radial-gradient(ellipse 64% 40% at 68% 82%, rgba(190, 205, 204, 0.13) 0%, rgba(190, 205, 204, 0) 72%),
+		radial-gradient(ellipse 104% 92% at 50% 46%, rgba(92, 101, 105, 0) 48%, rgba(92, 101, 105, 0.045) 100%),
+		linear-gradient(148deg, #f3efe9 0%, #fcfaf6 48%, #ebe9e5 100%);
 	box-shadow: none;
 }
 
 .canvas-3d--empty {
 	background:
-		radial-gradient(ellipse 74% 58% at 38% 28%, #fff 0%, rgba(255, 255, 255, 0.72) 44%, rgba(255, 255, 255, 0) 78%),
-		linear-gradient(148deg, #f7f3ed 0%, #fffdf9 50%, #f0ede8 100%);
+		radial-gradient(ellipse 74% 58% at 38% 28%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 44%, rgba(255, 255, 255, 0) 78%),
+		radial-gradient(ellipse 104% 92% at 50% 46%, rgba(92, 101, 105, 0) 50%, rgba(92, 101, 105, 0.035) 100%),
+		linear-gradient(148deg, #f4f0ea 0%, #fdfbf7 50%, #edeae5 100%);
 }
 
 /* 3D gl 画布容器 */
