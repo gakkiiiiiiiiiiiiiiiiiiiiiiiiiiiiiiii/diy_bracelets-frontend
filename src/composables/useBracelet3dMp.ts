@@ -439,7 +439,7 @@ export function useBracelet3dMp(
 			1.04,
 			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
 		);
-		const mappedFillIntensity = Math.min(0.075, Math.max(0.03, 0.03 + (1 - opticalTransmission) * 0.045));
+		const mappedFillIntensity = Math.min(0.24, Math.max(0.09, 0.09 + (1 - opticalTransmission) * 0.22));
 		const tint = new THREE!.Color(
 			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
 			variation?.tone ?? 1,
@@ -1470,17 +1470,15 @@ export function useBracelet3dMp(
 			renderer.toneMappingExposure = 0.94;
 		}
 
-		const ambient = new THREE.AmbientLight(0xffffff, 0.21);
+		// 与 H5 保持一致：单主灯形成高光，半球光负责无白点的柔和填充。
+		const ambient = new THREE.AmbientLight(0xffffff, 0.26);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xfffdf8, 0.38);
+		const hemisphere = new THREE.HemisphereLight(0xf2f8f7, 0xe6d7cd, 0.38);
+		hemisphere.position.set(0, 3.6, 0);
+		scene.add(hemisphere);
+		const key = new THREE.DirectionalLight(0xfff9ef, 0.34);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.14);
-		fill.position.set(2.8, 1.6, 2.2);
-		scene.add(fill);
-		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.09);
-		rim.position.set(0.4, 2.1, -3.4);
-		scene.add(rim);
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
 		createShowcaseSurface();

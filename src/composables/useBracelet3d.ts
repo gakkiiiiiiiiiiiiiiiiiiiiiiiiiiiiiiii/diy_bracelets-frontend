@@ -1,6 +1,5 @@
 import { ref, watch, onMounted, onUnmounted, nextTick, type Ref, type ComputedRef } from 'vue';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { BraceletBead } from '@/types';
 import { RESOLVED_API_BASE } from '@/config';
 import { getCrystalMaterialRenderConfig, type CrystalPhysicalMaterialConfig } from '@/data/crystalMaterials';
@@ -265,8 +264,6 @@ export function useBracelet3d(
 	const textureCache = new Map<string, THREE.Texture>();
 	let stageGlowTexture: THREE.CanvasTexture | null = null;
 	let stageReflectionTexture: THREE.CanvasTexture | null = null;
-	let environmentTexture: THREE.Texture | null = null;
-	let pmremGenerator: THREE.PMREMGenerator | null = null;
 	let showcaseSurfaceGroup: THREE.Group | null = null;
 	let stageGlowMesh: THREE.Mesh | null = null;
 	let stageReflectionMesh: THREE.Mesh | null = null;
@@ -474,7 +471,7 @@ export function useBracelet3d(
 			1.04,
 			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
 		);
-		const mappedFillIntensity = Math.min(0.075, Math.max(0.03, 0.03 + (1 - opticalTransmission) * 0.045));
+		const mappedFillIntensity = Math.min(0.24, Math.max(0.09, 0.09 + (1 - opticalTransmission) * 0.22));
 		const tint = new THREE.Color(
 			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
 			variation?.tone ?? 1,
@@ -1667,22 +1664,15 @@ export function useBracelet3d(
 		renderer.outputColorSpace = THREE.SRGBColorSpace;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping;
 		renderer.toneMappingExposure = 0.94;
-		pmremGenerator = new THREE.PMREMGenerator(renderer);
-		environmentTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.065).texture;
-		scene.environment = environmentTexture;
-
-		// 以环境反射和柔和方向光塑形，避免点光源在每颗珠子上形成相同的白色圆斑。
-		const ambient = new THREE.AmbientLight(0xffffff, 0.21);
+		// 一盏主灯负责高光，半球光只补充明暗层次，避免多盏方向灯在每颗珠子上复制白点。
+		const ambient = new THREE.AmbientLight(0xffffff, 0.26);
 		scene.add(ambient);
-		const key = new THREE.DirectionalLight(0xfffdf8, 0.34);
+		const hemisphere = new THREE.HemisphereLight(0xf2f8f7, 0xe6d7cd, 0.38);
+		hemisphere.position.set(0, 3.6, 0);
+		scene.add(hemisphere);
+		const key = new THREE.DirectionalLight(0xfff9ef, 0.34);
 		key.position.set(-3.2, 4.2, 2.6);
 		scene.add(key);
-		const fill = new THREE.DirectionalLight(0xe5f0ef, 0.14);
-		fill.position.set(2.8, 1.6, 2.2);
-		scene.add(fill);
-		const rim = new THREE.DirectionalLight(0xdbe8ee, 0.1);
-		rim.position.set(0.4, 2.1, -3.4);
-		scene.add(rim);
 		// 创建手串Group（珠子/环都放到group中场景里只加group）
 		braceletGroup = new THREE.Group();
 		scene.add(braceletGroup);
@@ -1792,8 +1782,6 @@ export function useBracelet3d(
 		stageGlowTexture = null;
 		stageReflectionTexture?.dispose();
 		stageReflectionTexture = null;
-		environmentTexture?.dispose();
-		environmentTexture = null;
 		showcaseSurfaceGroup?.traverse((child) => {
 			const geometry = (child as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
 			const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
@@ -1804,8 +1792,6 @@ export function useBracelet3d(
 		showcaseSurfaceGroup = null;
 		stageGlowMesh = null;
 		stageReflectionMesh = null;
-		pmremGenerator?.dispose();
-		pmremGenerator = null;
 		addAnimations.length = 0;
 		positionAnimations.length = 0;
 		removeAnimations.length = 0;
