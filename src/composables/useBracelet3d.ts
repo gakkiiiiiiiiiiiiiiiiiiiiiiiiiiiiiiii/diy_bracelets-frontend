@@ -146,6 +146,7 @@ interface AddAnimation {
 	toX: number;
 	toZ: number;
 	fromScale: number;
+	liftHeight: number;
 	startTime: number;
 	duration: number;
 }
@@ -1078,6 +1079,7 @@ export function useBracelet3d(
 						toX: x,
 						toZ: z,
 						fromScale: 0.48,
+						liftHeight: 0.05,
 						startTime: nowMs() + 80,
 						duration: REPLACE_BEAD_DURATION_MS,
 					});
@@ -1116,22 +1118,24 @@ export function useBracelet3d(
 
 			// 新珠子，先 scale=0
 			const { mesh, root } = createBeadMesh(bead, index, total);
-			const fromX = layoutMode === 'single' ? x * 0.2 : x * 0.12;
-			const fromZ = layoutMode === 'single' ? 1.04 : ringR + 1.08;
+			// 新珠子直接在最终槽位内缩放出现，避免飞入路径与已重排序列形成“双珠”错觉。
+			const fromX = x;
+			const fromZ = z;
 			const startDelay = oldIds.size === 0 ? index * ADD_STAGGER_MS : addOrdinal * Math.round(ADD_STAGGER_MS * 0.72);
 			addOrdinal += 1;
-			root.position.set(fromX, 0.24, fromZ);
+			root.position.set(fromX, 0, fromZ);
 			root.scale.setScalar(0.18);
 			braceletGroup.add(root); /* 只加入手串 group，不加入 scene */
 			beadMeshMap.set(bead.id, { mesh, root, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
 				mesh: root,
 				fromX,
-				fromY: 0.24,
+				fromY: 0,
 				fromZ,
 				toX: x,
 				toZ: z,
 				fromScale: 0.18,
+				liftHeight: 0.035,
 				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
 			});
@@ -1323,7 +1327,7 @@ export function useBracelet3d(
 			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
 			const move = easeOutCubic(t);
 			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);
-			const lift = Math.sin(Math.PI * Math.min(1, t)) * 0.16;
+			const lift = Math.sin(Math.PI * Math.min(1, t)) * anim.liftHeight;
 			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * move;
 			anim.mesh.position.y = anim.fromY * (1 - move) + lift;
 			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * move;

@@ -132,6 +132,7 @@ interface AddAnimation {
 	toX: number;
 	toZ: number;
 	fromScale: number;
+	liftHeight: number;
 	startTime: number;
 	duration: number;
 }
@@ -990,6 +991,7 @@ export function useBracelet3dMp(
 						toX: x,
 						toZ: z,
 						fromScale: 0.48,
+						liftHeight: 0.05,
 						startTime: nowMs() + 80,
 						duration: REPLACE_BEAD_DURATION_MS,
 					});
@@ -1027,22 +1029,24 @@ export function useBracelet3dMp(
 
 			const beadEntry = createBeadMesh(bead, index, total);
 			if (!beadEntry) return;
-			const fromX = layoutMode === 'single' ? x * 0.2 : x * 0.12;
-			const fromZ = layoutMode === 'single' ? 1.04 : ringR + 1.08;
+			// 与 H5 保持一致：新增珠子只在最终槽位入场，避免动画期间出现视觉重复。
+			const fromX = x;
+			const fromZ = z;
 			const startDelay = oldIds.size === 0 ? index * ADD_STAGGER_MS : addOrdinal * Math.round(ADD_STAGGER_MS * 0.72);
 			addOrdinal += 1;
-			beadEntry.root.position.set(fromX, 0.24, fromZ);
+			beadEntry.root.position.set(fromX, 0, fromZ);
 			beadEntry.root.scale.setScalar(0.18);
 			braceletGroup.add(beadEntry.root);
 			beadMeshMap.set(bead.id, { ...beadEntry, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
 				mesh: beadEntry.root,
 				fromX,
-				fromY: 0.24,
+				fromY: 0,
 				fromZ,
 				toX: x,
 				toZ: z,
 				fromScale: 0.18,
+				liftHeight: 0.035,
 				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
 			});
@@ -1225,7 +1229,7 @@ export function useBracelet3dMp(
 			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
 			const move = easeOutCubic(t);
 			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);
-			const lift = Math.sin(Math.PI * Math.min(1, t)) * 0.16;
+			const lift = Math.sin(Math.PI * Math.min(1, t)) * anim.liftHeight;
 			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * move;
 			anim.mesh.position.y = anim.fromY * (1 - move) + lift;
 			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * move;
