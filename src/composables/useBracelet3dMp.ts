@@ -439,13 +439,14 @@ export function useBracelet3dMp(
 			1.04,
 			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
 		);
-		const mappedFillIntensity = Math.min(0.24, Math.max(0.09, 0.09 + (1 - opticalTransmission) * 0.22));
+		const mappedFillIntensity = Math.min(0.16, Math.max(0.055, 0.055 + (1 - opticalTransmission) * 0.15));
 		const tint = new THREE!.Color(
 			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
 			variation?.tone ?? 1,
 			(variation?.tone ?? 1) - (variation?.warmth ?? 0),
 		);
 		const surfaceColor = new THREE!.Color(usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb).multiply(tint);
+		const materialParams = usesBaseColorMap ? { ...params, normalMap: null } : params;
 		const material = new THREE!.MeshPhysicalMaterial({
 			color: surfaceColor,
 			emissive: usesBaseColorMap ? 0xffffff : 0x000000,
@@ -467,14 +468,94 @@ export function useBracelet3dMp(
 			envMapIntensity: usesBaseColorMap ? mappedEnvironmentIntensity : Math.min(config?.envMapIntensity ?? 0.82, 0.9),
 			attenuationColor: new THREE!.Color(config?.attenuationColor ?? 0xded8ea),
 			attenuationDistance: config?.attenuationDistance ?? 2.2,
-			...params,
+			...materialParams,
 		});
 		const normalScale = usesBaseColorMap
 			? Math.min(0.24, Math.max(0.09, (config?.normalScale ?? 0.5) * 0.25 * (variation?.normal ?? 1)))
 			: Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale?.set?.(normalScale, normalScale);
 		material.userData.surfaceVariation = variation;
+		if (usesBaseColorMap) configureProjectedBeadTexture(material, variation, opticalTransmission);
 		return material;
+	}
+
+	/** 小程序端与 H5 使用同一套正视圆珠半球投影，避免方图被错误包裹到球面。 */
+	function configureProjectedBeadTexture(
+		material: any,
+		variation?: BeadSurfaceVariation,
+		opticalTransmission = 0.5,
+	) {
+		const projectionAngle = (variation?.rotationY ?? 0) * 0.28 + (variation?.rotationZ ?? 0) * 0.4;
+		const toneUnit = Math.min(1, Math.max(0, ((variation?.tone ?? 0.995) - 0.975) / 0.04));
+		const projectionScale = 0.448 + toneUnit * 0.014;
+		const projectionLift = Math.min(0.26, Math.max(0.1, 0.08 + (1 - opticalTransmission) * 0.24));
+		material.onBeforeCompile = (shader: any) => {
+			shader.uniforms.beadProjectionAngle = { value: projectionAngle };
+			shader.uniforms.beadProjectionScale = { value: projectionScale };
+			shader.uniforms.beadProjectionLift = { value: projectionLift };
+			shader.fragmentShader = `
+				uniform float beadProjectionAngle;
+				uniform float beadProjectionScale;
+				uniform float beadProjectionLift;
+			${shader.fragmentShader}`;
+			const projectionChunk = /* glsl */ `
+				vec3 beadProjectionNormal = normalize( vNormal );
+				vec3 beadProjectionViewDir = normalize( vViewPosition );
+				vec3 beadProjectionX = normalize( vec3( beadProjectionViewDir.z, 0.0, -beadProjectionViewDir.x ) );
+				vec3 beadProjectionY = cross( beadProjectionViewDir, beadProjectionX );
+				vec2 beadProjectionLocal = vec2(
+					dot( beadProjectionX, beadProjectionNormal ),
+					dot( beadProjectionY, beadProjectionNormal )
+				);
+				float beadProjectionCos = cos( beadProjectionAngle );
+				float beadProjectionSin = sin( beadProjectionAngle );
+				beadProjectionLocal = mat2(
+					beadProjectionCos, -beadProjectionSin,
+					beadProjectionSin, beadProjectionCos
+				) * beadProjectionLocal;
+				vec2 beadProjectionUv = beadProjectionLocal * beadProjectionScale + 0.5;
+
+				#ifdef USE_MAP
+					vec4 sampledDiffuseColor = texture2D( map, beadProjectionUv );
+					vec3 beadLiftedColor = pow( max( sampledDiffuseColor.rgb, vec3( 0.0 ) ), vec3( 0.82 ) );
+					sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, beadLiftedColor, beadProjectionLift );
+					sampledDiffuseColor.rgb *= 1.0 + beadProjectionLift * 0.75;
+					diffuseColor *= sampledDiffuseColor;
+				#endif
+			`;
+			shader.fragmentShader = shader.fragmentShader
+				.replace('#include <map_fragment>', projectionChunk)
+				.replace(
+					'#include <roughnessmap_fragment>',
+					/* glsl */ `
+						float roughnessFactor = roughness;
+						#ifdef USE_ROUGHNESSMAP
+							vec4 texelRoughness = texture2D( roughnessMap, beadProjectionUv );
+							roughnessFactor *= texelRoughness.g;
+						#endif
+					`,
+				)
+				.replace(
+					'#include <emissivemap_fragment>',
+					/* glsl */ `
+						#ifdef USE_EMISSIVEMAP
+							vec4 emissiveColor = texture2D( emissiveMap, beadProjectionUv );
+							totalEmissiveRadiance *= emissiveColor.rgb;
+						#endif
+					`,
+				)
+				.replace(
+					'#include <opaque_fragment>',
+					/* glsl */ `
+						float beadProjectionFacing = saturate( dot( beadProjectionNormal, beadProjectionViewDir ) );
+						float beadEdgeSculpt = smoothstep( 0.08, 0.92, beadProjectionFacing );
+						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
+						#include <opaque_fragment>
+					`,
+				);
+		};
+		material.customProgramCacheKey = () => 'projected-bead-texture-v5';
+		material.needsUpdate = true;
 	}
 
 	function angleForIndex(i: number, total: number) {
@@ -768,10 +849,7 @@ export function useBracelet3dMp(
 		if (hasTexture && textureUrls) {
 			loadTextureAsset(textureUrls.map, { isColor: true }, (map) => {
 				if (!mesh.parent || !map) return;
-				const optionalEntries = [
-					['roughnessMap', textureUrls.roughnessMap],
-					['normalMap', textureUrls.normalMap],
-				] as const;
+				const optionalEntries = [['roughnessMap', textureUrls.roughnessMap]] as const;
 				const loadedParams: Record<string, any> = {
 					map,
 				};
