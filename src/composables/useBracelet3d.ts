@@ -19,6 +19,8 @@ function getRingRadius(beadCount: number): number {
 /** 动画体系：参考视频的“飞入-补位-收起”节奏 */
 const ADD_BEAD_DURATION_MS = 520;
 const REFLOW_DURATION_MS = 420;
+/** 先让已有珠子完成大部分补位，再显示新珠，避免末位短暂叠成“双珠”。 */
+const ADD_REVEAL_DELAY_MS = REFLOW_DURATION_MS - 70;
 const REMOVE_BEAD_DURATION_MS = 340;
 const REPLACE_BEAD_DURATION_MS = 460;
 /** brand-ease 近似：平滑、无 overshoot（缓动函数，平滑动画过渡） */
@@ -159,6 +161,7 @@ interface AddAnimation {
 	liftHeight: number;
 	startTime: number;
 	duration: number;
+	hiddenUntilStart?: boolean;
 }
 
 // 珠子重定位时的动画结构
@@ -428,6 +431,8 @@ export function useBracelet3d(
 	function retargetAddAnimation(object: THREE.Object3D, toX: number, toZ: number) {
 		const animation = addAnimations.find((item) => item.mesh === object);
 		if (!animation) return false;
+		const updateTime = nowMs();
+		const isWaitingToReveal = animation.hiddenUntilStart && !object.visible;
 		for (let index = positionAnimations.length - 1; index >= 0; index -= 1) {
 			if (positionAnimations[index].mesh === object) positionAnimations.splice(index, 1);
 		}
@@ -437,7 +442,7 @@ export function useBracelet3d(
 		animation.toX = toX;
 		animation.toZ = toZ;
 		animation.fromScale = object.scale.x;
-		animation.startTime = nowMs();
+		animation.startTime = updateTime + (isWaitingToReveal ? ADD_REVEAL_DELAY_MS : 0);
 		animation.duration = ADD_BEAD_DURATION_MS;
 		return true;
 	}
@@ -1040,13 +1045,13 @@ export function useBracelet3d(
 	function updateBeads(newBeads: BraceletBead[], oldBeads: BraceletBead[] = []) {
 		if (!braceletGroup) return;
 		noteInteraction();
-		const oldIds = new Set(oldBeads.map((b) => b.id));
 		const newIds = new Set(newBeads.map((b) => b.id));
 		const replacingEmptyStage =
 			oldBeads.length > 0 &&
 			oldBeads.every((bead) => bead.id.startsWith('empty-')) &&
 			newBeads.some((bead) => !bead.id.startsWith('empty-'));
 		const updateTime = nowMs();
+		const hasExistingBeads = oldBeads.some((bead) => !bead.id.startsWith('empty-'));
 		let addOrdinal = 0;
 
 		// 移除被删掉的mesh
@@ -1159,15 +1164,17 @@ export function useBracelet3d(
 				return;
 			}
 
-			// 新珠子，先 scale=0
+			// 已有珠子先补位，新珠在接近完成后由同一个正式 mesh 显现，避免末位重叠成“双珠”。
 			const { mesh, root } = createBeadMesh(bead, index, total);
-			// 新珠子直接在最终槽位内缩放出现，避免飞入路径与已重排序列形成“双珠”错觉。
 			const fromX = x;
 			const fromZ = z;
-			const startDelay = oldIds.size === 0 ? index * ADD_STAGGER_MS : addOrdinal * Math.round(ADD_STAGGER_MS * 0.72);
+			const startDelay = hasExistingBeads
+				? ADD_REVEAL_DELAY_MS + addOrdinal * Math.round(ADD_STAGGER_MS * 0.72)
+				: index * ADD_STAGGER_MS;
 			addOrdinal += 1;
 			root.position.set(fromX, 0, fromZ);
-			root.scale.setScalar(0.18);
+			root.scale.setScalar(0.01);
+			root.visible = startDelay <= 0;
 			braceletGroup.add(root); /* 只加入手串 group，不加入 scene */
 			beadMeshMap.set(bead.id, { mesh, root, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
@@ -1177,10 +1184,11 @@ export function useBracelet3d(
 				fromZ,
 				toX: x,
 				toZ: z,
-				fromScale: 0.18,
+				fromScale: 0.01,
 				liftHeight: 0.035,
 				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
+				hiddenUntilStart: startDelay > 0,
 			});
 		});
 		targetRingRadius = ringR;
@@ -1367,6 +1375,11 @@ export function useBracelet3d(
 		const toRemove: number[] = [];
 		addAnimations.forEach((anim, idx) => {
 			const elapsed = now - anim.startTime;
+			if (anim.hiddenUntilStart && elapsed < 0) {
+				anim.mesh.visible = false;
+				return;
+			}
+			anim.mesh.visible = true;
 			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
 			const move = easeOutCubic(t);
 			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);

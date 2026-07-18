@@ -21,6 +21,8 @@ function getRingRadius(beadCount: number): number {
 }
 const ADD_BEAD_DURATION_MS = 520;
 const REFLOW_DURATION_MS = 420;
+/** 先让已有珠子完成大部分补位，再显示新珠，避免末位短暂叠成“双珠”。 */
+const ADD_REVEAL_DELAY_MS = REFLOW_DURATION_MS - 70;
 const REMOVE_BEAD_DURATION_MS = 340;
 const REPLACE_BEAD_DURATION_MS = 460;
 const easeBrand = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
@@ -145,6 +147,7 @@ interface AddAnimation {
 	liftHeight: number;
 	startTime: number;
 	duration: number;
+	hiddenUntilStart?: boolean;
 }
 
 interface PositionAnimation {
@@ -396,6 +399,8 @@ export function useBracelet3dMp(
 	function retargetAddAnimation(object: any, toX: number, toZ: number) {
 		const animation = addAnimations.find((item) => item.mesh === object);
 		if (!animation) return false;
+		const updateTime = nowMs();
+		const isWaitingToReveal = animation.hiddenUntilStart && !object.visible;
 		for (let index = positionAnimations.length - 1; index >= 0; index -= 1) {
 			if (positionAnimations[index].mesh === object) positionAnimations.splice(index, 1);
 		}
@@ -405,7 +410,7 @@ export function useBracelet3dMp(
 		animation.toX = toX;
 		animation.toZ = toZ;
 		animation.fromScale = object.scale.x;
-		animation.startTime = nowMs();
+		animation.startTime = updateTime + (isWaitingToReveal ? ADD_REVEAL_DELAY_MS : 0);
 		animation.duration = ADD_BEAD_DURATION_MS;
 		return true;
 	}
@@ -955,13 +960,13 @@ export function useBracelet3dMp(
 	function updateBeads(newBeads: BraceletBead[], oldBeads: BraceletBead[] = []) {
 		if (!braceletGroup || !THREE) return;
 		noteInteraction();
-		const oldIds = new Set(oldBeads.map((b) => b.id));
 		const newIds = new Set(newBeads.map((b) => b.id));
 		const replacingEmptyStage =
 			oldBeads.length > 0 &&
 			oldBeads.every((bead) => bead.id.startsWith('empty-')) &&
 			newBeads.some((bead) => !bead.id.startsWith('empty-'));
 		const updateTime = nowMs();
+		const hasExistingBeads = oldBeads.some((bead) => !bead.id.startsWith('empty-'));
 		let addOrdinal = 0;
 
 		for (const id of beadMeshMap.keys()) {
@@ -1072,13 +1077,16 @@ export function useBracelet3dMp(
 
 			const beadEntry = createBeadMesh(bead, index, total);
 			if (!beadEntry) return;
-			// 与 H5 保持一致：新增珠子只在最终槽位入场，避免动画期间出现视觉重复。
+			// 与 H5 保持一致：已有珠子先补位，新珠再由唯一的正式 mesh 显现。
 			const fromX = x;
 			const fromZ = z;
-			const startDelay = oldIds.size === 0 ? index * ADD_STAGGER_MS : addOrdinal * Math.round(ADD_STAGGER_MS * 0.72);
+			const startDelay = hasExistingBeads
+				? ADD_REVEAL_DELAY_MS + addOrdinal * Math.round(ADD_STAGGER_MS * 0.72)
+				: index * ADD_STAGGER_MS;
 			addOrdinal += 1;
 			beadEntry.root.position.set(fromX, 0, fromZ);
-			beadEntry.root.scale.setScalar(0.18);
+			beadEntry.root.scale.setScalar(0.01);
+			beadEntry.root.visible = startDelay <= 0;
 			braceletGroup.add(beadEntry.root);
 			beadMeshMap.set(bead.id, { ...beadEntry, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
@@ -1088,10 +1096,11 @@ export function useBracelet3dMp(
 				fromZ,
 				toX: x,
 				toZ: z,
-				fromScale: 0.18,
+				fromScale: 0.01,
 				liftHeight: 0.035,
 				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
+				hiddenUntilStart: startDelay > 0,
 			});
 		});
 		targetRingRadius = ringR;
@@ -1269,6 +1278,11 @@ export function useBracelet3dMp(
 		const toRemove: number[] = [];
 		addAnimations.forEach((anim, idx) => {
 			const elapsed = now - anim.startTime;
+			if (anim.hiddenUntilStart && elapsed < 0) {
+				anim.mesh.visible = false;
+				return;
+			}
+			anim.mesh.visible = true;
 			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
 			const move = easeOutCubic(t);
 			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);
