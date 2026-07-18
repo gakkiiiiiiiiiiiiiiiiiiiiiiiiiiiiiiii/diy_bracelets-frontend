@@ -439,21 +439,24 @@ export function useBracelet3dMp(
 			1.04,
 			Math.max(0.68, (0.68 + opticalTransmission * 0.38) * (variation?.environment ?? 1)),
 		);
-		const mappedFillIntensity = Math.min(0.16, Math.max(0.055, 0.055 + (1 - opticalTransmission) * 0.15));
+		const mappedFillIntensity =
+			config?.photoFill ?? Math.min(0.16, Math.max(0.055, 0.055 + (1 - opticalTransmission) * 0.15));
 		const tint = new THREE!.Color(
 			(variation?.tone ?? 1) + (variation?.warmth ?? 0),
 			variation?.tone ?? 1,
 			(variation?.tone ?? 1) - (variation?.warmth ?? 0),
 		);
 		const surfaceColor = new THREE!.Color(usesBaseColorMap ? 0xffffff : config?.color ?? 0xe3dfeb).multiply(tint);
+		const usesColorlessAlpha = usesBaseColorMap && (config?.colorlessClarity ?? 0) > 0;
 		const materialParams = usesBaseColorMap ? { ...params, normalMap: null } : params;
 		const material = new THREE!.MeshPhysicalMaterial({
 			color: surfaceColor,
 			emissive: usesBaseColorMap ? 0xffffff : 0x000000,
 			emissiveMap: usesBaseColorMap ? params.map : null,
 			emissiveIntensity: usesBaseColorMap ? mappedFillIntensity : 0,
-			transparent: false,
-			opacity: 1,
+			transparent: usesColorlessAlpha,
+			opacity: usesColorlessAlpha ? (config?.opacity ?? 0.62) : 1,
+			depthWrite: true,
 			roughness: usesBaseColorMap ? mappedRoughness : Math.max(config?.roughness ?? 0.25, 0.2),
 			metalness: config?.metalness ?? 0.0,
 			// 颜色图已经包含珠子的透光与明暗，避免再折射浅色工作台形成白色光圈。
@@ -475,7 +478,9 @@ export function useBracelet3dMp(
 			: Math.min(config?.normalScale ?? 0.34, 0.44);
 		material.normalScale?.set?.(normalScale, normalScale);
 		material.userData.surfaceVariation = variation;
-		if (usesBaseColorMap) configureProjectedBeadTexture(material, variation, opticalTransmission);
+		if (usesBaseColorMap) {
+			configureProjectedBeadTexture(material, variation, opticalTransmission, config?.colorlessClarity ?? 0);
+		}
 		return material;
 	}
 
@@ -484,6 +489,7 @@ export function useBracelet3dMp(
 		material: any,
 		variation?: BeadSurfaceVariation,
 		opticalTransmission = 0.5,
+		colorlessClarity = 0,
 	) {
 		const projectionAngle = (variation?.rotationY ?? 0) * 0.28 + (variation?.rotationZ ?? 0) * 0.4;
 		const toneUnit = Math.min(1, Math.max(0, ((variation?.tone ?? 0.995) - 0.975) / 0.04));
@@ -499,11 +505,13 @@ export function useBracelet3dMp(
 			shader.uniforms.beadProjectionScale = { value: projectionScale };
 			shader.uniforms.beadProjectionLift = { value: projectionLift };
 			shader.uniforms.beadSoftboxStrength = { value: softboxStrength };
+			shader.uniforms.beadColorlessClarity = { value: colorlessClarity };
 			shader.fragmentShader = `
 				uniform float beadProjectionAngle;
 				uniform float beadProjectionScale;
 				uniform float beadProjectionLift;
 				uniform float beadSoftboxStrength;
+				uniform float beadColorlessClarity;
 			${shader.fragmentShader}`;
 			const projectionChunk = /* glsl */ `
 				vec3 beadProjectionNormal = normalize( vNormal );
@@ -557,6 +565,8 @@ export function useBracelet3dMp(
 						float beadProjectionFacing = saturate( dot( beadProjectionNormal, beadProjectionViewDir ) );
 						float beadEdgeSculpt = smoothstep( 0.08, 0.92, beadProjectionFacing );
 						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
+						float beadBackdropTransmission = pow( beadProjectionFacing, 1.35 ) * beadColorlessClarity;
+						outgoingLight = mix( outgoingLight, vec3( 0.94, 0.955, 0.95 ), beadBackdropTransmission );
 						float beadSoftboxHaloX = 1.0 - smoothstep( 0.055, 0.19, abs( beadProjectionLocal.x + 0.3 ) );
 						float beadSoftboxHaloY = 1.0 - smoothstep( 0.36, 0.72, abs( beadProjectionLocal.y - 0.16 ) );
 						float beadSoftboxCoreX = 1.0 - smoothstep( 0.025, 0.075, abs( beadProjectionLocal.x + 0.3 ) );
@@ -570,7 +580,7 @@ export function useBracelet3dMp(
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v6';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v7';
 		material.needsUpdate = true;
 	}
 

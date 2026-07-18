@@ -23,6 +23,8 @@ export interface CrystalPhysicalMaterialConfig {
 	ior: number;
 	envMapIntensity: number;
 	normalScale: number;
+	photoFill?: number;
+	colorlessClarity?: number;
 }
 
 export interface ReferenceCrystalMaterial extends Material {
@@ -197,8 +199,48 @@ function sourceLikeMaterial(
 	};
 }
 
+function clearQuartzSourceMaterial(): ReferenceCrystalMaterial {
+	const base = getGeneratedMaterial('ref-starry-quartz');
+	const root = `${ROOT}/clear-quartz`;
+	const maps: CrystalMaterialMaps = {
+		map: `${root}/clear-quartz-basecolor.png`,
+		roughnessMap: '',
+		normalMap: '',
+		alphaMap: '',
+		preview: `${root}/clear-quartz-preview.png`,
+	};
+	return {
+		...base,
+		id: 'source-clear-quartz',
+		slug: 'clear-quartz',
+		name: '净体白水晶',
+		image: maps.preview,
+		categoryId: 'green-white-series',
+		specs: specsByTier[1],
+		maps,
+		renderMaterial: {
+			...base.renderMaterial,
+			color: 0xf4f7f6,
+			attenuationColor: 0xf2f7f5,
+			attenuationDistance: 3.8,
+			opacity: 0.74,
+			roughness: 0.12,
+			transmission: 0.9,
+			thickness: 1.05,
+			clearcoat: 0.98,
+			clearcoatRoughness: 0.08,
+			reflectivity: 0.76,
+			ior: 1.46,
+			envMapIntensity: 1.06,
+			normalScale: 0,
+			photoFill: 0.24,
+			colorlessClarity: 0.52,
+		},
+	};
+}
+
 export const sourceLikeCrystalMaterials: ReferenceCrystalMaterial[] = [
-	sourceLikeMaterial('ref-starry-quartz', 'source-clear-quartz', '净体白水晶', specsByTier[1]),
+	clearQuartzSourceMaterial(),
 	sourceLikeMaterial('ref-blue-moonstone', 'source-milky-quartz', '奶白晶', [
 		{ size: 8, price: 4 },
 		{ size: 10, price: 8 },
