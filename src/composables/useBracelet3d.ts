@@ -602,9 +602,15 @@ export function useBracelet3d(
 					0.5 + beadProjectionOffsetX,
 					0.5 + beadProjectionOffsetY
 				);
+				float beadProjectionRadius = clamp( length( beadLightingLocal ), 0.0, 1.0 );
 
 				#ifdef USE_MAP
 					vec4 sampledDiffuseColor = texture2D( map, beadProjectionUv );
+					// 球形镜片会把靠近边缘的纹理向内部折射；二次采样让裂纹与包裹体拥有真实纵深，而非贴在表面。
+					float beadLensZone = smoothstep( 0.34, 0.9, beadProjectionRadius ) * beadOpticalTransmission;
+					vec2 beadLensUv = ( beadProjectionUv - vec2( 0.5 ) ) * ( 1.0 - beadLensZone * 0.072 ) + vec2( 0.5 );
+					vec3 beadLensColor = texture2D( map, beadLensUv ).rgb;
+					sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, beadLensColor, beadLensZone * 0.34 );
 					vec3 beadLiftedColor = pow( max( sampledDiffuseColor.rgb, vec3( 0.0 ) ), vec3( 0.82 ) );
 					sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, beadLiftedColor, beadProjectionLift );
 					sampledDiffuseColor.rgb *= 1.0 + beadProjectionLift * 0.75;
@@ -636,6 +642,10 @@ export function useBracelet3d(
 					'#include <opaque_fragment>',
 					/* glsl */ `
 						float beadProjectionFacing = saturate( dot( beadProjectionNormal, beadProjectionViewDir ) );
+						// 宽幅主光从左上方扫过整颗珠子，恢复实拍贴图被 emissive 填光削弱的明暗方向。
+						float beadStudioKey = smoothstep( -0.82, 0.92, -beadLightingLocal.x + beadLightingLocal.y * 0.46 );
+						float beadStudioContrast = mix( 0.9, 1.045, beadStudioKey );
+						outgoingLight *= mix( 1.0, beadStudioContrast, 0.48 + beadOpticalTransmission * 0.28 );
 						float beadEdgeSculpt = smoothstep( 0.08, 0.92, beadProjectionFacing );
 						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
 						float beadInterior = pow( beadProjectionFacing, 1.7 );
@@ -670,7 +680,7 @@ export function useBracelet3d(
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v10';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v11';
 		material.needsUpdate = true;
 	}
 
@@ -1242,8 +1252,8 @@ export function useBracelet3d(
 				}
 			: {
 					x: 0.28,
-					y: 1.48,
-					z: fittedDistance * 0.94,
+					y: 2.05,
+					z: fittedDistance * 0.92,
 					upX: 0,
 					upY: 1,
 					upZ: 0,
