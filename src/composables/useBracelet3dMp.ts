@@ -489,14 +489,21 @@ export function useBracelet3dMp(
 		const toneUnit = Math.min(1, Math.max(0, ((variation?.tone ?? 0.995) - 0.975) / 0.04));
 		const projectionScale = 0.448 + toneUnit * 0.014;
 		const projectionLift = Math.min(0.26, Math.max(0.1, 0.08 + (1 - opticalTransmission) * 0.24));
+		const softboxVariation = Math.min(
+			1.12,
+			Math.max(0.88, (variation?.clearcoat ?? 1) / (variation?.roughness ?? 1)),
+		);
+		const softboxStrength = (0.062 + opticalTransmission * 0.055) * softboxVariation;
 		material.onBeforeCompile = (shader: any) => {
 			shader.uniforms.beadProjectionAngle = { value: projectionAngle };
 			shader.uniforms.beadProjectionScale = { value: projectionScale };
 			shader.uniforms.beadProjectionLift = { value: projectionLift };
+			shader.uniforms.beadSoftboxStrength = { value: softboxStrength };
 			shader.fragmentShader = `
 				uniform float beadProjectionAngle;
 				uniform float beadProjectionScale;
 				uniform float beadProjectionLift;
+				uniform float beadSoftboxStrength;
 			${shader.fragmentShader}`;
 			const projectionChunk = /* glsl */ `
 				vec3 beadProjectionNormal = normalize( vNormal );
@@ -550,11 +557,20 @@ export function useBracelet3dMp(
 						float beadProjectionFacing = saturate( dot( beadProjectionNormal, beadProjectionViewDir ) );
 						float beadEdgeSculpt = smoothstep( 0.08, 0.92, beadProjectionFacing );
 						outgoingLight *= mix( 0.68, 1.035, beadEdgeSculpt );
+						float beadSoftboxHaloX = 1.0 - smoothstep( 0.055, 0.19, abs( beadProjectionLocal.x + 0.3 ) );
+						float beadSoftboxHaloY = 1.0 - smoothstep( 0.36, 0.72, abs( beadProjectionLocal.y - 0.16 ) );
+						float beadSoftboxCoreX = 1.0 - smoothstep( 0.025, 0.075, abs( beadProjectionLocal.x + 0.3 ) );
+						float beadSoftboxCoreY = 1.0 - smoothstep( 0.28, 0.54, abs( beadProjectionLocal.y - 0.16 ) );
+						float beadSoftboxReflection = (
+							beadSoftboxHaloX * beadSoftboxHaloY * 0.42 +
+							beadSoftboxCoreX * beadSoftboxCoreY * 0.58
+						) * smoothstep( 0.14, 0.66, beadProjectionFacing );
+						outgoingLight += vec3( 1.0, 0.985, 0.955 ) * beadSoftboxReflection * beadSoftboxStrength;
 						#include <opaque_fragment>
 					`,
 				);
 		};
-		material.customProgramCacheKey = () => 'projected-bead-texture-v5';
+		material.customProgramCacheKey = () => 'projected-bead-texture-v6';
 		material.needsUpdate = true;
 	}
 
