@@ -364,6 +364,47 @@ export function useBracelet3dMp(
 		return material;
 	}
 
+	function createCrystalCausticMaterial(baseOpacity: number, tint: number) {
+		const causticColor = new THREE!.Color(tint).lerp(new THREE!.Color(0xffffff), 0.72);
+		const material = new THREE!.ShaderMaterial({
+			uniforms: {
+				causticColor: { value: causticColor },
+				shadowOpacity: { value: baseOpacity },
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				}
+			`,
+			fragmentShader: `
+				uniform vec3 causticColor;
+				uniform float shadowOpacity;
+				varying vec2 vUv;
+				void main() {
+					vec2 centered = (vUv - 0.5) * 2.0;
+					centered.x += 0.18;
+					float focusRadius = length(vec2(centered.x * 0.68, centered.y * 1.72));
+					float focus = 1.0 - smoothstep(0.04, 0.48, focusRadius);
+					float halo = 1.0 - smoothstep(0.32, 1.0, focusRadius);
+					float spectral = smoothstep(-0.7, 0.72, centered.y);
+					vec3 spectralTint = mix(vec3(0.83, 0.93, 1.0), vec3(1.0, 0.9, 0.76), spectral);
+					vec3 color = mix(vec3(1.0), causticColor, 0.28) * spectralTint;
+					float alpha = (focus * 0.78 + halo * halo * 0.22) * shadowOpacity;
+					gl_FragColor = vec4(color, alpha);
+				}
+			`,
+			transparent: true,
+			depthWrite: false,
+			depthTest: true,
+			blending: THREE!.AdditiveBlending,
+		});
+		material.opacity = baseOpacity;
+		material.userData.baseOpacity = baseOpacity;
+		return material;
+	}
+
 	function setObjectOpacity(object: any, opacity: number) {
 		object.traverse?.((child: any) => {
 			const material = child.material;
@@ -888,6 +929,21 @@ export function useBracelet3dMp(
 			);
 			shadowMesh.renderOrder = -1;
 			shadowGroup.add(shadowMesh);
+		}
+		const causticStrength = Math.min(1, Math.max(0, (opticalTransmission - 0.52) / 0.48));
+		if (causticStrength > 0.05) {
+			const causticMesh = new THREE.Mesh(
+				new THREE.PlaneGeometry(radius * 2.35, radius * 0.92),
+				createCrystalCausticMaterial(
+					0.055 * causticStrength,
+					renderConfig?.material.attenuationColor ?? 0xf2f7f5,
+				),
+			);
+			causticMesh.rotation.x = -Math.PI / 2;
+			causticMesh.rotation.z = SHADOW_SLANT;
+			causticMesh.position.set(radius * -0.46, radius * -1.012, radius * 0.24);
+			causticMesh.renderOrder = 0;
+			shadowGroup.add(causticMesh);
 		}
 		const selectionGroup = new THREE.Group();
 		const selectionGlowMaterial = new THREE.MeshBasicMaterial({
