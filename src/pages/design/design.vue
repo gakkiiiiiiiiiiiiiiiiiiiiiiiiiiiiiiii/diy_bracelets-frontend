@@ -25,7 +25,7 @@ import {
 	type DesignEntrySource,
 } from '@/utils/designNavigation';
 import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
-import type { Material, MaterialSpec } from '@/types';
+import type { BraceletBead, Material, MaterialSpec } from '@/types';
 import type { BraceletCodeResolution, CartItem, ResolvedBraceletBead } from '@/api';
 import { api } from '@/api';
 import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
@@ -49,6 +49,8 @@ const WRIST_TARGET_STEP_CM = 0.5;
 const wristTargetOptions = [14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18];
 const loadingReady = ref(false);
 const loadingProgress = ref(0);
+const videoRenderJobId = ref('');
+const isVideoRenderMode = computed(() => Boolean(videoRenderJobId.value));
 const entrySource = ref<DesignEntrySource>('bracelet');
 const activeRouteSource = ref<DesignEntrySource | null>(null);
 let loadingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,7 +93,56 @@ function startPageLoading() {
 	}, 2200);
 }
 
-onMounted(() => {
+function waitForVideoRender(ms: number) {
+	return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function runVideoPageReplay() {
+	// #ifndef H5
+	return;
+	// #endif
+	if (!videoRenderJobId.value) return;
+	const job = await api.getDesignProcessVideo(videoRenderJobId.value);
+	const loadedImages = new Set<string>();
+	viewMode.value = 'top';
+	window.scrollTo(0, 0);
+	await nextTick();
+	await waitForVideoRender(900);
+	for (let index = 0; index < job.steps.length; index += 1) {
+		const beads: BraceletBead[] = job.steps[index].beads.map((bead, beadIndex) => ({
+			id: `video-${index}-${beadIndex}`,
+			materialId: bead.materialId,
+			specId: bead.specId,
+			name: bead.name,
+			image: bead.image,
+			size: bead.size,
+			price: bead.price,
+			quantity: 1,
+			orderIndex: beadIndex,
+		}));
+		const hasNewTexture = beads.some((bead) => bead.image && !loadedImages.has(bead.image));
+		beads.forEach((bead) => bead.image && loadedImages.add(bead.image));
+		designStore.setDesignPlaybackSnapshot(beads);
+		await nextTick();
+		await waitForVideoRender(hasNewTexture ? 1200 : 520);
+		document.documentElement.dataset.videoFrameIndex = String(index);
+		const acknowledgementDeadline = Date.now() + 20_000;
+		while (document.documentElement.dataset.videoFrameAck !== String(index)) {
+			if (Date.now() >= acknowledgementDeadline) throw new Error(`第 ${index + 1} 步截图确认超时`);
+			await waitForVideoRender(50);
+		}
+	}
+}
+
+onMounted(async () => {
+	if (isVideoRenderMode.value) {
+		loadingReady.value = true;
+		loadingProgress.value = 100;
+		hideDesignTabBar();
+		await Promise.all([contentStore.fetchContent(), materialsStore.fetchFromApi()]);
+		await runVideoPageReplay();
+		return;
+	}
 	void contentStore.fetchContent();
 	loadTargetHandCircumference();
 	materialsStore.fetchFromApi();
@@ -105,6 +156,10 @@ onMounted(() => {
 });
 
 onShow(() => {
+	if (isVideoRenderMode.value) {
+		hideDesignTabBar();
+		return;
+	}
 	syncEntrySource(readRouteSource());
 	restoreDesignStateForCurrentSource();
 	syncTargetFromAppliedDesign();
@@ -114,6 +169,7 @@ onShow(() => {
 });
 
 onHide(() => {
+	if (isVideoRenderMode.value) return;
 	braceletCanvasRef.value?.pauseRendering();
 	uni.showTabBar({ animation: false, fail: () => undefined });
 });
@@ -453,6 +509,7 @@ interface MaterialAddPayload {
 }
 
 onLoad((query: Record<string, string | undefined>) => {
+	videoRenderJobId.value = String(query?.videoRenderJobId || '');
 	syncEntrySource(query?.source);
 });
 
@@ -1469,6 +1526,7 @@ function hideDesignTabBar() {
 			'page--loading': !loadingReady,
 			'page--ready': loadingReady,
 			'page--confirm-open': designConfirmOpen,
+			'page--video-render': isVideoRenderMode,
 		}"
 	>
 		<!-- 顶部自定义导航栏，含重置按钮 -->
