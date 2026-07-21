@@ -1746,10 +1746,6 @@ export function useBracelet3d(
 		}
 	}
 
-	function getCanvasElement() {
-		return canvasEl;
-	}
-
 	/**
 	 * 鼠标/触摸 按下事件：优先检测是否点中珠子（拖拽排序/删除），否则旋转手串
 	 */
@@ -2194,6 +2190,5 @@ export function useBracelet3d(
 		pauseRendering,
 		resumeRendering,
 		captureImage,
-		getCanvasElement,
 	};
 }

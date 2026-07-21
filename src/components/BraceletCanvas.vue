@@ -33,12 +33,11 @@ const contentStore = useContentStore();
 // 使用 UI 状态相关的 Pinia store
 const uiStore = useUIStore();
 
-// 回放时临时接管渲染数据；正常状态下画布严格等于当前 DIY 设计，初始为空。
+// 画布严格等于当前 DIY 设计，初始为空；过程回放会同步更新整个 Store 和工作台。
 const hasActualBeads = computed(() => designStore.braceletDesign.length > 0);
-const playbackBeads = ref<BraceletBead[] | null>(null);
 const emptyTitle = computed(() => (props.mode === 'single' ? '3D 单珠' : contentStore.diy.canvasTitle));
 const emptySub = computed(() => (props.mode === 'single' ? '挑选第一颗散珠' : contentStore.diy.canvasHint));
-const beads = computed(() => playbackBeads.value ?? designStore.braceletDesign);
+const beads = computed(() => designStore.braceletDesign);
 let rendererBeadDragging: Ref<boolean> | null = null;
 let rendererBeadDeleteTarget: Ref<boolean> | null = null;
 
@@ -135,25 +134,23 @@ function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): st
 async function generateProcessVideo(
 	steps: DesignProcessStep[],
 	onProgress?: (progress: number) => void,
+	onCaptureReady?: () => Promise<void> | void,
 ): Promise<DesignProcessVideoResult | null> {
 	let result: DesignProcessVideoResult | null = null;
 	// #ifdef H5
-	const sourceCanvas = h5Renderer.getCanvasElement();
-	if (!sourceCanvas) throw new Error('设计画布尚未准备好');
+	const finalBeads = designStore.braceletDesign.map((bead) => ({ ...bead }));
 	try {
 		result = await recordDesignProcessVideo({
-			sourceCanvas,
 			steps,
-			brandName: contentStore.brand.name,
-			brandNameEn: contentStore.brand.nameEn,
 			onProgress,
+			onCaptureReady,
 			applyStep: async (step) => {
-				playbackBeads.value = step.beads.map((bead) => ({ ...bead }));
+				designStore.setDesignPlaybackSnapshot(step.beads);
 				await new Promise<void>((resolve) => nextTick(resolve));
 			},
 		});
 	} finally {
-		playbackBeads.value = null;
+		designStore.setDesignPlaybackSnapshot(finalBeads);
 		await new Promise<void>((resolve) => nextTick(resolve));
 	}
 	// #endif

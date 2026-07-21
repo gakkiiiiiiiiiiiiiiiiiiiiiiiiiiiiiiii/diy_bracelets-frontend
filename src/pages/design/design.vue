@@ -44,6 +44,7 @@ const braceletCanvasRef = ref<{
 	generateProcessVideo: (
 		steps: DesignProcessStep[],
 		onProgress?: (progress: number) => void,
+		onCaptureReady?: () => Promise<void> | void,
 	) => Promise<DesignProcessVideoResult | null>;
 } | null>(null);
 const DRAFT_STORAGE_KEY = 'bracelet-draft';
@@ -334,6 +335,11 @@ const processVideoStepCount = computed(() =>
 const processVideoDurationText = computed(() => {
 	if (!processVideoResult.value) return '';
 	return `${Math.max(1, Math.round(processVideoResult.value.durationMs / 1000))} 秒`;
+});
+const processVideoPreviewStyle = computed(() => {
+	const result = processVideoResult.value;
+	if (!result?.width || !result?.height) return {};
+	return { aspectRatio: `${result.width} / ${result.height}` };
 });
 const designConfirmComposition = computed(() => beadsToComposition(designStore.braceletDesign));
 const designConfirmMaterialRows = computed(() => designConfirmComposition.value.slice(0, 4));
@@ -1267,11 +1273,19 @@ async function generateProcessVideo() {
 		const result = await braceletCanvasRef.value?.generateProcessVideo(
 			steps,
 			(progress) => { processVideoProgress.value = progress; },
+			async () => {
+				designConfirmOpen.value = false;
+				functionMenuOpen.value = false;
+				wristSelectorOpen.value = false;
+				await nextTick();
+			},
 		);
 		if (!result) throw new Error('过程视频生成失败');
 		processVideoResult.value = result;
+		designConfirmOpen.value = true;
 		uni.showToast({ title: '过程视频已生成', icon: 'success' });
 	} catch (error: any) {
+		designConfirmOpen.value = true;
 		uni.showToast({ title: error?.message || '过程视频生成失败', icon: 'none' });
 	} finally {
 		processVideoGenerating.value = false;
@@ -1765,7 +1779,7 @@ function hideDesignTabBar() {
 						<view class="design-process-video__head">
 							<view>
 								<text class="design-process-video__eyebrow">设计回忆</text>
-								<text class="design-process-video__title">生成手串诞生过程</text>
+								<text class="design-process-video__title">生成完整工作台过程</text>
 							</view>
 							<text class="design-process-video__meta">{{ processVideoStepCount }} 步</text>
 						</view>
@@ -1776,10 +1790,11 @@ function hideDesignTabBar() {
 							:controls="true"
 							:show-center-play-btn="true"
 							:show-fullscreen-btn="true"
+							:style="processVideoPreviewStyle"
 						/>
 						<view v-else class="design-process-video__summary">
 							<BrandIcon name="play" tone="brand" />
-							<text>自动回放珠子的添加、移动与删除，并生成可保存的视频</text>
+							<text>完整录制当前工作台，并自动回放珠子的添加、移动与删除；生成时请选择“当前标签页”</text>
 						</view>
 						<view
 							class="design-process-video__action"
@@ -1788,7 +1803,7 @@ function hideDesignTabBar() {
 						>
 							<template v-if="processVideoGenerating">
 								<view class="design-process-video__spinner" />
-								<text>正在回放并生成 {{ processVideoProgress }}%</text>
+								<text>正在录制完整工作台 {{ processVideoProgress }}%</text>
 							</template>
 							<template v-else-if="processVideoResult">
 								<BrandIcon name="file-down" tone="inverse" />
@@ -1796,7 +1811,7 @@ function hideDesignTabBar() {
 							</template>
 							<template v-else>
 								<BrandIcon name="play" tone="inverse" />
-								<text>生成过程视频</text>
+								<text>录制完整工作台视频</text>
 							</template>
 						</view>
 					</view>
@@ -1804,6 +1819,15 @@ function hideDesignTabBar() {
 					<view class="design-confirm-actions">
 						<button class="design-confirm-btn ghost" @tap="confirmDesignToCart">加入购物车</button>
 						<button class="design-confirm-btn" @tap="confirmDesignCheckout">立即结算</button>
+					</view>
+				</view>
+			</view>
+			<view v-if="processVideoGenerating && !designConfirmOpen" class="process-recording-guard">
+				<view class="process-recording-badge">
+					<view class="process-recording-dot" />
+					<view class="process-recording-copy">
+						<text>正在录制完整工作台</text>
+						<text>自动回放设计过程 · {{ processVideoProgress }}%</text>
 					</view>
 				</view>
 			</view>
@@ -5025,12 +5049,13 @@ function hideDesignTabBar() {
 
 .design-process-video__preview {
 	display: block;
-	width: 360rpx;
-	height: 450rpx;
-	max-width: 100%;
+	width: 100%;
+	height: auto;
+	min-height: 340rpx;
 	margin: 18rpx auto 0;
 	border-radius: 16rpx;
 	background: #edeae5;
+	object-fit: contain;
 	overflow: hidden;
 }
 
@@ -5059,6 +5084,63 @@ function hideDesignTabBar() {
 	border-top-color: #fff;
 	border-radius: 50%;
 	animation: loading-spin 0.8s linear infinite;
+}
+
+.process-recording-guard {
+	position: fixed;
+	inset: 0;
+	z-index: 84;
+	pointer-events: auto;
+}
+
+.process-recording-badge {
+	position: absolute;
+	left: 50%;
+	top: calc(112rpx + env(safe-area-inset-top));
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 14rpx;
+	min-width: 330rpx;
+	padding: 14rpx 20rpx;
+	border-radius: 999rpx;
+	background: rgba(35, 41, 44, 0.86);
+	box-shadow: 0 12rpx 30rpx rgba(18, 24, 27, 0.2);
+	backdrop-filter: blur(16rpx);
+	box-sizing: border-box;
+}
+
+.process-recording-dot {
+	width: 18rpx;
+	height: 18rpx;
+	border-radius: 50%;
+	background: #e45f5f;
+	box-shadow: 0 0 0 7rpx rgba(228, 95, 95, 0.16);
+	animation: recording-pulse 1.1s ease-in-out infinite;
+	flex-shrink: 0;
+}
+
+.process-recording-copy {
+	display: flex;
+	flex-direction: column;
+	gap: 3rpx;
+	color: #fff;
+}
+
+.process-recording-copy text:first-child {
+	font-size: 22rpx;
+	font-weight: 900;
+}
+
+.process-recording-copy text:last-child {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 18rpx;
+	font-weight: 700;
+}
+
+@keyframes recording-pulse {
+	0%, 100% { opacity: 0.62; transform: scale(0.86); }
+	50% { opacity: 1; transform: scale(1); }
 }
 
 .design-confirm-actions {

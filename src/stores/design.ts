@@ -89,6 +89,13 @@ export const useDesignStore = defineStore('design', () => {
 		];
 	}
 
+	/** 过程回放专用：只更新工作台画面，不生成新的历史事件。 */
+	function setDesignPlaybackSnapshot(beads: BraceletBead[]) {
+		braceletDesign.value = cloneBeads(beads);
+		refreshOrderIndex();
+		lastBeadAction.value = null;
+	}
+
 	/**
 	 * 计算当前设计的总价
 	 */
@@ -304,6 +311,7 @@ export const useDesignStore = defineStore('design', () => {
 		hasUnavailableParts,
 		designProcess,
 		resetDesignProcess,
+		setDesignPlaybackSnapshot,
 		lastBeadAction,
 		clearLastBeadAction,
 		totalPrice, // 总价
