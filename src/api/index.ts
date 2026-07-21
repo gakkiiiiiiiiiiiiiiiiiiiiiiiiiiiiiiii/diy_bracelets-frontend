@@ -209,6 +209,7 @@ export interface DesignProcessVideoJob {
   width: number;
   height: number;
   error: string | null;
+  steps: DesignProcessVideoStepPayload[];
 }
 
 export interface DesignProcessVideoStepPayload {
@@ -282,6 +283,8 @@ export const api = {
     request<DesignProcessVideoJob>(`/api/design-process-videos`, 'POST', body),
   getDesignProcessVideo: (id: string) =>
     request<DesignProcessVideoJob>(`/api/design-process-videos/${id}`),
+  uploadDesignProcessVideoFrame: (id: string, index: number, imageBase64: string) =>
+    request<{ ok: true }>(`/api/design-process-videos/${id}/render-frames/${index}`, 'POST', { imageBase64 }),
   getCart: () => request<CartData>(`/api/cart`),
   getProfile: () => request<ProfileData>(`/api/profile`),
   /** 我的设计：列表、新增、更新、删除 */

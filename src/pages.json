@@ -44,6 +44,13 @@
 			}
 		},
 		{
+			"path": "pages/video-render/video-render",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": ""
+			}
+		},
+		{
 			"path": "pages/plaza/plaza",
 			"style": {
 				"navigationStyle": "custom",
