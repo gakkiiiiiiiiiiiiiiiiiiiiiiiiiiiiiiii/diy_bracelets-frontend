@@ -28,12 +28,24 @@ import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
 import type { Material, MaterialSpec } from '@/types';
 import type { BraceletCodeResolution, CartItem, ResolvedBraceletBead } from '@/api';
 import { api } from '@/api';
+import type { DesignProcessStep } from '@/stores/design';
+import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
+// #ifdef H5
+import { downloadDesignProcessVideo } from '@/utils/designProcessVideo';
+// #endif
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedDesignsStore = useSavedDesignsStore();
 const uiStore = useUIStore();
 const contentStore = useContentStore();
-const braceletCanvasRef = ref<{ pauseRendering: () => void; resumeRendering: () => void } | null>(null);
+const braceletCanvasRef = ref<{
+	pauseRendering: () => void;
+	resumeRendering: () => void;
+	generateProcessVideo: (
+		steps: DesignProcessStep[],
+		onProgress?: (progress: number) => void,
+	) => Promise<DesignProcessVideoResult | null>;
+} | null>(null);
 const DRAFT_STORAGE_KEY = 'bracelet-draft';
 const DRAFT_RESTORE_KEY = 'diy-bracelets-restore-draft-on-next-design-open';
 const CURRENT_BRACELET_STORAGE_KEY = 'diy-bracelets-current-bracelet-design';
@@ -120,6 +132,7 @@ onUnmounted(() => {
 	if (insufficientHintTimer) clearTimeout(insufficientHintTimer);
 	if (insufficientToastTimer) clearTimeout(insufficientToastTimer);
 	if (functionToastTimer) clearTimeout(functionToastTimer);
+	releaseProcessVideo();
 	if (typeof window !== 'undefined') {
 		window.removeEventListener('hashchange', onRouteHashChange);
 	}
@@ -312,6 +325,16 @@ function playDesignFeedback(kind: DesignFeedbackKind = 'tap') {
 }
 
 const designConfirmOpen = ref(false);
+const processVideoGenerating = ref(false);
+const processVideoProgress = ref(0);
+const processVideoResult = ref<DesignProcessVideoResult | null>(null);
+const processVideoStepCount = computed(() =>
+	(designStore.designProcess ?? []).filter((step) => step.action !== 'start').length,
+);
+const processVideoDurationText = computed(() => {
+	if (!processVideoResult.value) return '';
+	return `${Math.max(1, Math.round(processVideoResult.value.durationMs / 1000))} 秒`;
+});
 const designConfirmComposition = computed(() => beadsToComposition(designStore.braceletDesign));
 const designConfirmMaterialRows = computed(() => designConfirmComposition.value.slice(0, 4));
 const designConfirmPreviewBeads = computed(() => designStore.braceletDesign.slice(0, 18));
@@ -352,6 +375,10 @@ watch(designConfirmOpen, (open) => {
 		return;
 	}
 	hideDesignTabBar();
+});
+
+watch(processVideoStepCount, (count, previousCount) => {
+	if (count !== previousCount && processVideoResult.value) releaseProcessVideo();
 });
 type NoticeTabKey = 'tutorial' | 'purchase' | 'wrist' | 'size';
 
@@ -506,9 +533,11 @@ function applyEntrySource(source?: string) {
 		functionMenuOpen.value = false;
 		return;
 	}
-	const restored = restoreCurrentBraceletIfNeeded({ force: previousSource === 'single' });
-	if (!restored && previousSource === 'single') {
-		designStore.clearDesign();
+	if (previousSource !== 'single') return;
+	const restored = restoreCurrentBraceletIfNeeded({ force: true });
+	if (!restored) {
+		designStore.clearDesign({ record: false });
+		designStore.resetDesignProcess([]);
 		uiStore.setSelectedBeadId(null);
 	}
 }
@@ -552,7 +581,6 @@ function readRouteSource() {
 function restoreDesignStateForCurrentSource() {
 	if (entrySource.value !== 'bracelet') return;
 	restoreDraftIfRequested();
-	restoreCurrentBraceletIfNeeded();
 }
 
 function parseStoredBeads(raw: unknown) {
@@ -1214,6 +1242,54 @@ function closeDesignConfirm() {
 	designConfirmOpen.value = false;
 }
 
+function releaseProcessVideo() {
+	if (!processVideoResult.value) return;
+	// #ifdef H5
+	URL.revokeObjectURL(processVideoResult.value.url);
+	// #endif
+	processVideoResult.value = null;
+}
+
+async function generateProcessVideo() {
+	if (processVideoGenerating.value) return;
+	if (processVideoStepCount.value < 1) {
+		uni.showToast({ title: '请先完成一次珠子操作', icon: 'none' });
+		return;
+	}
+	releaseProcessVideo();
+	processVideoGenerating.value = true;
+	processVideoProgress.value = 1;
+	try {
+		const steps = (designStore.designProcess ?? []).map((step) => ({
+			...step,
+			beads: step.beads.map((bead) => ({ ...bead })),
+		}));
+		const result = await braceletCanvasRef.value?.generateProcessVideo(
+			steps,
+			(progress) => { processVideoProgress.value = progress; },
+		);
+		if (!result) throw new Error('过程视频生成失败');
+		processVideoResult.value = result;
+		uni.showToast({ title: '过程视频已生成', icon: 'success' });
+	} catch (error: any) {
+		uni.showToast({ title: error?.message || '过程视频生成失败', icon: 'none' });
+	} finally {
+		processVideoGenerating.value = false;
+		processVideoProgress.value = 0;
+	}
+}
+
+function downloadProcessVideo() {
+	if (!processVideoResult.value) return;
+	// #ifdef H5
+	downloadDesignProcessVideo(processVideoResult.value);
+	uni.showToast({ title: '已开始下载', icon: 'none' });
+	// #endif
+	// #ifndef H5
+	uni.showToast({ title: '请在 H5 版下载视频', icon: 'none' });
+	// #endif
+}
+
 function designConfirmBeadStyle(index: number, total: number) {
 	const count = Math.max(total, 1);
 	const angle = index * (360 / count);
@@ -1683,6 +1759,46 @@ function hideDesignTabBar() {
 					<view class="design-confirm-note">
 						<view class="design-confirm-note__dot" />
 						<text>{{ designConfirmNoteText }}</text>
+					</view>
+
+					<view v-if="entrySource === 'bracelet'" class="design-process-video">
+						<view class="design-process-video__head">
+							<view>
+								<text class="design-process-video__eyebrow">设计回忆</text>
+								<text class="design-process-video__title">生成手串诞生过程</text>
+							</view>
+							<text class="design-process-video__meta">{{ processVideoStepCount }} 步</text>
+						</view>
+						<video
+							v-if="processVideoResult"
+							class="design-process-video__preview"
+							:src="processVideoResult.url"
+							:controls="true"
+							:show-center-play-btn="true"
+							:show-fullscreen-btn="true"
+						/>
+						<view v-else class="design-process-video__summary">
+							<BrandIcon name="play" tone="brand" />
+							<text>自动回放珠子的添加、移动与删除，并生成可保存的视频</text>
+						</view>
+						<view
+							class="design-process-video__action"
+							:class="{ 'design-process-video__action--loading': processVideoGenerating }"
+							@tap="processVideoResult ? downloadProcessVideo() : generateProcessVideo()"
+						>
+							<template v-if="processVideoGenerating">
+								<view class="design-process-video__spinner" />
+								<text>正在回放并生成 {{ processVideoProgress }}%</text>
+							</template>
+							<template v-else-if="processVideoResult">
+								<BrandIcon name="file-down" tone="inverse" />
+								<text>下载过程视频 · {{ processVideoDurationText }}</text>
+							</template>
+							<template v-else>
+								<BrandIcon name="play" tone="inverse" />
+								<text>生成过程视频</text>
+							</template>
+						</view>
 					</view>
 
 					<view class="design-confirm-actions">
@@ -4567,6 +4683,7 @@ function hideDesignTabBar() {
 	background: #f7f7fb;
 	box-shadow: 0 -18rpx 48rpx rgba(21, 24, 34, 0.18);
 	box-sizing: border-box;
+	overflow-y: auto;
 	animation: confirm-sheet-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -4843,6 +4960,105 @@ function hideDesignTabBar() {
 	border-radius: 50%;
 	background: #d0a09d;
 	flex-shrink: 0;
+}
+
+.design-process-video {
+	margin-top: 18rpx;
+	padding: 22rpx;
+	border-radius: 20rpx;
+	background: linear-gradient(145deg, rgba(82, 121, 133, 0.11), rgba(208, 160, 157, 0.08)), #fff;
+	border: 1rpx solid rgba(82, 121, 133, 0.14);
+	box-sizing: border-box;
+}
+
+.design-process-video__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+
+.design-process-video__head > view:first-child {
+	display: flex;
+	flex-direction: column;
+	gap: 5rpx;
+}
+
+.design-process-video__eyebrow {
+	color: #527985;
+	font-size: 20rpx;
+	font-weight: 900;
+	letter-spacing: 2rpx;
+}
+
+.design-process-video__title {
+	color: #232630;
+	font-size: 27rpx;
+	font-weight: 900;
+}
+
+.design-process-video__meta {
+	padding: 6rpx 13rpx;
+	border-radius: 999rpx;
+	background: rgba(82, 121, 133, 0.1);
+	color: #527985;
+	font-size: 20rpx;
+	font-weight: 900;
+}
+
+.design-process-video__summary {
+	display: flex;
+	align-items: center;
+	gap: 14rpx;
+	margin-top: 18rpx;
+	color: #777d82;
+	font-size: 21rpx;
+	font-weight: 700;
+	line-height: 1.42;
+}
+
+.design-process-video__summary :deep(.brand-icon),
+.design-process-video__action :deep(.brand-icon) {
+	width: 32rpx;
+	height: 32rpx;
+}
+
+.design-process-video__preview {
+	display: block;
+	width: 360rpx;
+	height: 450rpx;
+	max-width: 100%;
+	margin: 18rpx auto 0;
+	border-radius: 16rpx;
+	background: #edeae5;
+	overflow: hidden;
+}
+
+.design-process-video__action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12rpx;
+	min-height: 70rpx;
+	margin-top: 18rpx;
+	border-radius: 999rpx;
+	background: #527985;
+	color: #fff;
+	font-size: 23rpx;
+	font-weight: 900;
+}
+
+.design-process-video__action--loading {
+	background: #78939b;
+}
+
+.design-process-video__spinner {
+	width: 24rpx;
+	height: 24rpx;
+	border: 4rpx solid rgba(255, 255, 255, 0.35);
+	border-top-color: #fff;
+	border-radius: 50%;
+	animation: loading-spin 0.8s linear infinite;
 }
 
 .design-confirm-actions {

@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, type Ref } from 'vue';
+import { ref, computed, watch, onMounted, nextTick, type Ref } from 'vue';
 import { useDesignStore } from '@/stores/design';
 import { useContentStore } from '@/stores/content';
 import { useUIStore } from '@/stores/ui';
 import type { BraceletBead } from '@/types';
+import type { DesignProcessStep } from '@/stores/design';
+import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
+// #ifdef H5
+import { recordDesignProcessVideo } from '@/utils/designProcessVideo';
+// #endif
 // #ifdef H5
 import { useBracelet3d } from '@/composables/useBracelet3d';
 // #endif
@@ -28,46 +33,12 @@ const contentStore = useContentStore();
 // 使用 UI 状态相关的 Pinia store
 const uiStore = useUIStore();
 
-function createPreviewBeads(rows: Array<[string, string, string, number]>, prefix: string): BraceletBead[] {
-	return rows.map(([materialId, name, slug, size], index) => ({
-		id: `${prefix}-${index}`,
-		materialId: String(materialId),
-		name: String(name),
-		image: `/static/materials/reference-crystals/${slug}/${slug}-preview.png`,
-		size: Number(size),
-		price: 0,
-		quantity: 1,
-		orderIndex: index,
-	}));
-}
-
-const emptyBraceletStageBeads = createPreviewBeads([
-	['ref-blue-moonstone', '蓝月光', 'blue-moonstone', 10],
-	['ref-aquamarine-ice', '海蓝宝冰种', 'aquamarine-ice', 9],
-	['ref-yellow-crystal', '黄水晶', 'yellow-crystal', 10],
-	['ref-golden-rutile', '金发晶', 'golden-rutile', 9],
-	['ref-strawberry-crystal', '草莓晶', 'strawberry-crystal', 10],
-	['ref-rose-stone', '蔷薇石', 'rose-stone', 9],
-	['ref-green-phantom', '绿幽灵', 'green-phantom', 10],
-	['ref-prehnite', '葡萄石', 'prehnite', 9],
-	['ref-larimar', '海纹石', 'larimar', 10],
-	['ref-amazonite', '天河石', 'amazonite', 9],
-	['ref-bolivian-amethyst', '玻利维亚紫', 'bolivian-amethyst', 10],
-	['ref-uruguay-amethyst', '乌拉圭紫', 'uruguay-amethyst', 9],
-], 'empty-bracelet-stage');
-
-const emptySingleStageBeads = createPreviewBeads([
-	['ref-strawberry-crystal', '草莓晶', 'strawberry-crystal', 12],
-	['ref-blue-moonstone', '蓝月光', 'blue-moonstone', 10],
-	['ref-uruguay-amethyst', '乌拉圭紫', 'uruguay-amethyst', 12],
-], 'empty-single-stage');
-
-// 计算属性：当前设计的珠子数组（reactive 响应式）；空设计时显示 3D 预览珠阵。
+// 回放时临时接管渲染数据；正常状态下画布严格等于当前 DIY 设计，初始为空。
 const hasActualBeads = computed(() => designStore.braceletDesign.length > 0);
-const emptyStageBeads = computed(() => (props.mode === 'single' ? emptySingleStageBeads : emptyBraceletStageBeads));
+const playbackBeads = ref<BraceletBead[] | null>(null);
 const emptyTitle = computed(() => (props.mode === 'single' ? '3D 单珠' : contentStore.diy.canvasTitle));
 const emptySub = computed(() => (props.mode === 'single' ? '挑选第一颗散珠' : contentStore.diy.canvasHint));
-const beads = computed(() => (hasActualBeads.value ? designStore.braceletDesign : emptyStageBeads.value));
+const beads = computed(() => playbackBeads.value ?? designStore.braceletDesign);
 let rendererBeadDragging: Ref<boolean> | null = null;
 let rendererBeadDeleteTarget: Ref<boolean> | null = null;
 
@@ -161,7 +132,38 @@ function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): st
 	return image;
 }
 
-defineExpose({ pauseRendering, resumeRendering, captureImage });
+async function generateProcessVideo(
+	steps: DesignProcessStep[],
+	onProgress?: (progress: number) => void,
+): Promise<DesignProcessVideoResult | null> {
+	let result: DesignProcessVideoResult | null = null;
+	// #ifdef H5
+	const sourceCanvas = h5Renderer.getCanvasElement();
+	if (!sourceCanvas) throw new Error('设计画布尚未准备好');
+	try {
+		result = await recordDesignProcessVideo({
+			sourceCanvas,
+			steps,
+			brandName: contentStore.brand.name,
+			brandNameEn: contentStore.brand.nameEn,
+			onProgress,
+			applyStep: async (step) => {
+				playbackBeads.value = step.beads.map((bead) => ({ ...bead }));
+				await new Promise<void>((resolve) => nextTick(resolve));
+			},
+		});
+	} finally {
+		playbackBeads.value = null;
+		await new Promise<void>((resolve) => nextTick(resolve));
+	}
+	// #endif
+	// #ifndef H5
+	throw new Error('微信小程序暂不支持本地合成视频，请在 H5 版生成');
+	// #endif
+	return result;
+}
+
+defineExpose({ pauseRendering, resumeRendering, captureImage, generateProcessVideo });
 </script>
 
 <template>

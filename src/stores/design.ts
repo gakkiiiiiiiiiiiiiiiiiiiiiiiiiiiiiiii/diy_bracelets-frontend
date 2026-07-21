@@ -6,6 +6,17 @@ import { MIN_HAND_CIRCUMFERENCE_CM } from '@/data/mock';
 
 export type DesignSource = 'manual' | 'plaza' | 'saved' | 'draft' | 'order' | 'cart' | 'inspiration';
 
+export type DesignProcessAction = 'start' | 'add' | 'move' | 'remove' | 'replace' | 'clear' | 'apply';
+
+export interface DesignProcessStep {
+	id: string;
+	action: DesignProcessAction;
+	at: number;
+	beads: BraceletBead[];
+	fromIndex?: number;
+	toIndex?: number;
+}
+
 interface ApplyDesignOptions {
 	source?: DesignSource;
 	handCircumferenceCm?: number | null;
@@ -32,6 +43,9 @@ export const useDesignStore = defineStore('design', () => {
 	const designSource = ref<DesignSource>('manual');
 	const handCircumferenceCm = ref<number | null>(null);
 	const hasUnavailableParts = ref(false);
+	const designProcess = ref<DesignProcessStep[]>([
+		{ id: 'process-start', action: 'start', at: Date.now(), beads: [] },
+	]);
 	const lastBeadAction = ref<{
 		type: 'add' | 'replace' | 'remove' | 'clear' | 'apply';
 		materialId?: string;
@@ -42,6 +56,38 @@ export const useDesignStore = defineStore('design', () => {
 		specId?: string;
 		at: number;
 	} | null>(null);
+
+	function cloneBeads(beads = braceletDesign.value): BraceletBead[] {
+		return beads.map((bead) => ({ ...bead }));
+	}
+
+	function recordDesignStep(
+		action: DesignProcessAction,
+		meta: Pick<DesignProcessStep, 'fromIndex' | 'toIndex'> = {},
+	) {
+		const at = Date.now();
+		designProcess.value.push({
+			id: `process-${at}-${designProcess.value.length}`,
+			action,
+			at,
+			beads: cloneBeads(),
+			...meta,
+		});
+		if (designProcess.value.length > 120) {
+			designProcess.value.splice(1, designProcess.value.length - 120);
+		}
+	}
+
+	function resetDesignProcess(initialBeads: BraceletBead[] = braceletDesign.value) {
+		designProcess.value = [
+			{
+				id: `process-start-${Date.now()}`,
+				action: 'start',
+				at: Date.now(),
+				beads: cloneBeads(initialBeads),
+			},
+		];
+	}
 
 	/**
 	 * 计算当前设计的总价
@@ -101,6 +147,7 @@ export const useDesignStore = defineStore('design', () => {
 			specId: spec.specId,
 			at: Date.now(),
 		};
+		recordDesignStep('add');
 	}
 
 	/**
@@ -125,6 +172,7 @@ export const useDesignStore = defineStore('design', () => {
 			price: removed?.price,
 			at: Date.now(),
 		};
+		recordDesignStep('remove');
 	}
 
 	function replaceBead(id: string, material: Material, spec: MaterialSpec) {
@@ -152,17 +200,19 @@ export const useDesignStore = defineStore('design', () => {
 			specId: spec.specId,
 			at: Date.now(),
 		};
+		recordDesignStep('replace');
 	}
 
 	/**
 	 * 清空当前手链设计
 	 */
-	function clearDesign() {
+	function clearDesign(options: { record?: boolean } = {}) {
 		braceletDesign.value = [];
 		designSource.value = 'manual';
 		handCircumferenceCm.value = null;
 		hasUnavailableParts.value = false;
 		lastBeadAction.value = { type: 'clear', at: Date.now() };
+		if (options.record !== false) recordDesignStep('clear');
 	}
 
 	function clearLastBeadAction(at?: number) {
@@ -176,11 +226,14 @@ export const useDesignStore = defineStore('design', () => {
 	 * @param toIndex 目标下标
 	 */
 	function reorderBeads(fromIndex: number, toIndex: number) {
+		if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
 		const list = [...braceletDesign.value];
 		const [item] = list.splice(fromIndex, 1);
+		if (!item) return;
 		list.splice(toIndex, 0, item);
 		braceletDesign.value = list;
 		refreshOrderIndex();
+		recordDesignStep('move', { fromIndex, toIndex });
 	}
 
 	/**
@@ -219,6 +272,7 @@ export const useDesignStore = defineStore('design', () => {
 		handCircumferenceCm.value = typeof options.handCircumferenceCm === 'number' ? options.handCircumferenceCm : null;
 		hasUnavailableParts.value = !!options.hasUnavailableParts;
 		lastBeadAction.value = { type: 'apply', at: Date.now() };
+		recordDesignStep('apply');
 	}
 
 	function applyOrderedBeads(
@@ -240,6 +294,7 @@ export const useDesignStore = defineStore('design', () => {
 		handCircumferenceCm.value = typeof options.handCircumferenceCm === 'number' ? options.handCircumferenceCm : null;
 		hasUnavailableParts.value = !!options.hasUnavailableParts;
 		lastBeadAction.value = { type: 'apply', at: Date.now() };
+		recordDesignStep('apply');
 	}
 
 	return {
@@ -247,6 +302,8 @@ export const useDesignStore = defineStore('design', () => {
 		designSource,
 		handCircumferenceCm,
 		hasUnavailableParts,
+		designProcess,
+		resetDesignProcess,
 		lastBeadAction,
 		clearLastBeadAction,
 		totalPrice, // 总价
