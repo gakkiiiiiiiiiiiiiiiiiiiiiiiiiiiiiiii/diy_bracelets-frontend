@@ -1,14 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick, type Ref } from 'vue';
+import { ref, computed, watch, onMounted, type Ref } from 'vue';
 import { useDesignStore } from '@/stores/design';
 import { useContentStore } from '@/stores/content';
 import { useUIStore } from '@/stores/ui';
 import type { BraceletBead } from '@/types';
-import type { DesignProcessStep } from '@/stores/design';
-import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
-// #ifdef H5
-import { recordDesignProcessVideo } from '@/utils/designProcessVideo';
-// #endif
 // #ifdef H5
 import { useBracelet3d } from '@/composables/useBracelet3d';
 // #endif
@@ -131,36 +126,7 @@ function captureImage(type = 'image/png', quality = 0.92, outputSize = 1024): st
 	return image;
 }
 
-async function generateProcessVideo(
-	steps: DesignProcessStep[],
-	onProgress?: (progress: number) => void,
-	onCaptureReady?: () => Promise<void> | void,
-): Promise<DesignProcessVideoResult | null> {
-	let result: DesignProcessVideoResult | null = null;
-	// #ifdef H5
-	const finalBeads = designStore.braceletDesign.map((bead) => ({ ...bead }));
-	try {
-		result = await recordDesignProcessVideo({
-			steps,
-			onProgress,
-			onCaptureReady,
-			applyStep: async (step) => {
-				designStore.setDesignPlaybackSnapshot(step.beads);
-				await new Promise<void>((resolve) => nextTick(resolve));
-			},
-		});
-	} finally {
-		designStore.setDesignPlaybackSnapshot(finalBeads);
-		await new Promise<void>((resolve) => nextTick(resolve));
-	}
-	// #endif
-	// #ifndef H5
-	throw new Error('微信小程序暂不支持本地合成视频，请在 H5 版生成');
-	// #endif
-	return result;
-}
-
-defineExpose({ pauseRendering, resumeRendering, captureImage, generateProcessVideo });
+defineExpose({ pauseRendering, resumeRendering, captureImage });
 </script>
 
 <template>

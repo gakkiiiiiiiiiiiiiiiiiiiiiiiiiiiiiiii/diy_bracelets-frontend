@@ -200,6 +200,33 @@ function publishedContent<T extends object>(config: PageConfigResponse<T>): Part
   return config.isPublished && config.publishedContent ? config.publishedContent : null;
 }
 
+export interface DesignProcessVideoJob {
+  id: string;
+  status: 'queued' | 'rendering' | 'encoding' | 'complete' | 'failed';
+  progress: number;
+  videoUrl: string | null;
+  durationMs: number | null;
+  width: number;
+  height: number;
+  error: string | null;
+}
+
+export interface DesignProcessVideoStepPayload {
+  id: string;
+  action: 'start' | 'add' | 'move' | 'remove' | 'replace' | 'clear' | 'apply';
+  at: number;
+  beads: Array<{
+    materialId: string;
+    specId: string;
+    name: string;
+    size: number;
+    price: number;
+    orderIndex: number;
+  }>;
+  fromIndex?: number;
+  toIndex?: number;
+}
+
 export const api = {
   getCategories: () => request<MaterialCategory[]>(`/api/categories`),
   getMaterials: () => request<Material[]>(`/api/materials`),
@@ -238,6 +265,10 @@ export const api = {
     orderedBeads: Array<{ materialId: string; specId: string }>;
     wristCm?: number;
   }) => request<DesignDetail>(`/api/inspirations`, 'POST', body),
+  createDesignProcessVideo: (body: { steps: DesignProcessVideoStepPayload[]; wristCm: number }) =>
+    request<DesignProcessVideoJob>(`/api/design-process-videos`, 'POST', body),
+  getDesignProcessVideo: (id: string) =>
+    request<DesignProcessVideoJob>(`/api/design-process-videos/${id}`),
   getCart: () => request<CartData>(`/api/cart`),
   getProfile: () => request<ProfileData>(`/api/profile`),
   /** 我的设计：列表、新增、更新、删除 */
