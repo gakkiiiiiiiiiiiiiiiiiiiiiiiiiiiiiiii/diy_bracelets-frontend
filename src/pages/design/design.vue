@@ -1261,6 +1261,13 @@ async function generateProcessVideo() {
 		}));
 		const result = await generateDesignProcessVideo({
 			steps,
+			palette: materialsStore.filteredMaterialSpecCards.slice(0, 6).map((card) => ({
+				materialId: card.material.id,
+				name: card.material.name,
+				image: card.material.image,
+				size: card.spec.size,
+				price: card.spec.price,
+			})),
 			wristCm: targetCircumference.value,
 			onProgress: (progress) => { processVideoProgress.value = progress; },
 		});

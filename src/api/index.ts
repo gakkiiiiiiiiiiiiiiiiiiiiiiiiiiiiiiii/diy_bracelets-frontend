@@ -219,12 +219,21 @@ export interface DesignProcessVideoStepPayload {
     materialId: string;
     specId: string;
     name: string;
+    image: string;
     size: number;
     price: number;
     orderIndex: number;
   }>;
   fromIndex?: number;
   toIndex?: number;
+}
+
+export interface DesignProcessVideoPaletteItem {
+  materialId: string;
+  name: string;
+  image: string;
+  size: number;
+  price: number;
 }
 
 export const api = {
@@ -265,7 +274,11 @@ export const api = {
     orderedBeads: Array<{ materialId: string; specId: string }>;
     wristCm?: number;
   }) => request<DesignDetail>(`/api/inspirations`, 'POST', body),
-  createDesignProcessVideo: (body: { steps: DesignProcessVideoStepPayload[]; wristCm: number }) =>
+  createDesignProcessVideo: (body: {
+    steps: DesignProcessVideoStepPayload[];
+    palette: DesignProcessVideoPaletteItem[];
+    wristCm: number;
+  }) =>
     request<DesignProcessVideoJob>(`/api/design-process-videos`, 'POST', body),
   getDesignProcessVideo: (id: string) =>
     request<DesignProcessVideoJob>(`/api/design-process-videos/${id}`),

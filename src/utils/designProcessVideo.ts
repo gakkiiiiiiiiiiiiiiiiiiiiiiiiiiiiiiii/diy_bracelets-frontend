@@ -1,4 +1,4 @@
-import { api, type DesignProcessVideoStepPayload } from '@/api';
+import { api, type DesignProcessVideoPaletteItem, type DesignProcessVideoStepPayload } from '@/api';
 import type { DesignProcessStep } from '@/stores/design';
 import { resolveStaticUrl } from '@/utils/staticUrl';
 
@@ -14,6 +14,7 @@ export interface DesignProcessVideoResult {
 
 interface GenerateDesignProcessVideoOptions {
 	steps: DesignProcessStep[];
+	palette: DesignProcessVideoPaletteItem[];
 	wristCm: number;
 	onProgress?: (progress: number) => void;
 }
@@ -31,6 +32,7 @@ function toPayload(step: DesignProcessStep): DesignProcessVideoStepPayload {
 			materialId: bead.materialId,
 			specId: bead.specId || `${bead.materialId}-${bead.size}mm`,
 			name: bead.name,
+			image: bead.image,
 			size: bead.size,
 			price: bead.price,
 			orderIndex,
@@ -46,6 +48,7 @@ function toPayload(step: DesignProcessStep): DesignProcessVideoStepPayload {
  */
 export async function generateDesignProcessVideo({
 	steps,
+	palette,
 	wristCm,
 	onProgress,
 }: GenerateDesignProcessVideoOptions): Promise<DesignProcessVideoResult> {
@@ -53,7 +56,7 @@ export async function generateDesignProcessVideo({
 		throw new Error('至少完成一次珠子操作后才能生成视频');
 	}
 	onProgress?.(1);
-	const created = await api.createDesignProcessVideo({ steps: steps.map(toPayload), wristCm });
+	const created = await api.createDesignProcessVideo({ steps: steps.map(toPayload), palette, wristCm });
 	const deadline = Date.now() + 15 * 60 * 1000;
 	let job = created;
 	while (job.status !== 'complete') {
