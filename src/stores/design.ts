@@ -17,6 +17,17 @@ export interface DesignProcessStep {
 	toIndex?: number;
 }
 
+export interface PlaybackBeadAction {
+	type: 'add' | 'replace' | 'remove' | 'clear' | 'apply';
+	materialId?: string;
+	name?: string;
+	image?: string;
+	size?: number;
+	price?: number;
+	specId?: string;
+	at: number;
+}
+
 interface ApplyDesignOptions {
 	source?: DesignSource;
 	handCircumferenceCm?: number | null;
@@ -46,16 +57,7 @@ export const useDesignStore = defineStore('design', () => {
 	const designProcess = ref<DesignProcessStep[]>([
 		{ id: 'process-start', action: 'start', at: Date.now(), beads: [] },
 	]);
-	const lastBeadAction = ref<{
-		type: 'add' | 'replace' | 'remove' | 'clear' | 'apply';
-		materialId?: string;
-		name?: string;
-		image?: string;
-		size?: number;
-		price?: number;
-		specId?: string;
-		at: number;
-	} | null>(null);
+	const lastBeadAction = ref<PlaybackBeadAction | null>(null);
 
 	function cloneBeads(beads = braceletDesign.value): BraceletBead[] {
 		return beads.map((bead) => ({ ...bead }));
@@ -90,10 +92,10 @@ export const useDesignStore = defineStore('design', () => {
 	}
 
 	/** 过程回放专用：只更新工作台画面，不生成新的历史事件。 */
-	function setDesignPlaybackSnapshot(beads: BraceletBead[]) {
+	function setDesignPlaybackSnapshot(beads: BraceletBead[], action: PlaybackBeadAction | null = null) {
 		braceletDesign.value = cloneBeads(beads);
 		refreshOrderIndex();
-		lastBeadAction.value = null;
+		lastBeadAction.value = action;
 	}
 
 	/**

@@ -47,9 +47,16 @@ const WRIST_TARGET_MIN_CM = 12;
 const WRIST_TARGET_MAX_CM = 22;
 const WRIST_TARGET_STEP_CM = 0.5;
 const wristTargetOptions = [14, 14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18];
+function readVideoRenderJobId() {
+	// #ifdef H5
+	const query = window.location.hash.split('?')[1] || '';
+	return new URLSearchParams(query).get('videoRenderJobId') || '';
+	// #endif
+	return '';
+}
 const loadingReady = ref(false);
 const loadingProgress = ref(0);
-const videoRenderJobId = ref('');
+const videoRenderJobId = ref(readVideoRenderJobId());
 const isVideoRenderMode = computed(() => Boolean(videoRenderJobId.value));
 const entrySource = ref<DesignEntrySource>('bracelet');
 const activeRouteSource = ref<DesignEntrySource | null>(null);
@@ -97,20 +104,28 @@ function waitForVideoRender(ms: number) {
 	return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function runVideoPageReplay() {
-	// #ifndef H5
-	return;
-	// #endif
-	if (!videoRenderJobId.value) return;
-	const job = await api.getDesignProcessVideo(videoRenderJobId.value);
-	const loadedImages = new Set<string>();
-	viewMode.value = 'top';
-	window.scrollTo(0, 0);
-	await nextTick();
-	await waitForVideoRender(900);
-	for (let index = 0; index < job.steps.length; index += 1) {
-		const beads: BraceletBead[] = job.steps[index].beads.map((bead, beadIndex) => ({
-			id: `video-${index}-${beadIndex}`,
+const VIDEO_CAPTURE_FPS = 24;
+const VIDEO_STEP_DURATION_MS: Record<string, number> = {
+	add: 960,
+	move: 620,
+	remove: 560,
+	replace: 700,
+	clear: 460,
+	apply: 960,
+};
+
+function videoStepFrameCount(action: string) {
+	return Math.max(1, Math.round(((VIDEO_STEP_DURATION_MS[action] ?? 620) / 1000) * VIDEO_CAPTURE_FPS));
+}
+
+function toVideoBeads(step: Awaited<ReturnType<typeof api.getDesignProcessVideo>>['steps'][number]) {
+	const occurrences = new Map<string, number>();
+	return step.beads.map((bead, beadIndex): BraceletBead => {
+		const signature = `${bead.materialId}:${bead.specId}:${bead.size}`;
+		const occurrence = occurrences.get(signature) ?? 0;
+		occurrences.set(signature, occurrence + 1);
+		return {
+			id: bead.id || `video-${signature}-${occurrence}`,
 			materialId: bead.materialId,
 			specId: bead.specId,
 			name: bead.name,
@@ -119,22 +134,83 @@ async function runVideoPageReplay() {
 			price: bead.price,
 			quantity: 1,
 			orderIndex: beadIndex,
-		}));
-		const hasNewTexture = beads.some((bead) => bead.image && !loadedImages.has(bead.image));
-		beads.forEach((bead) => bead.image && loadedImages.add(bead.image));
-		designStore.setDesignPlaybackSnapshot(beads);
-		await nextTick();
-		await waitForVideoRender(hasNewTexture ? 1200 : 520);
-		document.documentElement.dataset.videoFrameIndex = String(index);
+		};
+	});
+}
+
+async function preloadVideoBeadImages(images: string[]) {
+	await Promise.all([...new Set(images.filter(Boolean))].map((source) => new Promise<void>((resolve) => {
+		const image = new Image();
+		const finish = () => resolve();
+		image.onload = finish;
+		image.onerror = finish;
+		image.src = source;
+		setTimeout(finish, 5000);
+	})));
+}
+
+async function runVideoPageReplay() {
+	// #ifndef H5
+	return;
+	// #endif
+	if (!videoRenderJobId.value) return;
+	const job = await api.getDesignProcessVideo(videoRenderJobId.value);
+	const replaySteps = job.steps.map((step) => ({ step, beads: toVideoBeads(step) }));
+	const totalFrames = 1 + replaySteps.slice(1).reduce((sum, item) => sum + videoStepFrameCount(item.step.action), 0);
+	document.documentElement.dataset.videoFrameTotal = String(totalFrames);
+	document.documentElement.dataset.videoFrameSerial = '';
+	document.documentElement.dataset.videoFrameAck = '';
+	viewMode.value = 'top';
+	window.scrollTo(0, 0);
+	await preloadVideoBeadImages(replaySteps.flatMap((item) => item.beads.map((bead) => bead.image)));
+	await nextTick();
+	let serial = 0;
+	const signalFrame = async () => {
+		document.documentElement.dataset.videoFrameSerial = String(serial);
 		const acknowledgementDeadline = Date.now() + 20_000;
-		while (document.documentElement.dataset.videoFrameAck !== String(index)) {
-			if (Date.now() >= acknowledgementDeadline) throw new Error(`第 ${index + 1} 步截图确认超时`);
-			await waitForVideoRender(50);
+		while (document.documentElement.dataset.videoFrameAck !== String(serial)) {
+			if (Date.now() >= acknowledgementDeadline) throw new Error(`第 ${serial + 1} 帧截图确认超时`);
+			await waitForVideoRender(12);
+		}
+		serial += 1;
+	};
+
+	designStore.setDesignPlaybackSnapshot(replaySteps[0]?.beads ?? []);
+	await nextTick();
+	await waitForVideoRender(1100);
+	await signalFrame();
+	for (let index = 1; index < replaySteps.length; index += 1) {
+		const current = replaySteps[index];
+		const previousIds = new Set(replaySteps[index - 1].beads.map((bead) => bead.id));
+		const addedBead = current.step.action === 'add'
+			? current.beads.find((bead) => !previousIds.has(bead.id))
+			: null;
+		designStore.setDesignPlaybackSnapshot(current.beads, addedBead ? {
+			type: 'add',
+			materialId: addedBead.materialId,
+			name: addedBead.name,
+			image: addedBead.image,
+			size: addedBead.size,
+			price: addedBead.price,
+			specId: addedBead.specId,
+			at: Date.now(),
+		} : null);
+		await nextTick();
+		await waitForVideoRender(16);
+		const frameCount = videoStepFrameCount(current.step.action);
+		const transitionStart = performance.now();
+		for (let frame = 0; frame < frameCount; frame += 1) {
+			const targetTime = transitionStart + (frame * 1000) / VIDEO_CAPTURE_FPS;
+			const remaining = targetTime - performance.now();
+			if (remaining > 0) await waitForVideoRender(remaining);
+			await signalFrame();
 		}
 	}
+	document.documentElement.dataset.videoReplayComplete = '1';
 }
 
 onMounted(async () => {
+	if (!videoRenderJobId.value) videoRenderJobId.value = readVideoRenderJobId();
 	if (isVideoRenderMode.value) {
 		loadingReady.value = true;
 		loadingProgress.value = 100;
@@ -509,7 +585,8 @@ interface MaterialAddPayload {
 }
 
 onLoad((query: Record<string, string | undefined>) => {
-	videoRenderJobId.value = String(query?.videoRenderJobId || '');
+	const routeRenderJobId = String(query?.videoRenderJobId || '');
+	if (routeRenderJobId) videoRenderJobId.value = routeRenderJobId;
 	syncEntrySource(query?.source);
 });
 

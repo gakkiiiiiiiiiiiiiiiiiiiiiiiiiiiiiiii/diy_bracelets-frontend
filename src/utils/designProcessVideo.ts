@@ -29,6 +29,7 @@ function toPayload(step: DesignProcessStep): DesignProcessVideoStepPayload {
 		action: step.action,
 		at: step.at,
 		beads: step.beads.map((bead, orderIndex) => ({
+			id: bead.id,
 			materialId: bead.materialId,
 			specId: bead.specId || `${bead.materialId}-${bead.size}mm`,
 			name: bead.name,

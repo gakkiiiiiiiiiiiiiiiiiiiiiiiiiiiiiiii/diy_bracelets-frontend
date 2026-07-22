@@ -217,6 +217,7 @@ export interface DesignProcessVideoStepPayload {
   action: 'start' | 'add' | 'move' | 'remove' | 'replace' | 'clear' | 'apply';
   at: number;
   beads: Array<{
+    id?: string;
     materialId: string;
     specId: string;
     name: string;
