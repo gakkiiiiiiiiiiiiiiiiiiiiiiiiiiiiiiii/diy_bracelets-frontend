@@ -19,20 +19,45 @@ const DELETE_MARGIN = 0.5;
 function getRingRadius(beadCount: number): number {
 	return Math.min(INITIAL_RING_RADIUS + beadCount * RING_GROWTH_PER_BEAD, MAX_RING_RADIUS);
 }
-const ADD_BEAD_DURATION_MS = 520;
-const REFLOW_DURATION_MS = 420;
+const ADD_BEAD_DURATION_MS = 280;
+const REFLOW_DURATION_MS = 280;
 /** 先让已有珠子完成大部分补位，再显示新珠，避免末位短暂叠成“双珠”。 */
-const ADD_REVEAL_DELAY_MS = REFLOW_DURATION_MS - 70;
+const ADD_REVEAL_DELAY_MS = 110;
+const ADD_RETARGET_DURATION_MS = 180;
+const ADD_APPROACH_DISTANCE = 0.24;
+const ADD_START_HEIGHT = 0.12;
+const ADD_START_SCALE = 0.9;
 const REMOVE_BEAD_DURATION_MS = 340;
 const REPLACE_BEAD_DURATION_MS = 460;
 const easeBrand = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInCubic = (t: number) => t * t * t;
-const easeOutBack = (t: number) => {
-	const c1 = 1.42;
-	const c3 = c1 + 1;
-	return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-};
+function cubicBezierAt(
+	x: number,
+	x1: number,
+	y1: number,
+	x2: number,
+	y2: number,
+): number {
+	const clampedX = Math.min(1, Math.max(0, x));
+	const sample = (t: number, a1: number, a2: number) => {
+		const inverse = 1 - t;
+		return 3 * inverse * inverse * t * a1 + 3 * inverse * t * t * a2 + t * t * t;
+	};
+	const slope = (t: number, a1: number, a2: number) =>
+		3 * (1 - t) * (1 - t) * a1 +
+		6 * (1 - t) * t * (a2 - a1) +
+		3 * t * t * (1 - a2);
+	let curveT = clampedX;
+	for (let iteration = 0; iteration < 4; iteration += 1) {
+		const currentX = sample(curveT, x1, x2) - clampedX;
+		const currentSlope = slope(curveT, x1, x2);
+		if (Math.abs(currentSlope) < 1e-6) break;
+		curveT = Math.min(1, Math.max(0, curveT - currentX / currentSlope));
+	}
+	return Math.min(1, Math.max(0, sample(curveT, y1, y2)));
+}
+const easeAdd = (t: number) => cubicBezierAt(t, 0.23, 1, 0.32, 1);
 const easePower3InOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const nowMs = () => Date.now();
 const INERTIA_DECAY = 0.96;
@@ -452,7 +477,7 @@ export function useBracelet3dMp(
 		animation.toZ = toZ;
 		animation.fromScale = object.scale.x;
 		animation.startTime = updateTime + (isWaitingToReveal ? ADD_REVEAL_DELAY_MS : 0);
-		animation.duration = ADD_BEAD_DURATION_MS;
+		animation.duration = isWaitingToReveal ? ADD_BEAD_DURATION_MS : ADD_RETARGET_DURATION_MS;
 		return true;
 	}
 
@@ -1144,26 +1169,27 @@ export function useBracelet3dMp(
 			const beadEntry = createBeadMesh(bead, index, total);
 			if (!beadEntry) return;
 			// 与 H5 保持一致：已有珠子先补位，新珠再由唯一的正式 mesh 显现。
-			const fromX = x;
-			const fromZ = z;
+			const distance = Math.hypot(x, z) || 1;
+			const fromX = x + (x / distance) * ADD_APPROACH_DISTANCE;
+			const fromZ = z + (z / distance) * ADD_APPROACH_DISTANCE;
 			const startDelay = hasExistingBeads
 				? ADD_REVEAL_DELAY_MS + addOrdinal * Math.round(ADD_STAGGER_MS * 0.72)
 				: index * ADD_STAGGER_MS;
 			addOrdinal += 1;
-			beadEntry.root.position.set(fromX, 0, fromZ);
-			beadEntry.root.scale.setScalar(0.01);
+			beadEntry.root.position.set(fromX, ADD_START_HEIGHT, fromZ);
+			beadEntry.root.scale.setScalar(ADD_START_SCALE);
 			beadEntry.root.visible = startDelay <= 0;
 			braceletGroup.add(beadEntry.root);
 			beadMeshMap.set(bead.id, { ...beadEntry, beadId: bead.id, key: beadContentKey(bead) });
 			addAnimations.push({
 				mesh: beadEntry.root,
 				fromX,
-				fromY: 0,
+				fromY: ADD_START_HEIGHT,
 				fromZ,
 				toX: x,
 				toZ: z,
-				fromScale: 0.01,
-				liftHeight: 0.035,
+				fromScale: ADD_START_SCALE,
+				liftHeight: 0.045,
 				startTime: updateTime + startDelay,
 				duration: ADD_BEAD_DURATION_MS,
 				hiddenUntilStart: startDelay > 0,
@@ -1350,13 +1376,13 @@ export function useBracelet3dMp(
 			}
 			anim.mesh.visible = true;
 			const t = Math.min(1, Math.max(0, elapsed / anim.duration));
-			const move = easeOutCubic(t);
-			const scale = anim.fromScale + (1 - anim.fromScale) * easeOutBack(t);
-			const lift = Math.sin(Math.PI * Math.min(1, t)) * anim.liftHeight;
+			const move = easeAdd(t);
+			const scale = anim.fromScale + (1 - anim.fromScale) * move;
+			const lift = Math.sin(Math.PI * t) * anim.liftHeight;
 			anim.mesh.position.x = anim.fromX + (anim.toX - anim.fromX) * move;
-			anim.mesh.position.y = anim.fromY * (1 - move) + lift;
+			anim.mesh.position.y = anim.fromY + (0 - anim.fromY) * move + lift;
 			anim.mesh.position.z = anim.fromZ + (anim.toZ - anim.fromZ) * move;
-			anim.mesh.scale.setScalar(Math.max(0.01, scale));
+			anim.mesh.scale.setScalar(scale);
 			if (t >= 1) toRemove.push(idx);
 		});
 		toRemove.reverse().forEach((idx) => addAnimations.splice(idx, 1));
