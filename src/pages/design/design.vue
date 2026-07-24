@@ -4574,7 +4574,7 @@ function hideDesignTabBar() {
 // 中部画布区域（无左右边距，手串画布撑满）
 .canvas-section {
 	flex: 1;
-	min-height: 0;
+	min-height: 300rpx;
 	padding: 0;
 	display: flex;
 	align-items: stretch;
@@ -5316,7 +5316,9 @@ function hideDesignTabBar() {
 .material-panel {
 	display: flex;
 	flex-direction: column;
-	height: 420rpx;
+	height: 46vh;
+	min-height: 460rpx;
+	max-height: 600rpx;
 	border-top: 1rpx solid rgba(82, 121, 133, 0.14);
 }
 

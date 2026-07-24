@@ -76,7 +76,6 @@ const PINCH_ZOOM_SPEED = 0.0045;
 const WHEEL_ZOOM_SPEED = 0.0022;
 const ADD_STAGGER_MS = 44;
 const IDLE_ROTATION_DELAY_MS = 760;
-const IDLE_ROTATION_SPEED = 0.0001;
 const BEAD_IDLE_FLOAT_Y = 0.018;
 const BEAD_IDLE_FLOAT_SPEED = 0.76;
 const BEAD_IDLE_SCALE = 0.008;
@@ -1545,18 +1544,6 @@ export function useBracelet3d(
 				rotationVelocityY = 0;
 			}
 		}
-		if (
-			!pointerDown &&
-			!draggingBeadId &&
-			!isPinching &&
-			!isSingleLayout() &&
-			Math.abs(rotationVelocityY) <= INERTIA_STOP &&
-			beads.value.length > 0 &&
-			now - lastInteractionTime > IDLE_ROTATION_DELAY_MS
-		) {
-			rotationY.value += IDLE_ROTATION_SPEED * deltaMs;
-		}
-
 		const scaleAnimated = new Set<THREE.Object3D>([
 			...addAnimations.map((anim) => anim.mesh),
 			...removeAnimations.map((anim) => anim.mesh),
