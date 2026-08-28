@@ -18,6 +18,7 @@ import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const items = ref<CartItem[]>([]);
 const selectedIds = ref<string[]>([]);
+const cartSyncError = ref('');
 const designStore = useDesignStore();
 const CART_MIGRATION_USER_KEY = 'diy-bracelets-cart-migrated-user';
 
@@ -26,7 +27,10 @@ const selectedTotal = computed(() => selectedItems.value.reduce((sum, item) => s
 const selectedQty = computed(() => selectedItems.value.reduce((sum, item) => sum + item.qty, 0));
 const totalQty = computed(() => items.value.reduce((sum, item) => sum + Number(item.qty || 1), 0));
 const hasSelection = computed(() => selectedItems.value.length > 0);
-const checkoutButtonLabel = computed(() => `去结算（${selectedQty.value}件）`);
+const commerceBlocked = computed(() => usesRemoteCommerce && !!cartSyncError.value);
+const checkoutButtonLabel = computed(() =>
+	commerceBlocked.value ? '重新同步后结算' : `去结算（${selectedQty.value}件）`,
+);
 const totalText = computed(() => {
 	const total = selectedTotal.value;
 	return Number.isInteger(total) ? String(total) : total.toFixed(1);
@@ -34,6 +38,7 @@ const totalText = computed(() => {
 const allSelected = computed(() => items.value.length > 0 && selectedIds.value.length === items.value.length);
 
 async function refreshCart() {
+	cartSyncError.value = '';
 	try {
 		await flushPendingRemoteCart();
 		const res = await api.getCart();
@@ -48,6 +53,9 @@ async function refreshCart() {
 		selectedIds.value = items.value.map((item) => item.id);
 	} catch (e) {
 		if (!isMockApiFallbackError(e)) console.warn('[cart] API getCart failed:', e);
+		if (usesRemoteCommerce) {
+			cartSyncError.value = '购物车同步失败，当前内容和金额可能不是最新数据';
+		}
 		items.value = loadLocalCart();
 		selectedIds.value = items.value.map((item) => item.id);
 	}
@@ -159,6 +167,10 @@ function continueEdit(item: CartItem) {
 }
 
 function checkout() {
+	if (commerceBlocked.value) {
+		uni.showToast({ title: '请先重新同步购物车', icon: 'none' });
+		return;
+	}
 	if (!selectedItems.value.length) {
 		uni.showToast({ title: '请选择商品', icon: 'none' });
 		return;
@@ -209,6 +221,10 @@ function goGoods() {
 		<!-- #endif -->
 		<view class="cart-nav">
 			<view class="cart-nav-title">购物车</view>
+		</view>
+		<view v-if="cartSyncError" class="cart-sync-notice">
+			<view class="cart-sync-notice__text">{{ cartSyncError }}</view>
+			<view class="cart-sync-notice__action" @tap="refreshCart">重新同步</view>
 		</view>
 
 		<view v-if="items.length === 0" class="empty">
@@ -276,7 +292,7 @@ function goGoods() {
 				<view class="footer-total">合计: ￥{{ totalText }}</view>
 				<view v-if="items.length > 0" class="footer-count">{{ hasSelection ? `已选 ${selectedQty} 件` : `共 ${totalQty} 件` }}</view>
 			</view>
-			<button class="footer-btn" @tap="checkout">{{ checkoutButtonLabel }}</button>
+			<button class="footer-btn" :disabled="commerceBlocked" @tap="checkout">{{ checkoutButtonLabel }}</button>
 		</view>
 	</view>
 </template>
@@ -344,6 +360,31 @@ function goGoods() {
 	font-size: 32rpx;
 	font-weight: 900;
 	line-height: 1;
+}
+
+.cart-sync-notice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18rpx;
+	margin: 10rpx 0 22rpx;
+	padding: 18rpx 20rpx;
+	border: 1rpx solid rgba(217, 39, 51, 0.18);
+	border-radius: 12rpx;
+	background: #fff5f5;
+	color: #852128;
+	font-size: 24rpx;
+	line-height: 1.45;
+}
+
+.cart-sync-notice__text {
+	flex: 1;
+}
+
+.cart-sync-notice__action {
+	flex: none;
+	color: #c91f2d;
+	font-weight: 800;
 }
 
 .empty {

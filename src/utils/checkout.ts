@@ -155,15 +155,24 @@ function normalizeShopCartItem(item: CartItem): CartItem {
 	}
 	const product = shopGoodsProducts.find((entry) => item.id.startsWith(`cart-product-${entry.id}-`));
 	if (!product) return item;
+	const identity = {
+		kind: 'product' as const,
+		productId: product.id,
+		spec: item.spec || product.sizes[0] || '',
+	};
+	if (!USE_MOCK_API) {
+		return {
+			...item,
+			...identity,
+		};
+	}
 	return {
 		...item,
-		kind: 'product',
-		productId: product.id,
+		...identity,
 		name: product.name,
 		image: product.listImage || product.image,
 		price: product.price,
 		type: product.type,
-		spec: item.spec || product.sizes[0] || '',
 	};
 }
 
