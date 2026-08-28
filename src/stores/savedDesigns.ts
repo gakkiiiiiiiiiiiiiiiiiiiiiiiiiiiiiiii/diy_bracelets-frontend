@@ -17,21 +17,39 @@ export interface SavedDesign {
 	updatedAt: string;
 }
 
-function compositionToBeads(composition: DesignCompositionRow[]): BraceletBead[] {
+function beadFromComposition(row: DesignCompositionRow, orderIndex: number): BraceletBead {
+	return {
+		id: `bead-${orderIndex}`,
+		materialId: row.materialId,
+		name: row.name,
+		image: row.image,
+		size: row.size,
+		price: row.price,
+		specId: row.specId,
+		quantity: 1,
+		orderIndex,
+	};
+}
+
+function compositionToBeads(
+	composition: DesignCompositionRow[],
+	orderedBeads?: Array<{ materialId: string; specId: string }> | null,
+): BraceletBead[] {
+	if (orderedBeads?.length) {
+		const exact = new Map(composition
+			.filter((row) => row.specId)
+			.map((row) => [`${row.materialId}\u0000${row.specId}`, row]));
+		const restored = orderedBeads.map((bead, orderIndex) => {
+			const row = exact.get(`${bead.materialId}\u0000${bead.specId}`);
+			return row ? beadFromComposition(row, orderIndex) : null;
+		});
+		if (restored.every((bead) => bead !== null)) return restored as BraceletBead[];
+	}
 	const beads: BraceletBead[] = [];
 	let orderIndex = 0;
 	for (const row of composition || []) {
 		for (let i = 0; i < (row.quantity || 1); i++) {
-			beads.push({
-				id: `bead-${orderIndex}`,
-				materialId: row.materialId,
-				name: row.name,
-				image: row.image,
-				size: row.size,
-				price: row.price,
-				quantity: 1,
-				orderIndex,
-			});
+			beads.push(beadFromComposition(row, orderIndex));
 			orderIndex += 1;
 		}
 	}
@@ -42,9 +60,18 @@ function fromApi(item: MyDesignFromApi): SavedDesign {
 	return {
 		id: item.id,
 		title: item.title,
-		beads: compositionToBeads(item.composition),
+		beads: compositionToBeads(item.composition, item.orderedBeads),
 		updatedAt: item.updatedAt,
 	};
+}
+
+function exactOrder(beads: BraceletBead[]): Array<{ materialId: string; specId: string }> | null {
+	const ordered = beads.map((bead) => bead.specId
+		? { materialId: bead.materialId, specId: bead.specId }
+		: null);
+	return ordered.every((bead) => bead !== null)
+		? ordered as Array<{ materialId: string; specId: string }>
+		: null;
 }
 
 function loadListFromStorage(): SavedDesign[] | null {
@@ -86,7 +113,8 @@ export const useSavedDesignsStore = defineStore('savedDesigns', () => {
 		if (isFull.value) return null;
 		const composition = beadsToComposition(beads);
 		if (usesRemoteCommerce) {
-			const saved = fromApi(await api.createMyDesign({ title, composition }));
+			const orderedBeads = exactOrder(beads);
+			const saved = fromApi(await api.createMyDesign({ title, composition, ...(orderedBeads ? { orderedBeads } : {}) }));
 			list.value = [saved, ...list.value];
 			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
 			return saved;
@@ -107,9 +135,11 @@ export const useSavedDesignsStore = defineStore('savedDesigns', () => {
 		if (index < 0) return null;
 		const current = list.value[index];
 		if (usesRemoteCommerce) {
+			const orderedBeads = exactOrder(beads);
 			const updated = fromApi(await api.updateMyDesign(id, {
 				title: title ?? current.title,
 				composition: beadsToComposition(beads),
+				...(orderedBeads ? { orderedBeads } : {}),
 			}));
 			list.value = list.value.map((item) => (item.id === id ? updated : item));
 			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));

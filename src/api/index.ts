@@ -469,11 +469,19 @@ export const api = {
   getMyDesigns: () => request<MyDesignFromApi[]>(`/api/my-designs`),
   getMyDesign: (id: string) =>
     request<MyDesignFromApi>(`/api/my-designs/${id}`),
-  createMyDesign: (body: { title: string; composition: DesignCompositionRow[] }) =>
+  createMyDesign: (body: {
+    title: string;
+    composition: DesignCompositionRow[];
+    orderedBeads?: Array<{ materialId: string; specId: string }>;
+  }) =>
     request<MyDesignFromApi>(`/api/my-designs`, 'POST', body),
   updateMyDesign: (
     id: string,
-    body: { title?: string; composition?: DesignCompositionRow[] },
+    body: {
+      title?: string;
+      composition?: DesignCompositionRow[];
+      orderedBeads?: Array<{ materialId: string; specId: string }>;
+    },
   ) => request<MyDesignFromApi>(`/api/my-designs/${id}`, 'PATCH', body),
   deleteMyDesign: (id: string) =>
     request<void>(`/api/my-designs/${id}`, 'DELETE'),
@@ -853,6 +861,7 @@ export interface MyDesignFromApi {
   id: string;
   title: string;
   composition: DesignCompositionRow[];
+  orderedBeads?: Array<{ materialId: string; specId: string }> | null;
   createdAt: string;
   updatedAt: string;
 }

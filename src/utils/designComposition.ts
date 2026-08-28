@@ -1,8 +1,8 @@
 import type { DesignCompositionRow } from '@/api';
 import type { BraceletBead } from '@/types';
 
-function compositionKey(row: Pick<DesignCompositionRow, 'materialId' | 'size' | 'price'>) {
-	return `${row.materialId}-${row.size}-${row.price}`;
+function compositionKey(row: Pick<DesignCompositionRow, 'materialId' | 'specId' | 'size' | 'price'>) {
+	return `${row.materialId}-${row.specId || `${row.size}-${row.price}`}`;
 }
 
 export function beadsToComposition(beads: BraceletBead[]): DesignCompositionRow[] {
@@ -17,6 +17,7 @@ export function beadsToComposition(beads: BraceletBead[]): DesignCompositionRow[
 		}
 		groups.set(key, {
 			materialId: bead.materialId,
+			specId: bead.specId,
 			name: bead.name,
 			image: bead.image,
 			size: bead.size,
