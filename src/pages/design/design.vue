@@ -1590,6 +1590,10 @@ function clearMaterialSearch() {
 	materialsStore.setSearchKeyword('');
 }
 
+function retryMaterialsCatalog() {
+	void materialsStore.fetchFromApi();
+}
+
 function onMaterialToolTap() {
 	if (!designStore.braceletDesign.length) {
 		uni.showToast({ title: '先添加珠子', icon: 'none' });
@@ -1809,6 +1813,10 @@ function hideDesignTabBar() {
 							<text class="refill-suggestion__text">{{ refillSuggestionText }}</text>
 						</view>
 						<text class="refill-suggestion__action">查看已用</text>
+					</view>
+					<view v-if="materialsStore.loadError" class="material-sync-warning">
+						<text>{{ materialsStore.loadError }}</text>
+						<text class="material-sync-warning__action" @tap="retryMaterialsCatalog">重试</text>
 					</view>
 					<!-- 搜索框 -->
 					<MaterialSearch @tool="onMaterialToolTap" />
@@ -5335,6 +5343,27 @@ function hideDesignTabBar() {
 	min-height: 460rpx;
 	max-height: 600rpx;
 	border-top: 1rpx solid rgba(82, 121, 133, 0.14);
+}
+
+.material-sync-warning {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+	min-height: 58rpx;
+	padding: 8rpx 22rpx;
+	box-sizing: border-box;
+	background: #fff4e5;
+	border-bottom: 1rpx solid rgba(178, 116, 38, 0.18);
+	color: #85571f;
+	font-size: 21rpx;
+	font-weight: 700;
+}
+
+.material-sync-warning__action {
+	flex-shrink: 0;
+	color: #365760;
+	font-weight: 900;
 }
 
 .refill-suggestion {

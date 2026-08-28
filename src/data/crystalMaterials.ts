@@ -287,10 +287,6 @@ export const referenceCrystalMaterials: ReferenceCrystalMaterial[] = [
 	...generatedReferenceCrystalMaterials,
 ];
 
-export const referenceCrystalMaterialIds = new Set(referenceCrystalMaterials.map((material) => material.id));
-const referenceCrystalMaterialNames = new Set(referenceCrystalMaterials.map((material) => material.name));
-const legacyMockMaterialIds = new Set(['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8']);
-
 const renderConfigById = new Map(
 	referenceCrystalMaterials.map((material) => [
 		material.id,
@@ -305,20 +301,15 @@ export function getCrystalMaterialRenderConfig(materialId: string) {
 	return renderConfigById.get(materialId) ?? null;
 }
 
-export function mergeReferenceCategories(_apiCategories: MaterialCategory[]) {
-	return referenceCrystalCategories;
+export function mergeReferenceCategories(apiCategories: MaterialCategory[]) {
+	return [
+		referenceCrystalCategories[0],
+		...apiCategories.filter((category) => category.id !== 'in-use'),
+	];
 }
 
 export function mergeReferenceMaterials(apiMaterials: Material[]) {
-	const referenceCategoryIds = new Set(referenceCrystalCategories.map((category) => category.id));
-	return [
-		...referenceCrystalMaterials,
-		...apiMaterials.filter(
-			(material) =>
-				!referenceCrystalMaterialIds.has(material.id) &&
-				!legacyMockMaterialIds.has(material.id) &&
-				!referenceCrystalMaterialNames.has(material.name) &&
-				referenceCategoryIds.has(material.categoryId),
-		),
-	];
+	// Availability, specs, and prices are owned by the backend. Local assets only
+	// provide rendering configuration through getCrystalMaterialRenderConfig().
+	return apiMaterials;
 }

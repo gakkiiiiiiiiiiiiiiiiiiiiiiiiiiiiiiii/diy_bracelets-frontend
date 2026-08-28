@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Material, MaterialSpec, MaterialSpecCard } from '@/types'
+import type { Material, MaterialCategory, MaterialSpec, MaterialSpecCard } from '@/types'
 import { mockCategories, mockMaterials } from '@/data/mock'
 import {
   mergeReferenceCategories,
@@ -10,9 +10,33 @@ import {
 } from '@/data/crystalMaterials'
 import { useDesignStore } from './design'
 import { api, isMockApiFallbackError } from '@/api'
+import { USE_MOCK_API } from '@/config'
 
 const DEFAULT_CATEGORY_ID = 'green-white-series'
 const ACTIVE_CATEGORY_STORAGE_KEY = 'yangge-design-active-material-category'
+const CATALOG_CACHE_STORAGE_KEY = 'diy-bracelets-material-catalog-v1'
+
+interface CatalogCache {
+  categories: MaterialCategory[]
+  materials: Material[]
+}
+
+function readCatalogCache(): CatalogCache | null {
+  try {
+    const value = uni.getStorageSync(CATALOG_CACHE_STORAGE_KEY)
+    if (!value || typeof value !== 'object') return null
+    const cache = value as CatalogCache
+    return Array.isArray(cache.categories) && Array.isArray(cache.materials) ? cache : null
+  } catch {
+    return null
+  }
+}
+
+function writeCatalogCache(cache: CatalogCache) {
+  try {
+    uni.setStorageSync(CATALOG_CACHE_STORAGE_KEY, cache)
+  } catch {}
+}
 
 function readPersistedCategoryId() {
   try {
@@ -35,26 +59,46 @@ function resolveInitialCategoryId() {
   return DEFAULT_CATEGORY_ID
 }
 
-// 材料相关的 Pinia 状态管理：优先从后端拉取分类与材料，失败或演示模式时使用 Mock
+// 演示模式使用 Mock；真实接口模式只使用服务端目录或上次成功缓存。
 export const useMaterialsStore = defineStore('materials', () => {
-  const categories = ref(mockCategories)
-  const materials = ref<Material[]>(mockMaterials)
+  const cached = USE_MOCK_API ? null : readCatalogCache()
+  const categories = ref<MaterialCategory[]>(
+    USE_MOCK_API ? mockCategories : mergeReferenceCategories(cached?.categories ?? []),
+  )
+  const materials = ref<Material[]>(
+    USE_MOCK_API ? mockMaterials : mergeReferenceMaterials(cached?.materials ?? []),
+  )
   const loading = ref(false)
   const loaded = ref(false)
+  const loadError = ref('')
+  const source = ref<'mock' | 'api' | 'cache' | 'unavailable'>(
+    USE_MOCK_API ? 'mock' : cached ? 'cache' : 'unavailable',
+  )
 
   async function fetchFromApi() {
     loading.value = true
+    loadError.value = ''
     try {
       const [cats, mats] = await Promise.all([api.getCategories(), api.getMaterials()])
       categories.value = mergeReferenceCategories(cats)
       materials.value = mergeReferenceMaterials(mats)
+      source.value = 'api'
+      if (!USE_MOCK_API) writeCatalogCache({ categories: cats, materials: mats })
       // 若当前选中分类不在接口返回中，则选中第一个分类（避免列表为空）
       if (categories.value.length > 0 && !categories.value.some((c) => c.id === currentCategoryId.value)) {
         currentCategoryId.value = categories.value[0].id
         writePersistedCategoryId(currentCategoryId.value)
       }
     } catch (e) {
-      if (!isMockApiFallbackError(e)) console.warn('Materials API failed, using mock:', e)
+      if (isMockApiFallbackError(e)) {
+        source.value = 'mock'
+      } else {
+        source.value = materials.value.length ? 'cache' : 'unavailable'
+        loadError.value = materials.value.length
+          ? '素材同步失败，正在使用上次成功数据'
+          : '素材暂时无法加载，请检查网络后重试'
+        console.warn('Materials API failed:', e)
+      }
     } finally {
       loading.value = false
       loaded.value = true
@@ -192,6 +236,8 @@ export const useMaterialsStore = defineStore('materials', () => {
     filteredMaterialSpecCards,
     loading,
     loaded,
+    loadError,
+    source,
     setCategory,
     setSearchKeyword,
     fetchFromApi,

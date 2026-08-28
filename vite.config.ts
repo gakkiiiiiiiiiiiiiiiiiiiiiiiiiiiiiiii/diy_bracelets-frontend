@@ -26,9 +26,33 @@ function copyDirSync(src: string, dest: string) {
 
 const apiTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3008'
 const useWxCloudContainer = process.env.VITE_USE_WXCLOUD_CONTAINER !== 'false'
+const wxCloudContainerEnv = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_ENV || '' : ''
+const wxCloudContainerService = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || '' : ''
 const useMockApi =
   process.env.VITE_USE_MOCK_API === 'true' ||
   (!process.env.VITE_API_BASE && process.env.VITE_USE_MOCK_API !== 'false')
+
+if (Boolean(wxCloudContainerEnv) !== Boolean(wxCloudContainerService)) {
+  throw new Error('VITE_WXCLOUD_CONTAINER_ENV and VITE_WXCLOUD_CONTAINER_SERVICE must be configured together')
+}
+
+const isProductionMiniProgram = process.env.UNI_PLATFORM === 'mp-weixin' && process.env.NODE_ENV === 'production'
+if (isProductionMiniProgram) {
+  if (process.env.VITE_USE_MOCK_API === 'true') {
+    throw new Error('Production WeChat builds cannot enable VITE_USE_MOCK_API')
+  }
+  if (!process.env.VITE_API_BASE && !(wxCloudContainerEnv && wxCloudContainerService)) {
+    throw new Error(
+      'Production WeChat builds require VITE_API_BASE or an explicit VITE_WXCLOUD_CONTAINER_ENV/VITE_WXCLOUD_CONTAINER_SERVICE pair',
+    )
+  }
+  if (process.env.VITE_API_BASE) {
+    const apiUrl = new URL(process.env.VITE_API_BASE)
+    if (apiUrl.protocol !== 'https:' || apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
+      throw new Error('VITE_API_BASE for a production WeChat build must be a clean HTTPS URL')
+    }
+  }
+}
 
 export default defineConfig({
   server: {
@@ -52,14 +76,8 @@ export default defineConfig({
     __API_BASE__: JSON.stringify(process.env.VITE_API_BASE || ''),
     __DEV_API_BASE__: JSON.stringify(process.env.VITE_PROXY_TARGET || apiTarget),
     __USE_MOCK_API__: JSON.stringify(useMockApi),
-    __WXCLOUD_CONTAINER_ENV__: JSON.stringify(
-      useWxCloudContainer
-        ? process.env.VITE_WXCLOUD_CONTAINER_ENV || 'prod-4gmdxhajdbc36f11'
-        : '',
-    ),
-    __WXCLOUD_CONTAINER_SERVICE__: JSON.stringify(
-      useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || 'diy' : '',
-    ),
+    __WXCLOUD_CONTAINER_ENV__: JSON.stringify(wxCloudContainerEnv),
+    __WXCLOUD_CONTAINER_SERVICE__: JSON.stringify(wxCloudContainerService),
   },
   plugins: [
     // 优先注册，使 /static/ 请求先被处理（材料卡图片、3D 纹理）
