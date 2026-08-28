@@ -2,14 +2,16 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { api } from '@/api';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
-import { addLocalCartItems } from '@/utils/checkout';
+import { addLocalCartItems, usesRemoteCommerce } from '@/utils/checkout';
 import { designEntrySourceForCartItem, openDesignStudio } from '@/utils/designNavigation';
 import {
 	ORDER_STATUS_TABS,
 	cloneOrderItemsForCart,
 	loadLocalOrders,
+	saveLocalOrders,
 	logisticsOrderNo,
 	normalizeOrderStatus,
 	orderMatchesStatus,
@@ -76,7 +78,7 @@ const emptySub = computed(() => {
 const showAllEmptyAction = computed(() => hasAnyOrders.value && activeStatus.value !== '全部');
 
 onShow(() => {
-	refreshOrders();
+	void refreshOrders();
 	// #ifdef H5
 	syncStatusFromQuery(h5QueryFromHash());
 	// #endif
@@ -132,8 +134,18 @@ function goBack() {
 	uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/profile/profile' }) });
 }
 
-function refreshOrders() {
-	orders.value = loadLocalOrders();
+async function refreshOrders() {
+	if (!usesRemoteCommerce) {
+		orders.value = loadLocalOrders();
+		return;
+	}
+	try {
+		orders.value = await api.getOrders();
+		saveLocalOrders(orders.value);
+	} catch (error) {
+		console.warn('[orders] 订单加载失败，暂时显示本机缓存', error);
+		orders.value = loadLocalOrders();
+	}
 }
 
 function statusLabel(status: OrderStatusTab) {
@@ -150,7 +162,7 @@ function formatAmount(value: number) {
 }
 
 function shortOrderNo(order: OrderRecord) {
-	return order.id.replace(/^order-/, '').slice(-10);
+	return order.orderNo || order.id.replace(/^order-/, '').slice(-10);
 }
 
 function primaryName(order: OrderRecord) {
@@ -187,7 +199,7 @@ function orderListActions(order: OrderRecord): OrderListAction[] {
 
 	if (status === '待发货') {
 		if (hasEditableDesign(order)) {
-			actions.push({ key: 'edit', label: '继续编辑', tone: 'ghost' });
+			actions.push({ key: 'edit', label: usesRemoteCommerce ? '复制为新设计' : '继续编辑', tone: 'ghost' });
 		}
 		actions.push({ key: 'remind', label: '提醒发货', tone: 'primary' });
 		return actions;
@@ -250,12 +262,22 @@ function applyOrderStatus(order: OrderRecord, status: NormalizedOrderStatus, toa
 	uni.showToast({ title: toastTitle, icon: 'success' });
 }
 
-function remindShipment(order: OrderRecord) {
-	uni.showModal({
-		title: '已提醒客服',
-		content: `订单 ${shortOrderNo(order)} 的发货提醒已记录，我们会优先核对晶石库存和手围信息。`,
-		showCancel: false,
-	});
+async function remindShipment(order: OrderRecord) {
+	try {
+		if (usesRemoteCommerce) {
+			const updated = await api.remindOrder(order.id);
+			orders.value = orders.value.map((item) => (item.id === updated.id ? updated : item));
+			saveLocalOrders(orders.value);
+		}
+		uni.showModal({
+			title: '已提醒客服',
+			content: `订单 ${shortOrderNo(order)} 的发货提醒已记录，我们会优先核对晶石库存和手围信息。`,
+			showCancel: false,
+		});
+	} catch (error) {
+		console.warn('[orders] 提醒失败', error);
+		uni.showToast({ title: '提醒失败或操作过于频繁', icon: 'none' });
+	}
 }
 
 function confirmReceive(order: OrderRecord) {
@@ -263,8 +285,21 @@ function confirmReceive(order: OrderRecord) {
 		title: '确认收货',
 		content: '确认已经收到这笔订单的商品？确认后订单会进入已收货状态。',
 		confirmText: '确认收货',
-		success: (res) => {
-			if (res.confirm) applyOrderStatus(order, '已收货', '已确认收货');
+		success: async (res) => {
+			if (!res.confirm) return;
+			if (!usesRemoteCommerce) {
+				applyOrderStatus(order, '已收货', '已确认收货');
+				return;
+			}
+			try {
+				const updated = await api.confirmOrderReceipt(order.id);
+				orders.value = orders.value.map((item) => (item.id === updated.id ? updated : item));
+				saveLocalOrders(orders.value);
+				uni.showToast({ title: '已确认收货', icon: 'success' });
+			} catch (error) {
+				console.warn('[orders] 确认收货失败', error);
+				uni.showToast({ title: '确认收货失败，请重试', icon: 'none' });
+			}
 		},
 	});
 }
@@ -274,15 +309,33 @@ function requestAfterSale(order: OrderRecord) {
 		title: '申请售后',
 		content: '提交后订单会进入退款/售后状态，客服会继续核对商品、证书、补差价或改款问题。',
 		confirmText: '申请售后',
-		success: (res) => {
-			if (res.confirm) applyOrderStatus(order, '退款/售后', '已提交售后');
+		success: async (res) => {
+			if (!res.confirm) return;
+			if (!usesRemoteCommerce) {
+				applyOrderStatus(order, '退款/售后', '已提交售后');
+				return;
+			}
+			try {
+				const updated = await api.requestOrderAfterSale(order.id, '用户从订单列表申请售后');
+				orders.value = orders.value.map((item) => (item.id === updated.id ? updated : item));
+				saveLocalOrders(orders.value);
+				uni.showToast({ title: '已提交售后', icon: 'success' });
+			} catch (error) {
+				console.warn('[orders] 售后申请失败', error);
+				uni.showToast({ title: '售后申请失败，请重试', icon: 'none' });
+			}
 		},
 	});
 }
 
 function copyTrackingNo(order: OrderRecord) {
+	const trackingNo = order.trackingNo || (!usesRemoteCommerce ? logisticsOrderNo(order.id) : '');
+	if (!trackingNo) {
+		uni.showToast({ title: '物流单号尚未录入', icon: 'none' });
+		return;
+	}
 	uni.setClipboardData({
-		data: logisticsOrderNo(order.id),
+		data: trackingNo,
 		success: () => {
 			uni.showToast({ title: '已复制单号', icon: 'none' });
 		},

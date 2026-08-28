@@ -2,17 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
-import type { CartItem } from '@/api';
-import { createLocalOrder, type OrderRecord } from '@/utils/orders';
+import { api, type CartItem } from '@/api';
+import { createLocalOrder, saveLocalOrders, type OrderRecord } from '@/utils/orders';
 import { cartItemSummaryText } from '@/utils/orderDisplay';
 import {
 	clearCheckoutDraft,
 	defaultCheckoutAddress,
 	loadCheckoutAddresses,
+	loadCheckoutAddressesRemote,
 	loadCheckoutDraft,
 	removeLocalCartItems,
 	type CheckoutAddress,
 	type CheckoutDraft,
+	usesRemoteCommerce,
 } from '@/utils/checkout';
 
 interface CouponRecord {
@@ -35,6 +37,7 @@ const couponSheetOpen = ref(false);
 const selectedCouponId = ref<string | null>(null);
 const skipCoupon = ref(false);
 const draftSignature = ref('');
+const submitting = ref(false);
 
 const items = computed(() => draft.value?.items || []);
 const selectedAddress = computed(() => defaultCheckoutAddress(addresses.value));
@@ -65,7 +68,7 @@ const selectedCoupon = computed(() => {
 const discount = computed(() => selectedCoupon.value?.amount || 0);
 const payable = computed(() => Number(Math.max(0, itemTotal.value + freight.value - discount.value).toFixed(1)));
 const noteCount = computed(() => note.value.length);
-const successOrderNo = computed(() => submittedOrder.value?.id.replace(/^order-/, '').slice(-12) || '');
+const successOrderNo = computed(() => submittedOrder.value?.orderNo || submittedOrder.value?.id.replace(/^order-/, '').slice(-12) || '');
 const successPrimaryItem = computed(() => submittedOrder.value?.items[0] || null);
 const couponRowText = computed(() => {
 	if (skipCoupon.value) return '不使用优惠';
@@ -119,7 +122,10 @@ function loadCheckoutState() {
 	draftSignature.value = nextSignature;
 	draft.value = nextDraft;
 	addresses.value = loadCheckoutAddresses();
-	coupons.value = loadCoupons();
+	void loadCheckoutAddressesRemote().then((remote) => {
+		addresses.value = remote;
+	});
+	coupons.value = usesRemoteCommerce ? [] : loadCoupons();
 	couponSheetOpen.value = false;
 	normalizeSelectedCoupon();
 }
@@ -282,7 +288,7 @@ function submitOrder() {
 	}
 	uni.showModal({
 		title: '确认提交订单',
-		content: `${address.name} ${address.phone}\n${address.region} ${address.detail}\n实付款 ¥${formatAmount(payable.value)}\n提交后客服会核对库存、手围和实物图。`,
+		content: `${address.name} ${address.phone}\n${address.region} ${address.detail}\n预估金额 ¥${formatAmount(payable.value)}\n服务端会按当前商品和材料价格重新核算，提交后由客服确认库存与制作信息。`,
 		confirmText: '确认提交',
 		confirmColor: '#D92733',
 		cancelText: '再看看',
@@ -292,20 +298,41 @@ function submitOrder() {
 	});
 }
 
-function commitOrder() {
+async function commitOrder() {
 	if (!items.value.length || !selectedAddress.value) return;
+	if (submitting.value) return;
+	submitting.value = true;
 	const currentDraft = draft.value;
-	const order = createLocalOrder(items.value, {
-		address: selectedAddress.value,
-		discount: discount.value,
-		freight: freight.value,
-		couponCode: selectedCoupon.value?.code,
-		note: note.value.trim(),
-	});
+	let order: OrderRecord;
+	try {
+		if (usesRemoteCommerce) {
+			order = await api.createOrder({
+				addressId: selectedAddress.value.id,
+				idempotencyKey: currentDraft?.id || `checkout-${Date.now()}-direct`,
+				items: items.value,
+				cartItemIds: currentDraft?.source === 'cart' ? currentDraft.selectedIds : [],
+				note: note.value.trim(),
+			});
+			saveLocalOrders([order, ...loadExistingOrdersWithout(order.id)]);
+		} else {
+			order = createLocalOrder(items.value, {
+				address: selectedAddress.value,
+				discount: discount.value,
+				freight: freight.value,
+				couponCode: selectedCoupon.value?.code,
+				note: note.value.trim(),
+			});
+		}
+	} catch (error) {
+		console.warn('[checkout] 下单失败', error);
+		uni.showToast({ title: '订单提交失败，请检查网络后重试', icon: 'none' });
+		submitting.value = false;
+		return;
+	}
 	if (currentDraft?.source === 'cart') {
 		removeLocalCartItems(currentDraft.selectedIds);
 	}
-	markCouponUsed(selectedCoupon.value);
+	if (!usesRemoteCommerce) markCouponUsed(selectedCoupon.value);
 	clearCheckoutDraft();
 	couponSheetOpen.value = false;
 	selectedCouponId.value = null;
@@ -313,7 +340,18 @@ function commitOrder() {
 	submittedOrder.value = order;
 	draft.value = null;
 	note.value = '';
+	submitting.value = false;
 	uni.showToast({ title: '订单已生成', icon: 'success' });
+}
+
+function loadExistingOrdersWithout(orderId: string): OrderRecord[] {
+	try {
+		const raw = uni.getStorageSync('diy-bracelets-orders');
+		const cached = typeof raw === 'string' ? JSON.parse(raw) : raw;
+		return Array.isArray(cached) ? cached.filter((order) => order?.id !== orderId) : [];
+	} catch {
+		return [];
+	}
 }
 </script>
 
@@ -348,7 +386,7 @@ function commitOrder() {
 						<view class="success-dot" />
 						<view>
 							<view class="success-step-title">订单提交</view>
-							<view class="success-step-sub">订单已经进入待发货</view>
+							<view class="success-step-sub">订单已经进入待确认</view>
 						</view>
 					</view>
 					<view class="success-step">
@@ -375,7 +413,7 @@ function commitOrder() {
 					<view class="success-item-body">
 						<view class="success-item-name">{{ itemDisplayName(successPrimaryItem) }}</view>
 						<view class="success-item-sub">
-							共 {{ submittedOrder.itemCount }} 件 · 实付款 ¥{{ formatAmount(submittedOrder.total) }}
+							共 {{ submittedOrder.itemCount }} 件 · 核算金额 ¥{{ formatAmount(submittedOrder.total) }}
 						</view>
 					</view>
 				</view>
@@ -473,7 +511,9 @@ function commitOrder() {
 					<text>实付：</text>
 					<text class="footer-price">￥{{ formatAmount(payable) }}</text>
 				</view>
-				<button class="submit-btn" @tap="submitOrder">提交订单</button>
+				<button class="submit-btn" :disabled="submitting" @tap="submitOrder">
+					{{ submitting ? '正在提交…' : '提交订单' }}
+				</button>
 			</view>
 		</template>
 

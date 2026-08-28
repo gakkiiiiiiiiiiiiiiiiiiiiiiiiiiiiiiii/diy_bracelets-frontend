@@ -2,16 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { api } from '@/api';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
 import { useContentStore } from '@/stores/content';
-import { addLocalCartItems } from '@/utils/checkout';
+import { addLocalCartItems, usesRemoteCommerce } from '@/utils/checkout';
 import { designEntrySourceForCartItem, openDesignStudio } from '@/utils/designNavigation';
 import {
 	cloneOrderItemsForCart,
 	loadLocalOrders,
 	logisticsOrderNo,
 	normalizeOrderStatus,
+	saveLocalOrders,
 	updateLocalOrderStatus,
 	type NormalizedOrderStatus,
 	type OrderRecord,
@@ -55,21 +57,28 @@ const discount = computed(() => order.value?.discount ?? 0);
 const hasEditableDesign = computed(() => (order.value ? !!orderEditableComposition(order.value)?.length : false));
 const normalizedStatus = computed<NormalizedOrderStatus>(() => normalizeOrderStatus(order.value?.status || ''));
 const logisticsInfo = computed(() => (order.value ? buildLogisticsInfo(order.value) : null));
+const editActionText = computed(() => usesRemoteCommerce ? '复制为新设计' : '继续编辑');
 const primaryOrderActionText = computed(() => {
 	if (normalizedStatus.value === '待发货') return '提醒发货';
 	if (normalizedStatus.value === '已发货') return '确认收货';
 	if (normalizedStatus.value === '已收货') return '再次购买';
-	if (hasEditableDesign.value) return '继续编辑';
+	if (hasEditableDesign.value) return editActionText.value;
 	return '';
 });
 const secondaryOrderActionText = computed(() => {
-	if (normalizedStatus.value === '待发货' && hasEditableDesign.value) return '继续编辑';
+	if (normalizedStatus.value === '待发货' && hasEditableDesign.value) return editActionText.value;
 	if (normalizedStatus.value === '已发货' && logisticsInfo.value) return '复制单号';
 	if (normalizedStatus.value === '已收货') return '申请售后';
 	return '';
 });
 const statusMeta = computed(() => {
 	const status = normalizedStatus.value;
+	if (usesRemoteCommerce && order.value?.statusCode === 'pending_confirmation') {
+		return { title: '待确认', sub: '客服正在核对库存、尺寸和订单备注', icon: '核', progress: 20 };
+	}
+	if (usesRemoteCommerce && ['confirmed', 'producing'].includes(order.value?.statusCode || '')) {
+		return { title: '制作中', sub: '订单已确认，正在安排备料与制作', icon: '制', progress: 42 };
+	}
 	if (status === '已发货') {
 		return {
 			title: '已发货',
@@ -149,16 +158,26 @@ function syncFromH5Hash() {
 	syncFromQuery(h5QueryFromHash());
 }
 
-function loadOrder() {
+async function loadOrder() {
 	if (!orderId.value) {
 		order.value = null;
 		return;
 	}
-	order.value = loadLocalOrders().find((item) => item.id === orderId.value) || null;
+	const cached = loadLocalOrders().find((item) => item.id === orderId.value) || null;
+	order.value = cached;
+	if (!usesRemoteCommerce) return;
+	try {
+		order.value = await api.getOrder(orderId.value);
+		updateOrderCache(order.value);
+	} catch (error) {
+		console.warn('[order] 订单详情加载失败，暂时显示本机缓存', error);
+	}
 }
 
 function shortOrderNo(id: string) {
-	return id.replace(/^order-/, '').slice(-12);
+	return order.value?.id === id && order.value.orderNo
+		? order.value.orderNo
+		: id.replace(/^order-/, '').slice(-12);
 }
 
 function formatAmount(value: number) {
@@ -197,9 +216,27 @@ function logisticsTimeByOffset(iso: string, days: number, hours = 0, minutes = 0
 function buildLogisticsInfo(current: OrderRecord): LogisticsInfo | null {
 	const status = normalizeOrderStatus(current.status);
 	if (status !== '已发货' && status !== '已收货') return null;
+	const trackingNo = current.trackingNo || (!usesRemoteCommerce ? logisticsOrderNo(current.id) : '');
+	if (!trackingNo) return null;
 
 	const receivedDone = status === '已收货';
 	const baseDate = current.createdAt;
+	if (usesRemoteCommerce) {
+		const updatedAt = formatOrderDate(current.updatedAt || current.createdAt);
+		return {
+			carrier: current.trackingCarrier || '承运方',
+			current: receivedDone ? '用户已确认收货' : '商家已发货',
+			status: receivedDone ? '已完成' : '待收货',
+			trackingNo,
+			updatedAt,
+			events: [{
+				title: receivedDone ? '已确认收货' : '商家已发货',
+				desc: receivedDone ? '订单已由用户确认收货。' : `物流单号：${trackingNo}`,
+				time: updatedAt,
+				state: 'active',
+			}],
+		};
+	}
 	const shippedTime = logisticsTimeByOffset(baseDate, 1, 3, 20);
 	const pickedTime = logisticsTimeByOffset(baseDate, 1, 7, 45);
 	const transitTime = logisticsTimeByOffset(baseDate, 2, 1, 10);
@@ -260,10 +297,10 @@ function buildLogisticsInfo(current: OrderRecord): LogisticsInfo | null {
 			];
 
 	return {
-		carrier: '顺丰速运',
+		carrier: current.trackingCarrier || '承运方',
 		current: receivedDone ? '包裹已签收' : '包裹运输中',
 		status: receivedDone ? '已完成' : '待收货',
-		trackingNo: logisticsOrderNo(current.id),
+		trackingNo,
 		updatedAt: events[0]?.time || formatOrderDate(baseDate),
 		events,
 	};
@@ -272,6 +309,37 @@ function buildLogisticsInfo(current: OrderRecord): LogisticsInfo | null {
 function buildTimeline(current: OrderRecord) {
 	const status = normalizeOrderStatus(current.status);
 	const baseDate = current.createdAt;
+	if (usesRemoteCommerce) {
+		const shippedDone = status === '已发货' || status === '已收货';
+		const receivedDone = status === '已收货';
+		if (status === '退款/售后') {
+			return [
+				{ title: '订单已提交', desc: '订单信息已由服务端保存', time: formatOrderDate(baseDate), state: 'done' },
+				{ title: '售后处理中', desc: '客服正在核对售后申请', time: formatOrderDate(current.updatedAt || baseDate), state: 'active' },
+			];
+		}
+		return [
+			{ title: '订单已提交', desc: '订单信息已由服务端保存', time: formatOrderDate(baseDate), state: 'done' },
+			{
+				title: '核对制作',
+				desc: shippedDone ? '库存和制作信息已核对' : '客服正在核对库存、尺寸和备注',
+				time: '',
+				state: shippedDone ? 'done' : 'active',
+			},
+			{
+				title: '包裹发出',
+				desc: shippedDone ? '物流信息已录入' : '发货后将在这里显示真实物流单号',
+				time: shippedDone ? formatOrderDate(current.updatedAt || baseDate) : '',
+				state: shippedDone ? (receivedDone ? 'done' : 'active') : 'pending',
+			},
+			{
+				title: '确认收货',
+				desc: receivedDone ? '用户已确认收货' : '收到商品后可确认收货',
+				time: receivedDone ? formatOrderDate(current.updatedAt || baseDate) : '',
+				state: receivedDone ? 'done' : 'pending',
+			},
+		];
+	}
 	if (status === '退款/售后') {
 		return [
 			{
@@ -352,13 +420,27 @@ function applyOrderStatus(status: NormalizedOrderStatus, toastTitle: string) {
 	uni.showToast({ title: toastTitle, icon: 'success' });
 }
 
-function remindShipment() {
+function updateOrderCache(updated: OrderRecord) {
+	const existing = loadLocalOrders().filter((item) => item.id !== updated.id);
+	saveLocalOrders([updated, ...existing]);
+}
+
+async function remindShipment() {
 	if (!order.value) return;
-	uni.showModal({
-		title: '已提醒客服',
-		content: '我们已记录提醒，会优先核对晶石库存、手围信息和发货安排。',
-		showCancel: false,
-	});
+	try {
+		if (usesRemoteCommerce) {
+			order.value = await api.remindOrder(order.value.id);
+			updateOrderCache(order.value);
+		}
+		uni.showModal({
+			title: '已提醒客服',
+			content: '我们已记录提醒，会优先核对晶石库存、手围信息和发货安排。',
+			showCancel: false,
+		});
+	} catch (error) {
+		console.warn('[order] 提醒失败', error);
+		uni.showToast({ title: '提醒失败或操作过于频繁', icon: 'none' });
+	}
 }
 
 function confirmReceive() {
@@ -367,8 +449,20 @@ function confirmReceive() {
 		title: '确认收货',
 		content: '确认已经收到这笔订单的商品？确认后订单会进入已收货状态。',
 		confirmText: '确认收货',
-		success: (res) => {
-			if (res.confirm) applyOrderStatus('已收货', '已确认收货');
+		success: async (res) => {
+			if (!res.confirm) return;
+			if (!usesRemoteCommerce) {
+				applyOrderStatus('已收货', '已确认收货');
+				return;
+			}
+			try {
+				order.value = await api.confirmOrderReceipt(order.value!.id);
+				updateOrderCache(order.value);
+				uni.showToast({ title: '已确认收货', icon: 'success' });
+			} catch (error) {
+				console.warn('[order] 确认收货失败', error);
+				uni.showToast({ title: '确认收货失败，请重试', icon: 'none' });
+			}
 		},
 	});
 }
@@ -379,8 +473,20 @@ function requestAfterSale() {
 		title: '申请售后',
 		content: '提交后订单会进入退款/售后状态，客服会继续核对商品、证书、补差价或改款问题。',
 		confirmText: '申请售后',
-		success: (res) => {
-			if (res.confirm) applyOrderStatus('退款/售后', '已提交售后');
+		success: async (res) => {
+			if (!res.confirm) return;
+			if (!usesRemoteCommerce) {
+				applyOrderStatus('退款/售后', '已提交售后');
+				return;
+			}
+			try {
+				order.value = await api.requestOrderAfterSale(order.value!.id, '用户从订单详情申请售后');
+				updateOrderCache(order.value);
+				uni.showToast({ title: '已提交售后', icon: 'success' });
+			} catch (error) {
+				console.warn('[order] 售后申请失败', error);
+				uni.showToast({ title: '售后申请失败，请重试', icon: 'none' });
+			}
 		},
 	});
 }
@@ -404,7 +510,7 @@ function handlePrimaryOrderAction() {
 }
 
 function handleSecondaryOrderAction() {
-	if (secondaryOrderActionText.value === '继续编辑' || secondaryOrderActionText.value === '再次编辑') {
+	if (secondaryOrderActionText.value === editActionText.value || secondaryOrderActionText.value === '再次编辑') {
 		continueEdit();
 		return;
 	}

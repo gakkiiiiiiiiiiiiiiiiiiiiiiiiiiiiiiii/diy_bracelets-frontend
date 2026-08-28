@@ -5,7 +5,7 @@ import { api, type ProfileData, type ProfileEntry } from '@/api';
 import { mockProfileData } from '@/data/mock';
 import { loadProfileDetails } from '@/utils/profileDetails';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
-import { loadCheckoutAddresses } from '@/utils/checkout';
+import { loadCheckoutAddresses, usesRemoteCommerce } from '@/utils/checkout';
 import { loadLocalOrders } from '@/utils/orders';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 
@@ -24,7 +24,9 @@ const stats = ref({
 const supportQrOpen = ref(false);
 
 const designEntry = computed(() => data.value.entries.find((item) => item.id === 'design'));
-const visibleEntries = computed(() => data.value.entries.filter((item) => item.id !== 'design'));
+const visibleEntries = computed(() => data.value.entries.filter((item) =>
+	item.id !== 'design' && (!usesRemoteCommerce || item.id !== 'coupon'),
+));
 const qrCells = computed(() =>
 	Array.from({ length: QR_SIZE * QR_SIZE }, (_, index) => {
 		const row = Math.floor(index / QR_SIZE);
@@ -113,7 +115,7 @@ async function refreshLocalSummary() {
 	stats.value = {
 		designs: savedDesignsStore.list.length,
 		orders: orders.length,
-		coupons: loadUsableCouponCount(),
+		coupons: usesRemoteCommerce ? 0 : loadUsableCouponCount(),
 		addresses: loadCheckoutAddresses().length,
 	};
 }

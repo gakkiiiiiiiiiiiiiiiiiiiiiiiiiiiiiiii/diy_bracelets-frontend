@@ -249,6 +249,8 @@ function productCartItem(product: ShopGoodsProduct): CartItem {
 	const specText = product.sizes[0] || '';
 	return {
 		id: `cart-product-${product.id}-${specText || 'default'}`,
+		kind: 'product',
+		productId: product.id,
 		name: product.name,
 		image: product.listImage || product.image,
 		price: product.price,

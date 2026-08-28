@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { api, isMockApiFallbackError, type CartItem } from '@/api';
+import { api, getStoredUserId, isMockApiFallbackError, type CartItem } from '@/api';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { useDesignStore } from '@/stores/design';
-import { loadLocalCartItems, saveCheckoutDraft, saveLocalCartItems } from '@/utils/checkout';
+import {
+	cacheLocalCartItems,
+	flushPendingRemoteCart,
+	loadLocalCartItems,
+	saveCheckoutDraft,
+	saveLocalCartItems,
+	usesRemoteCommerce,
+} from '@/utils/checkout';
 import { designEntrySourceForCartItem, openDesignStudio } from '@/utils/designNavigation';
 import { cartItemSummaryText } from '@/utils/orderDisplay';
 
 const items = ref<CartItem[]>([]);
 const selectedIds = ref<string[]>([]);
 const designStore = useDesignStore();
+const CART_MIGRATION_USER_KEY = 'diy-bracelets-cart-migrated-user';
 
 const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(item.id)));
 const selectedTotal = computed(() => selectedItems.value.reduce((sum, item) => sum + item.price * item.qty, 0));
@@ -26,15 +34,34 @@ const allSelected = computed(() => items.value.length > 0 && selectedIds.value.l
 
 async function refreshCart() {
 	try {
+		await flushPendingRemoteCart();
 		const res = await api.getCart();
 		const apiItems = (res?.items || []) as CartItem[];
-		items.value = mergeCartItems(loadLocalCart(), apiItems);
+		const localItems = loadLocalCart();
+		if (usesRemoteCommerce) {
+			items.value = await resolveRemoteCart(apiItems, localItems);
+		} else {
+			items.value = mergeCartItems(apiItems, localItems);
+		}
+		cacheLocalCartItems(items.value);
 		selectedIds.value = items.value.map((item) => item.id);
 	} catch (e) {
 		if (!isMockApiFallbackError(e)) console.warn('[cart] API getCart failed:', e);
 		items.value = loadLocalCart();
 		selectedIds.value = items.value.map((item) => item.id);
 	}
+}
+
+async function resolveRemoteCart(remoteItems: CartItem[], localItems: CartItem[]) {
+	const userId = getStoredUserId();
+	const migratedUser = String(uni.getStorageSync(CART_MIGRATION_USER_KEY) || '');
+	let resolved = remoteItems;
+	if (!remoteItems.length && localItems.length && userId && !migratedUser) {
+		const migrated = await api.replaceCart(localItems);
+		resolved = (migrated?.items || []) as CartItem[];
+	}
+	if (userId) uni.setStorageSync(CART_MIGRATION_USER_KEY, userId);
+	return resolved;
 }
 
 function showCartPage() {
@@ -69,7 +96,7 @@ function syncSelectionAfterCartChange() {
 
 function changeQty(id: string, delta: number) {
 	items.value = items.value.map((item) =>
-		item.id === id ? { ...item, qty: Math.max(1, Number(item.qty || 1) + delta) } : item,
+		item.id === id ? { ...item, qty: Math.min(99, Math.max(1, Number(item.qty || 1) + delta)) } : item,
 	);
 	saveLocalCart();
 }

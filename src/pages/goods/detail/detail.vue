@@ -255,6 +255,7 @@ function designCartItem(): CartItem | null {
 	const count = compositionBeadCount(composition);
 	return {
 		id: `cart-design-${current.id}-${Date.now()}`,
+		kind: 'custom',
 		name: `${current.title} · ${count}颗珠`,
 		image: current.image || composition.find((row) => row.image)?.image || '',
 		price: Number(totalPrice.value.toFixed(1)),
@@ -309,6 +310,8 @@ function productCartItem(): CartItem | null {
 	const specText = selectedSize.value || product.value.sizes[0] || '';
 	return {
 		id: `cart-product-${product.value.id}-${specText || 'default'}`,
+		kind: 'product',
+		productId: product.value.id,
 		name: product.value.name,
 		image: product.value.listImage || product.value.image,
 		price: product.value.price,

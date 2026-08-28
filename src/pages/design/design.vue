@@ -1441,6 +1441,7 @@ function buildDesignCartItem(): CartItem | null {
 	const isSingleMode = entrySource.value === 'single';
 	return {
 		id: `cart-design-${Date.now()}`,
+		kind: 'custom',
 		name: isSingleMode ? `单珠选购 · ${beadCount}颗珠` : orderItemName.value,
 		image: currentDesign.find((bead) => bead.image)?.image || '',
 		price: Number(designStore.totalPrice.toFixed(1)),

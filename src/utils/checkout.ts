@@ -1,17 +1,11 @@
-import type { CartItem } from '@/api';
+import { api, getStoredUserId, type AddressRecord, type CartItem } from '@/api';
+import { IS_MP_WEIXIN, USE_MOCK_API } from '@/config';
 import { shopGoodsProducts } from '@/data/shopGoods';
 import { cloneComposition } from '@/utils/designComposition';
 
 export type CheckoutSource = 'cart' | 'buy-now';
 
-export interface CheckoutAddress {
-	id: string;
-	name: string;
-	phone: string;
-	region: string;
-	detail: string;
-	isDefault: boolean;
-}
+export type CheckoutAddress = AddressRecord;
 
 export interface CheckoutDraft {
 	id: string;
@@ -26,10 +20,16 @@ export const CART_STORAGE_KEY = 'diy-bracelets-cart';
 const LEGACY_CART_STORAGE_KEYS = ['diy-bracelets-test-cart'];
 export const ADDRESS_STORAGE_KEY = 'diy-bracelets-addresses';
 export const CHECKOUT_DRAFT_KEY = 'diy-bracelets-checkout-draft';
+const ADDRESS_MIGRATION_USER_KEY = 'diy-bracelets-address-migrated-user';
+const CART_SYNC_PENDING_KEY = 'diy-bracelets-cart-sync-pending';
+export const usesRemoteCommerce = IS_MP_WEIXIN && !USE_MOCK_API;
+let pendingRemoteCart: CartItem[] | null = null;
+let remoteCartSyncPromise: Promise<void> | null = null;
 
 export function cloneCartItem(item: CartItem): CartItem {
 	return {
 		...item,
+		kind: item.kind || (item.composition?.length ? 'custom' : 'product'),
 		composition: cloneComposition(item.composition),
 	};
 }
@@ -79,9 +79,48 @@ export function loadLocalCartItems(): CartItem[] {
 	}
 }
 
-export function saveLocalCartItems(items: CartItem[]) {
+export function cacheLocalCartItems(items: CartItem[]) {
 	uni.setStorageSync(CART_STORAGE_KEY, JSON.stringify(items.map(cloneCartItem)));
 	clearLegacyCartItems();
+}
+
+export function saveLocalCartItems(items: CartItem[]) {
+	cacheLocalCartItems(items);
+	if (usesRemoteCommerce) {
+		uni.setStorageSync(CART_SYNC_PENDING_KEY, '1');
+		void queueRemoteCartSync(items).catch((error) => {
+			console.warn('[cart] 服务端同步失败，将在下次修改或进入购物车时重试', error);
+		});
+	}
+}
+
+function queueRemoteCartSync(items: CartItem[]): Promise<void> {
+	pendingRemoteCart = items.map(cloneCartItem);
+	if (!remoteCartSyncPromise) {
+		remoteCartSyncPromise = drainRemoteCartQueue().finally(() => {
+			remoteCartSyncPromise = null;
+		});
+	}
+	return remoteCartSyncPromise;
+}
+
+async function drainRemoteCartQueue() {
+	while (pendingRemoteCart) {
+		const snapshot = pendingRemoteCart;
+		pendingRemoteCart = null;
+		try {
+			await api.replaceCart(snapshot);
+		} catch (error) {
+			if (!pendingRemoteCart) pendingRemoteCart = snapshot;
+			throw error;
+		}
+	}
+	uni.removeStorageSync(CART_SYNC_PENDING_KEY);
+}
+
+export async function flushPendingRemoteCart() {
+	if (!usesRemoteCommerce || !uni.getStorageSync(CART_SYNC_PENDING_KEY)) return;
+	await queueRemoteCartSync(loadLocalCartItems());
 }
 
 export function addLocalCartItems(itemsToAdd: CartItem[]) {
@@ -111,11 +150,15 @@ export function removeLocalCartItems(ids: string[]) {
 }
 
 function normalizeShopCartItem(item: CartItem): CartItem {
-	if (!item.id.startsWith('cart-product-')) return item;
+	if (!item.id.startsWith('cart-product-')) {
+		return { ...item, kind: item.kind || 'custom' };
+	}
 	const product = shopGoodsProducts.find((entry) => item.id.startsWith(`cart-product-${entry.id}-`));
 	if (!product) return item;
 	return {
 		...item,
+		kind: 'product',
+		productId: product.id,
 		name: product.name,
 		image: product.listImage || product.image,
 		price: product.price,
@@ -160,6 +203,38 @@ export function loadCheckoutAddresses(): CheckoutAddress[] {
 		return Array.isArray(cached) ? cached : [];
 	} catch {
 		return [];
+	}
+}
+
+export function saveCheckoutAddressesCache(addresses: CheckoutAddress[]) {
+	uni.setStorageSync(ADDRESS_STORAGE_KEY, JSON.stringify(addresses));
+}
+
+export async function loadCheckoutAddressesRemote(): Promise<CheckoutAddress[]> {
+	const local = loadCheckoutAddresses();
+	if (!usesRemoteCommerce) return local;
+	try {
+		let remote = await api.getAddresses();
+		const userId = getStoredUserId();
+		const migratedUser = String(uni.getStorageSync(ADDRESS_MIGRATION_USER_KEY) || '');
+		if (!remote.length && local.length && userId && !migratedUser) {
+			for (const address of local) {
+				await api.createAddress({
+					name: address.name,
+					phone: address.phone,
+					region: address.region,
+					detail: address.detail,
+					isDefault: address.isDefault,
+				});
+			}
+			remote = await api.getAddresses();
+		}
+		if (userId) uni.setStorageSync(ADDRESS_MIGRATION_USER_KEY, userId);
+		saveCheckoutAddressesCache(remote);
+		return remote;
+	} catch (error) {
+		console.warn('[address] 服务端地址加载失败，暂时显示本机缓存', error);
+		return local;
 	}
 }
 

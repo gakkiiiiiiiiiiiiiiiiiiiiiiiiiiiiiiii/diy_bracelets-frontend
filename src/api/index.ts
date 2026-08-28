@@ -14,12 +14,31 @@ import {
 const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
 const USER_TOKEN_STORAGE_KEY = 'diy-bracelets-user-token';
 const USER_TOKEN_EXPIRY_STORAGE_KEY = 'diy-bracelets-user-token-expires-at';
+const USER_ID_STORAGE_KEY = 'diy-bracelets-user-id';
+const USER_CACHE_OWNER_STORAGE_KEY = 'diy-bracelets-user-cache-owner';
+const USER_SCOPED_CACHE_KEYS = [
+  'diy-bracelets-address-migrated-user',
+  'diy-bracelets-addresses',
+  'diy-bracelets-cart',
+  'diy-bracelets-cart-migrated-user',
+  'diy-bracelets-cart-sync-pending',
+  'diy-bracelets-checkout-draft',
+  'diy-bracelets-coupons',
+  'diy-bracelets-editing-cart-item-id',
+  'diy-bracelets-editing-saved-design-id',
+  'diy-bracelets-favorite-plaza',
+  'diy-bracelets-favorite-plaza-records',
+  'diy-bracelets-orders',
+  'diy-bracelets-profile-details',
+  'diy-bracelets-saved-list',
+  'diy-bracelets-test-cart',
+];
 let wxCloudInited = false;
 let loginPromise: Promise<void> | null = null;
 
 declare const wx: any;
 
-type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type UniRequestMethod = 'GET' | 'POST' | 'DELETE' | 'OPTIONS' | 'HEAD' | 'PUT' | 'TRACE' | 'CONNECT';
 
 export class MockApiFallbackError extends Error {
@@ -68,12 +87,27 @@ function hasValidStoredSession(): boolean {
 function clearStoredSession() {
   uni.removeStorageSync(USER_TOKEN_STORAGE_KEY);
   uni.removeStorageSync(USER_TOKEN_EXPIRY_STORAGE_KEY);
+  uni.removeStorageSync(USER_ID_STORAGE_KEY);
+}
+
+export function getStoredUserId(): string {
+  return String(uni.getStorageSync(USER_ID_STORAGE_KEY) || '');
+}
+
+function bindUserScopedCache(userId: string) {
+  const previousOwner = String(uni.getStorageSync(USER_CACHE_OWNER_STORAGE_KEY) || '');
+  if (previousOwner && previousOwner !== userId) {
+    for (const key of USER_SCOPED_CACHE_KEYS) uni.removeStorageSync(key);
+  }
+  uni.setStorageSync(USER_CACHE_OWNER_STORAGE_KEY, userId);
 }
 
 function requiresUserSession(path: string, method: ApiMethod): boolean {
   return path.startsWith('/api/my-designs') ||
     path.startsWith('/api/cart') ||
     path.startsWith('/api/profile') ||
+    path.startsWith('/api/addresses') ||
+    path.startsWith('/api/orders') ||
     path.startsWith('/api/design-process-videos') ||
     (path === '/api/inspirations' && method === 'POST');
 }
@@ -240,8 +274,10 @@ export function ensureUserSession(): Promise<void> {
   })
     .then((code) => requestTransport<WechatLoginResponse>('/api/auth/wechat', 'POST', { code }))
     .then((session) => {
+      bindUserScopedCache(session.user.id);
       uni.setStorageSync(USER_TOKEN_STORAGE_KEY, session.accessToken);
       uni.setStorageSync(USER_TOKEN_EXPIRY_STORAGE_KEY, session.expiresAt);
+      uni.setStorageSync(USER_ID_STORAGE_KEY, session.user.id);
     })
     .finally(() => {
       loginPromise = null;
@@ -326,6 +362,26 @@ export interface DesignProcessVideoPaletteItem {
   price: number;
 }
 
+function cartItemInput(item: CartItem) {
+  return {
+    clientItemId: item.clientItemId || item.id,
+    kind: item.kind || (item.composition?.length ? 'custom' : 'product'),
+    productId: item.productId,
+    name: item.name,
+    image: item.image,
+    spec: item.spec,
+    qty: Number(item.qty || 1),
+    handCircumferenceCm: item.handCircumferenceCm,
+    estimatedCircumferenceCm: item.estimatedCircumferenceCm,
+    composition: item.composition?.map((row) => ({
+      materialId: row.materialId,
+      specId: row.specId,
+      size: row.size,
+      quantity: row.quantity,
+    })),
+  };
+}
+
 export const api = {
   getCategories: () => request<MaterialCategory[]>(`/api/categories`),
   getMaterials: () => request<Material[]>(`/api/materials`),
@@ -373,6 +429,31 @@ export const api = {
   getDesignProcessVideo: (id: string) =>
     request<DesignProcessVideoJob>(`/api/design-process-videos/${id}`),
   getCart: () => request<CartData>(`/api/cart`),
+  replaceCart: (items: CartItem[]) =>
+    request<CartData>(`/api/cart`, 'PUT', { items: items.map(cartItemInput) }),
+  getAddresses: () => request<AddressRecord[]>(`/api/addresses`),
+  createAddress: (body: Omit<AddressRecord, 'id'>) =>
+    request<AddressRecord>(`/api/addresses`, 'POST', body),
+  updateAddress: (id: string, body: Partial<Omit<AddressRecord, 'id'>>) =>
+    request<AddressRecord>(`/api/addresses/${id}`, 'PATCH', body),
+  deleteAddress: (id: string) => request<void>(`/api/addresses/${id}`, 'DELETE'),
+  getOrders: () => request<OrderRecordFromApi[]>(`/api/orders`),
+  getOrder: (id: string) => request<OrderRecordFromApi>(`/api/orders/${id}`),
+  createOrder: (body: {
+    addressId: string;
+    idempotencyKey: string;
+    items: CartItem[];
+    cartItemIds?: string[];
+    note?: string;
+  }) => request<OrderRecordFromApi>(`/api/orders`, 'POST', {
+    ...body,
+    items: body.items.map(cartItemInput),
+  }),
+  remindOrder: (id: string) => request<OrderRecordFromApi>(`/api/orders/${id}/remind`, 'POST'),
+  confirmOrderReceipt: (id: string) =>
+    request<OrderRecordFromApi>(`/api/orders/${id}/confirm-receipt`, 'POST'),
+  requestOrderAfterSale: (id: string, note: string) =>
+    request<OrderRecordFromApi>(`/api/orders/${id}/after-sale`, 'POST', { note }),
   getProfile: () => request<ProfileData>(`/api/profile`),
   /** 我的设计：列表、新增、更新、删除 */
   getMyDesigns: () => request<MyDesignFromApi[]>(`/api/my-designs`),
@@ -645,6 +726,7 @@ export interface DesignCompositionRow {
   price: number;
   quantity: number;
   amount?: number;
+  specId?: string;
 }
 
 export interface DesignDetail {
@@ -689,6 +771,9 @@ export interface BraceletCodeResolution {
 
 export interface CartItem {
   id: string;
+  clientItemId?: string;
+  kind?: 'product' | 'custom';
+  productId?: string;
   name: string;
   image: string;
   price: number;
@@ -704,6 +789,37 @@ export interface CartItem {
 
 export interface CartData {
   items: CartItem[];
+}
+
+export interface AddressRecord {
+  id: string;
+  name: string;
+  phone: string;
+  region: string;
+  detail: string;
+  isDefault: boolean;
+}
+
+export interface OrderRecordFromApi {
+  id: string;
+  orderNo: string;
+  title: string;
+  status: string;
+  statusCode: string;
+  total: number;
+  itemTotal: number;
+  freight: number;
+  discount: number;
+  note: string;
+  address: AddressRecord;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+  items: CartItem[];
+  trackingCarrier: string | null;
+  trackingNo: string | null;
+  remindedAt: string | null;
+  afterSaleNote: string | null;
 }
 
 export interface ProfileEntry {

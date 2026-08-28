@@ -2,17 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
-
-interface AddressRecord {
-	id: string;
-	name: string;
-	phone: string;
-	region: string;
-	detail: string;
-	isDefault: boolean;
-}
-
-const ADDRESS_KEY = 'diy-bracelets-addresses';
+import { api, type AddressRecord } from '@/api';
+import {
+	loadCheckoutAddresses,
+	loadCheckoutAddressesRemote,
+	saveCheckoutAddressesCache,
+	usesRemoteCommerce,
+} from '@/utils/checkout';
 const addresses = ref<AddressRecord[]>([]);
 const editingId = ref('');
 const showForm = ref(false);
@@ -108,18 +104,16 @@ function syncFromH5Route() {
 }
 
 function loadAddresses() {
-	try {
-		const raw = uni.getStorageSync(ADDRESS_KEY);
-		const cached = typeof raw === 'string' ? JSON.parse(raw) : raw;
-		addresses.value = normalizeAddresses(Array.isArray(cached) ? cached : []);
-	} catch {
-		addresses.value = [];
-	}
+	addresses.value = normalizeAddresses(loadCheckoutAddresses());
+	void loadCheckoutAddressesRemote().then((remote) => {
+		addresses.value = normalizeAddresses(remote);
+		if (editingId.value) fillFormFromAddress(editingId.value);
+	});
 }
 
 function saveAddresses() {
 	addresses.value = normalizeAddresses(addresses.value);
-	uni.setStorageSync(ADDRESS_KEY, JSON.stringify(addresses.value));
+	saveCheckoutAddressesCache(addresses.value);
 }
 
 function normalizeAddresses(list: AddressRecord[]) {
@@ -208,7 +202,7 @@ function validateForm() {
 	return '';
 }
 
-function submitAddress() {
+async function submitAddress() {
 	const error = validateForm();
 	if (error) {
 		uni.showToast({ title: error, icon: 'none' });
@@ -222,7 +216,33 @@ function submitAddress() {
 		detail: form.value.detail.trim(),
 		isDefault: selectMode.value || form.value.isDefault || addresses.value.length === 0,
 	};
-	if (editing.value) {
+	if (usesRemoteCommerce) {
+		try {
+			if (editing.value) {
+				await api.updateAddress(editingId.value, {
+					name: record.name,
+					phone: record.phone,
+					region: record.region,
+					detail: record.detail,
+					isDefault: record.isDefault,
+				});
+			} else {
+				await api.createAddress({
+					name: record.name,
+					phone: record.phone,
+					region: record.region,
+					detail: record.detail,
+					isDefault: record.isDefault,
+				});
+			}
+			addresses.value = normalizeAddresses(await api.getAddresses());
+			saveAddresses();
+		} catch (error) {
+			console.warn('[address] 保存失败', error);
+			uni.showToast({ title: '地址保存失败，请检查网络后重试', icon: 'none' });
+			return;
+		}
+	} else if (editing.value) {
 		addresses.value = addresses.value.map((item) => {
 			const next = item.id === editingId.value ? record : item;
 			return {
@@ -230,11 +250,13 @@ function submitAddress() {
 				isDefault: record.isDefault ? item.id === editingId.value : next.isDefault,
 			};
 		});
+		addresses.value = normalizeAddresses(addresses.value);
+		saveAddresses();
 	} else {
 		addresses.value = [record, ...addresses.value.map((item) => ({ ...item, isDefault: record.isDefault ? false : item.isDefault }))];
+		addresses.value = normalizeAddresses(addresses.value);
+		saveAddresses();
 	}
-	addresses.value = normalizeAddresses(addresses.value);
-	saveAddresses();
 	uni.showToast({ title: '已保存地址', icon: 'success' });
 	setTimeout(() => {
 		if (selectMode.value && returnToCheckout.value) {
@@ -250,18 +272,31 @@ function submitAddress() {
 	}, 260);
 }
 
-function setDefault(id: string, options: { silent?: boolean } = {}) {
-	if (addresses.value.find((item) => item.id === id)?.isDefault) return;
-	addresses.value = addresses.value.map((item) => ({ ...item, isDefault: item.id === id }));
-	saveAddresses();
+async function setDefault(id: string, options: { silent?: boolean } = {}) {
+	if (addresses.value.find((item) => item.id === id)?.isDefault) return true;
+	if (usesRemoteCommerce) {
+		try {
+			await api.updateAddress(id, { isDefault: true });
+			addresses.value = normalizeAddresses(await api.getAddresses());
+			saveAddresses();
+		} catch (error) {
+			console.warn('[address] 设置默认地址失败', error);
+			uni.showToast({ title: '设置失败，请稍后重试', icon: 'none' });
+			return false;
+		}
+	} else {
+		addresses.value = addresses.value.map((item) => ({ ...item, isDefault: item.id === id }));
+		saveAddresses();
+	}
 	if (!options.silent) {
 		uni.showToast({ title: '已设为默认地址', icon: 'none' });
 	}
+	return true;
 }
 
-function selectAddress(id: string) {
+async function selectAddress(id: string) {
 	if (!selectMode.value) return;
-	setDefault(id, { silent: true });
+	if (!await setDefault(id, { silent: true })) return;
 	if (returnToCheckout.value) {
 		uni.redirectTo({ url: '/pages/checkout/checkout' });
 		return;
@@ -273,11 +308,22 @@ function removeAddress(id: string) {
 	uni.showModal({
 		title: '删除地址',
 		content: '确定删除这条收货地址？',
-		success: (res) => {
+		success: async (res) => {
 			if (!res.confirm) return;
-			addresses.value = addresses.value.filter((item) => item.id !== id);
-			if (addresses.value.length && !addresses.value.some((item) => item.isDefault)) {
-				addresses.value[0].isDefault = true;
+			if (usesRemoteCommerce) {
+				try {
+					await api.deleteAddress(id);
+					addresses.value = normalizeAddresses(await api.getAddresses());
+				} catch (error) {
+					console.warn('[address] 删除失败', error);
+					uni.showToast({ title: '删除失败，请稍后重试', icon: 'none' });
+					return;
+				}
+			} else {
+				addresses.value = addresses.value.filter((item) => item.id !== id);
+				if (addresses.value.length && !addresses.value.some((item) => item.isDefault)) {
+					addresses.value[0].isDefault = true;
+				}
 			}
 			saveAddresses();
 		},

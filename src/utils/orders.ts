@@ -6,8 +6,10 @@ export type LocalOrderAddress = CheckoutAddress;
 
 export interface OrderRecord {
 	id: string;
+	orderNo?: string;
 	title: string;
 	status: string;
+	statusCode?: string;
 	total: number;
 	itemTotal?: number;
 	freight?: number;
@@ -17,7 +19,12 @@ export interface OrderRecord {
 	address?: LocalOrderAddress;
 	itemCount: number;
 	createdAt: string;
+	updatedAt?: string;
 	items: CartItem[];
+	trackingCarrier?: string | null;
+	trackingNo?: string | null;
+	remindedAt?: string | null;
+	afterSaleNote?: string | null;
 }
 
 export const ORDER_STATUS_TABS = ['全部', '待发货', '已发货', '已收货', '退款/售后'] as const;
@@ -109,6 +116,7 @@ export function createLocalOrder(items: CartItem[], options: CreateLocalOrderOpt
 	const primaryName = items[0]?.name || '定制手串';
 	const order: OrderRecord = {
 		id: `order-${Date.now()}`,
+		orderNo: `LOCAL${Date.now()}`,
 		title: items.length > 1 ? `${primaryName} 等 ${items.length} 件` : primaryName,
 		status: '待发货',
 		total,
