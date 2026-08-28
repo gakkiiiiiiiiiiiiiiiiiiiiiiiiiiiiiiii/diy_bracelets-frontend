@@ -14,6 +14,7 @@ function copyDirSync(src: string, dest: string) {
   if (!fs.existsSync(src)) return
   fs.mkdirSync(dest, { recursive: true })
   for (const name of fs.readdirSync(src)) {
+    if (name === '.DS_Store') continue
     const srcPath = path.join(src, name)
     const destPath = path.join(dest, name)
     if (fs.statSync(srcPath).isDirectory()) {
@@ -26,6 +27,7 @@ function copyDirSync(src: string, dest: string) {
 
 const apiTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3008'
 const staticAssetBase = process.env.VITE_STATIC_BASE || ''
+const wechatAppId = process.env.VITE_WECHAT_APP_ID || ''
 const useWxCloudContainer = process.env.VITE_USE_WXCLOUD_CONTAINER !== 'false'
 const wxCloudContainerEnv = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_ENV || '' : ''
 const wxCloudContainerService = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || '' : ''
@@ -58,6 +60,9 @@ if (isProductionMiniProgram) {
   const staticUrl = new URL(staticAssetBase)
   if (staticUrl.protocol !== 'https:' || staticUrl.username || staticUrl.password || staticUrl.search || staticUrl.hash) {
     throw new Error('VITE_STATIC_BASE for a production WeChat build must be a clean HTTPS URL')
+  }
+  if (!/^wx[a-f0-9]{16}$/i.test(wechatAppId)) {
+    throw new Error('Production WeChat builds require a valid VITE_WECHAT_APP_ID')
   }
 }
 
@@ -160,6 +165,16 @@ export default defineConfig({
           }
           if (fs.existsSync(customTabBarDir)) copyDirSync(customTabBarDir, path.join(buildOutDir, 'custom-tab-bar'))
           if (fs.existsSync(sharedDir)) copyDirSync(sharedDir, path.join(buildOutDir, 'shared'))
+          const projectConfigPath = path.join(buildOutDir, 'project.config.json')
+          const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'))
+          projectConfig.appid = wechatAppId
+          projectConfig.setting = {
+            ...projectConfig.setting,
+            urlCheck: true,
+            minified: true,
+            bigPackageSizeSupport: false,
+          }
+          fs.writeFileSync(projectConfigPath, `${JSON.stringify(projectConfig, null, 2)}\n`)
         }
       },
     },

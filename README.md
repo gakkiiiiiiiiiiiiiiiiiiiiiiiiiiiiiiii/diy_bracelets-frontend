@@ -29,11 +29,12 @@ pnpm build:mp-weixin
 
 - `VITE_API_BASE=https://api.example.com`
 - `VITE_STATIC_BASE=https://static.example.com`：该 HTTPS 站点需发布 `dist/build/h5/static/` 的内容，并允许 3D 纹理跨域读取。
+- `VITE_WECHAT_APP_ID=wx...`：生产构建会写入 `dist/build/mp-weixin/project.config.json`，并开启开发者工具域名校验。AppSecret 只能配置在 backend，严禁写入前端环境变量。
 - 可选：`VITE_WXCLOUD_CONTAINER_ENV=...` 与 `VITE_WXCLOUD_CONTAINER_SERVICE=...`，用于让 API 走 `wx.cloud.callContainer`；`VITE_API_BASE` 仍负责 `/uploads` 动态媒体地址。
 
 生产小程序只内置 tabBar 小图标，商品图、素材图与 3D 纹理从 `VITE_STATIC_BASE` 按需加载。这样可避免把约 90MB 原始资源打进代码包；`pnpm check:mp-size` 会依据[微信官方代码包体积说明](https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeA.html)执行 2 MiB 门禁。API 和静态资源域名都需要加入微信公众平台的合法域名配置，静态资源源还应设置长期缓存和版本化发布。
 
-缺少 API 或静态资源目标、只填写一半云托管配置、启用 Mock，或使用非 HTTPS 地址时，生产构建会直接失败，避免把包误连到错误环境。
+缺少 API、静态资源目标或有效 AppID，只填写一半云托管配置、启用 Mock，或使用非 HTTPS 地址时，生产构建会直接失败，避免把包误连到错误环境。
 
 过程视频默认隐藏。只有后端完成 Chromium、FFmpeg 与 H5 渲染页配置并设置 `DESIGN_PROCESS_VIDEO_ENABLED=true` 后，前端构建才应设置 `VITE_DESIGN_PROCESS_VIDEO_ENABLED=true`。渲染页通过短期内部令牌读取后端校验过的素材快照，不复用用户会话。
 
