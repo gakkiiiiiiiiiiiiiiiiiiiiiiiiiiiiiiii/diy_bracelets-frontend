@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { api } from '@/api';
+import { usesRemoteCommerce } from '@/utils/checkout';
 import { defaultProfileDetails, loadProfileDetails, saveProfileDetails } from '@/utils/profileDetails';
 
 const genderOptions = ['男', '女'];
 const saved = loadProfileDetails();
-const wechatName = saved.name || defaultProfileDetails.name;
-const name = ref(saved.name);
+const initialName = usesRemoteCommerce ? '珠岛用户' : saved.name;
+const wechatName = ref(initialName || defaultProfileDetails.name);
+const name = ref(initialName);
 const phone = ref(saved.phone);
 const gender = ref(genderOptions.includes(saved.gender) ? saved.gender : genderOptions[0]);
 const agreed = ref(false);
@@ -15,11 +19,24 @@ const nicknameSheetOpen = ref(false);
 const phoneSheetOpen = ref(false);
 const nicknameDraft = ref(name.value);
 const phoneDraft = ref(phone.value);
+const saving = ref(false);
 
-const canSave = computed(() => agreed.value && name.value.trim().length > 0);
+const canSave = computed(() => agreed.value && name.value.trim().length > 0 && !saving.value);
 const phoneDisplayText = computed(() => phone.value.trim() || '未填写');
 const canConfirmPhone = computed(() => /^1\d{10}$/.test(phoneDraft.value.trim()));
 const canConfirmNickname = computed(() => nicknameDraft.value.trim().length > 0);
+
+onShow(() => {
+	if (!usesRemoteCommerce) return;
+	void api.getProfile().then((profile) => {
+		name.value = profile.name;
+		nicknameDraft.value = profile.name;
+		wechatName.value = profile.name;
+	}).catch((error) => {
+		console.warn('[profile] 资料加载失败', error);
+		uni.showToast({ title: '资料加载失败，请检查网络', icon: 'none' });
+	});
+});
 
 function toggleGenderMenu() {
 	nicknameSheetOpen.value = false;
@@ -87,8 +104,8 @@ function confirmPhone() {
 }
 
 function useWechatName() {
-	nicknameDraft.value = wechatName;
-	name.value = wechatName;
+	nicknameDraft.value = wechatName.value;
+	name.value = wechatName.value;
 }
 
 function toggleAgreement() {
@@ -119,7 +136,7 @@ function openPrivacy() {
 	uni.navigateTo({ url: '/pages/profile/terms' });
 }
 
-function onSave() {
+async function onSave() {
 	genderMenuOpen.value = false;
 	nicknameSheetOpen.value = false;
 	phoneSheetOpen.value = false;
@@ -127,11 +144,25 @@ function onSave() {
 		uni.showToast({ title: agreed.value ? '请输入昵称' : '请阅读并同意协议', icon: 'none' });
 		return;
 	}
-	saveProfileDetails({
-		name: name.value.trim(),
-		phone: phone.value.trim() || saved.phone,
-		gender: gender.value,
-	});
+	saving.value = true;
+	try {
+		if (usesRemoteCommerce) {
+			const profile = await api.updateProfile(name.value.trim());
+			name.value = profile.name;
+			wechatName.value = profile.name;
+		} else {
+			saveProfileDetails({
+				name: name.value.trim(),
+				phone: phone.value.trim() || saved.phone,
+				gender: gender.value,
+			});
+		}
+	} catch (error) {
+		console.warn('[profile] 资料保存失败', error);
+		uni.showToast({ title: '保存失败，请检查网络', icon: 'none' });
+		saving.value = false;
+		return;
+	}
 	uni.showToast({ title: '已保存', icon: 'success' });
 	setTimeout(() => {
 		uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/profile/profile' }) });
@@ -177,7 +208,7 @@ function onSave() {
 			<view class="hint">建议使用微信昵称以便寻找您的订单</view>
 		</view>
 
-		<view class="card card--account">
+		<view v-if="!usesRemoteCommerce" class="card card--account">
 			<view class="section-title">
 				<view class="section-mark" />
 				<text>账户设置</text>
@@ -215,7 +246,9 @@ function onSave() {
 				<text>请阅读并同意</text>
 				<text class="privacy" @tap.stop="openPrivacy">《用户隐私协议》</text>
 			</view>
-			<view class="save-btn" :class="{ 'save-btn--disabled': !canSave }" @tap="onSave">保存</view>
+			<view class="save-btn" :class="{ 'save-btn--disabled': !canSave }" @tap="onSave">
+				{{ saving ? '保存中...' : '保存' }}
+			</view>
 		</view>
 
 		<view v-if="nicknameSheetOpen" class="nickname-quick-sheet" @tap.stop>

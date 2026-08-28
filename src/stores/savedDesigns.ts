@@ -5,6 +5,7 @@ import type { DesignCompositionRow, MyDesignFromApi } from '@/api';
 import { api } from '@/api';
 import { mockMyDesigns } from '@/data/mock';
 import { beadsToComposition } from '@/utils/designComposition';
+import { usesRemoteCommerce } from '@/utils/checkout';
 
 const STORAGE_KEY = 'diy-bracelets-saved-list';
 export const MAX_SAVED_DESIGN_SLOTS = 10;
@@ -64,55 +65,56 @@ export const useSavedDesignsStore = defineStore('savedDesigns', () => {
 	const hasItems = computed(() => list.value.length > 0);
 	const isFull = computed(() => list.value.length >= MAX_SAVED_DESIGN_SLOTS);
 
-	/** 从后端拉取列表；失败时回退到本地缓存 */
+	/** 生产模式以后端为准；断网时只展示当前用户最近一次成功同步的缓存。 */
 	async function fetchList() {
 		try {
 			const data = await api.getMyDesigns();
 			list.value = (Array.isArray(data) ? data : []).map(fromApi);
 			loaded.value = true;
 			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-			return;
+			return true;
 		} catch (_e) {
-			// 后端未就绪或网络错误：使用本地缓存
 			const stored = loadListFromStorage();
-			list.value = stored ?? mockMyDesigns.map(fromApi);
+			list.value = stored ?? (usesRemoteCommerce ? [] : mockMyDesigns.map(fromApi));
 			loaded.value = true;
 			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
+			return false;
 		}
 	}
 
-	function add(title: string, beads: BraceletBead[]): SavedDesign | null {
+	async function add(title: string, beads: BraceletBead[]): Promise<SavedDesign | null> {
 		if (isFull.value) return null;
 		const composition = beadsToComposition(beads);
+		if (usesRemoteCommerce) {
+			const saved = fromApi(await api.createMyDesign({ title, composition }));
+			list.value = [saved, ...list.value];
+			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
+			return saved;
+		}
 		const item: SavedDesign = {
-			id: '',
+			id: `local-${Date.now()}`,
 			title,
 			beads: JSON.parse(JSON.stringify(beads)),
 			updatedAt: new Date().toISOString(),
 		};
-		// 先乐观更新，再请求后端
-		const tempId = `temp-${Date.now()}`;
-		item.id = tempId;
 		list.value = [item, ...list.value];
-		api
-			.createMyDesign({ title, composition })
-			.then((res) => {
-				list.value = list.value.map((d) =>
-					d.id === tempId ? fromApi(res) : d,
-				);
-				uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-			})
-			.catch(() => {
-				// 保持本地
-				uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-		});
+		uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
 		return item;
 	}
 
-	function update(id: string, beads: BraceletBead[], title?: string): SavedDesign | null {
+	async function update(id: string, beads: BraceletBead[], title?: string): Promise<SavedDesign | null> {
 		const index = list.value.findIndex((d) => d.id === id);
 		if (index < 0) return null;
 		const current = list.value[index];
+		if (usesRemoteCommerce) {
+			const updated = fromApi(await api.updateMyDesign(id, {
+				title: title ?? current.title,
+				composition: beadsToComposition(beads),
+			}));
+			list.value = list.value.map((item) => (item.id === id ? updated : item));
+			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
+			return updated;
+		}
 		const next: SavedDesign = {
 			...current,
 			title: title ?? current.title,
@@ -125,33 +127,13 @@ export const useSavedDesignsStore = defineStore('savedDesigns', () => {
 			...list.value.slice(index + 1),
 		];
 		uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-		if (id.startsWith('temp-')) return next;
-		api
-			.updateMyDesign(id, {
-				title: next.title,
-				composition: beadsToComposition(beads),
-			})
-			.then((res) => {
-				const updated = fromApi(res);
-				list.value = list.value.map((d) => (d.id === id ? updated : d));
-				uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-			})
-			.catch(() => {
-				uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-			});
 		return next;
 	}
 
-	function remove(id: string) {
+	async function remove(id: string) {
+		if (usesRemoteCommerce) await api.deleteMyDesign(id);
 		list.value = list.value.filter((d) => d.id !== id);
 		uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-		if (id.startsWith('temp-')) {
-			return;
-		}
-		api.deleteMyDesign(id).catch(() => {
-			// 本地模式下以后端不可用为常态，保留用户刚做的删除。
-			uni.setStorageSync(STORAGE_KEY, JSON.stringify(list.value));
-		});
 	}
 
 	function get(id: string): SavedDesign | undefined {

@@ -1200,7 +1200,14 @@ async function saveCurrentDesignToList() {
 	if (editingSavedDesignId) {
 		const currentSavedDesign = savedDesignsStore.get(editingSavedDesignId);
 		if (currentSavedDesign) {
-			const updated = savedDesignsStore.update(editingSavedDesignId, designStore.braceletDesign);
+			let updated;
+			try {
+				updated = await savedDesignsStore.update(editingSavedDesignId, designStore.braceletDesign);
+			} catch (error) {
+				console.warn('[design] 设计更新失败', error);
+				uni.showToast({ title: '设计更新失败，请检查网络', icon: 'none' });
+				return false;
+			}
 			if (updated) {
 				uni.removeStorageSync(DRAFT_STORAGE_KEY);
 				uni.removeStorageSync(DRAFT_RESTORE_KEY);
@@ -1211,7 +1218,14 @@ async function saveCurrentDesignToList() {
 		clearEditingSavedDesign();
 	}
 	const title = `我的设计 ${new Date().toLocaleDateString('zh-CN')}`;
-	const saved = savedDesignsStore.add(title, designStore.braceletDesign);
+	let saved;
+	try {
+		saved = await savedDesignsStore.add(title, designStore.braceletDesign);
+	} catch (error) {
+		console.warn('[design] 设计保存失败', error);
+		uni.showToast({ title: '设计保存失败，请检查网络', icon: 'none' });
+		return false;
+	}
 	if (!saved) {
 		uni.showToast({ title: '设计槽位已满', icon: 'none' });
 		return false;

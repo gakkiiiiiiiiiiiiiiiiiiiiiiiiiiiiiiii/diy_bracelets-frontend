@@ -176,8 +176,15 @@ function onDelete(item: SavedDesign, e: Event) {
 	uni.showModal({
 		title: '删除设计',
 		content: `确定删除「${item.title}」？`,
-		success: (res) => {
-			if (res.confirm) savedStore.remove(item.id);
+		success: async (res) => {
+			if (!res.confirm) return;
+			try {
+				await savedStore.remove(item.id);
+				uni.showToast({ title: '已删除', icon: 'success' });
+			} catch (error) {
+				console.warn('[designs] 设计删除失败', error);
+				uni.showToast({ title: '删除失败，请检查网络', icon: 'none' });
+			}
 		},
 	});
 }

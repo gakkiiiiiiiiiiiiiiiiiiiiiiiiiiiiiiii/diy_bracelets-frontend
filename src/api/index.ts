@@ -455,6 +455,8 @@ export const api = {
   requestOrderAfterSale: (id: string, note: string) =>
     request<OrderRecordFromApi>(`/api/orders/${id}/after-sale`, 'POST', { note }),
   getProfile: () => request<ProfileData>(`/api/profile`),
+  updateProfile: (displayName: string) =>
+    request<ProfileData>(`/api/profile`, 'PATCH', { displayName }),
   /** 我的设计：列表、新增、更新、删除 */
   getMyDesigns: () => request<MyDesignFromApi[]>(`/api/my-designs`),
   getMyDesign: (id: string) =>
@@ -832,6 +834,7 @@ export interface ProfileEntry {
 
 export interface ProfileData {
   name: string;
+  avatarUrl?: string | null;
   greeting: string;
   entries: ProfileEntry[];
 }

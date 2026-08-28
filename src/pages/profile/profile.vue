@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { api, type ProfileData, type ProfileEntry } from '@/api';
 import { mockProfileData } from '@/data/mock';
@@ -9,7 +9,11 @@ import { loadCheckoutAddresses, usesRemoteCommerce } from '@/utils/checkout';
 import { loadLocalOrders } from '@/utils/orders';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 
-const data = ref<ProfileData>(mockProfileData);
+const data = ref<ProfileData>(usesRemoteCommerce ? {
+	name: '珠岛用户',
+	greeting: '您好！欢迎来到珠岛',
+	entries: [],
+} : mockProfileData);
 const savedDesignsStore = useSavedDesignsStore();
 const COUPON_STORAGE_KEY = 'diy-bracelets-coupons';
 const QR_SIZE = 29;
@@ -38,25 +42,24 @@ const qrCells = computed(() =>
 	}),
 );
 
-onMounted(async () => {
+onShow(() => {
+	void refreshProfilePage();
+});
+
+async function refreshProfilePage() {
 	try {
 		const res = await api.getProfile();
 		if (res) data.value = res as ProfileData;
 	} catch (_e) {
-		data.value = mockProfileData;
+		if (!usesRemoteCommerce) data.value = mockProfileData;
 	}
 	applySavedProfile();
 	ensureEntryPaths();
 	await refreshLocalSummary();
-});
-
-onShow(() => {
-	applySavedProfile();
-	ensureEntryPaths();
-	refreshLocalSummary();
-});
+}
 
 function applySavedProfile() {
+	if (usesRemoteCommerce) return;
 	const profile = loadProfileDetails();
 	data.value = {
 		...data.value,
