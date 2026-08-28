@@ -3,9 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import {
 	getShopCategory,
-	getShopProductsByCategory,
 	shopGoodsCategories,
-	shopGoodsProducts,
 	type ShopGoodsCategory,
 	type ShopGoodsProduct,
 } from '@/data/shopGoods';
@@ -13,6 +11,7 @@ import { saveCheckoutDraft } from '@/utils/checkout';
 import type { CartItem } from '@/api';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { resolveStaticUrl } from '@/utils/staticUrl';
+import { useShopCatalogStore } from '@/stores/shopCatalog';
 
 type ResultFilter = 'all' | 'goods' | 'services';
 type SortKey = 'recommend' | 'price-asc' | 'price-desc';
@@ -26,6 +25,7 @@ const sortKey = ref<SortKey>('recommend');
 const syncedQueryKey = ref('');
 const recentSearches = ref<string[]>([]);
 const hotTerms = ['兔毛水晶', '消磁碗', '改尺寸', '摩根石'];
+const shopCatalog = useShopCatalogStore();
 
 const filterOptions: Array<{ id: ResultFilter; label: string }> = [
 	{ id: 'all', label: '全部' },
@@ -51,7 +51,7 @@ function isServiceProduct(product: ShopGoodsProduct) {
 
 const baseRows = computed(() => {
 	const keyword = queryText.value.trim().toLowerCase();
-	const base = category.value ? getShopProductsByCategory(category.value.id) : shopGoodsProducts;
+	const base = category.value ? shopCatalog.getByCategory(category.value.id) : shopCatalog.products;
 	if (!keyword && !category.value) return [];
 	if (!keyword || keyword === category.value?.name.toLowerCase()) return base;
 	return base.filter((product) =>
@@ -111,7 +111,7 @@ const emptySuggestions = computed(() => {
 	return hotTerms.filter((term) => !normalized.has(term)).slice(0, 4);
 });
 const emptyRecommendedProducts = computed(() =>
-	shopGoodsProducts.filter((product) => productRows.value.every((row) => row.id !== product.id)).slice(0, 3),
+	shopCatalog.products.filter((product) => productRows.value.every((row) => row.id !== product.id)).slice(0, 3),
 );
 
 function syncFromQuery(query: Record<string, string | undefined>) {
@@ -152,11 +152,13 @@ function syncFromH5Hash() {
 }
 
 onLoad((query: Record<string, string | undefined>) => {
+	void shopCatalog.fetchFromApi();
 	loadRecentSearches();
 	syncFromQuery(query);
 });
 
 onShow(() => {
+	void shopCatalog.fetchFromApi();
 	loadRecentSearches();
 	// #ifdef H5
 	syncFromQuery(h5QueryFromHash());

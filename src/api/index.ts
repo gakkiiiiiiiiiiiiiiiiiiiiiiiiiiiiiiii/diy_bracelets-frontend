@@ -389,6 +389,7 @@ function cartItemInput(item: CartItem) {
 export const api = {
   getCategories: () => request<MaterialCategory[]>(`/api/categories`),
   getMaterials: () => request<Material[]>(`/api/materials`),
+  getShopProducts: () => request<ShopProductsResponse>(`/api/shop-products`),
   resolveBraceletCode: (code: string) =>
     request<BraceletCodeResolution>(`/api/bracelet-code/resolve`, 'POST', { code }),
   getContent: async (): Promise<PublishedContentConfig> => {
@@ -734,6 +735,20 @@ export interface PlazaItem {
 
 export interface GoodsData {
   items: PlazaItem[];
+}
+
+export interface ShopProductAuthority {
+  id: string;
+  categoryId: 'discount' | 'rabbit-hair' | 'services';
+  type: string;
+  name: string;
+  image: string;
+  price: number;
+  sizes: string[];
+}
+
+export interface ShopProductsResponse {
+  items: ShopProductAuthority[];
 }
 
 /** 设计构成一行（与 DIY 珠子对应） */

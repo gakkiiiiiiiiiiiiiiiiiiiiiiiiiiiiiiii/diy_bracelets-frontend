@@ -9,7 +9,8 @@ import { useMaterialsStore } from '@/stores/materials';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
 import { useContentStore } from '@/stores/content';
 import { mockDesignDetails } from '@/data/mock';
-import { getShopProductById, type ShopGoodsProduct } from '@/data/shopGoods';
+import type { ShopGoodsProduct } from '@/data/shopGoods';
+import { useShopCatalogStore } from '@/stores/shopCatalog';
 import {
 	addLocalCartItems,
 	defaultCheckoutAddress,
@@ -34,6 +35,7 @@ const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedStore = useSavedDesignsStore();
 const contentStore = useContentStore();
+const shopCatalog = useShopCatalogStore();
 const selectedSize = ref('');
 const buyQty = ref(1);
 const productNote = ref('');
@@ -90,11 +92,13 @@ const totalPrice = computed(() =>
 
 onLoad((query: Record<string, string | undefined>) => {
 	syncDetailIdFromQuery(query);
+	void shopCatalog.fetchFromApi().then(() => fetchDetail());
 	loadFavorites();
 	refreshCheckoutAddresses();
 });
 
 onShow(() => {
+	void shopCatalog.fetchFromApi().then(() => fetchDetail());
 	void contentStore.fetchContent();
 	refreshCheckoutAddresses();
 	// #ifdef H5
@@ -144,7 +148,7 @@ async function fetchDetail() {
 	product.value = null;
 	detail.value = null;
 	loadError.value = '';
-	const localProduct = getShopProductById(designId.value);
+	const localProduct = shopCatalog.getById(designId.value);
 	if (localProduct) {
 		product.value = localProduct;
 		detail.value = null;
