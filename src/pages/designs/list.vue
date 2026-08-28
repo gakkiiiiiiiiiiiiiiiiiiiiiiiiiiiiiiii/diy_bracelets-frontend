@@ -9,6 +9,7 @@ import type { BraceletBead } from '@/types';
 import { beadsToComposition, compositionBeadCount } from '@/utils/designComposition';
 import { openDesignStudio } from '@/utils/designNavigation';
 import { loadProfileDetails } from '@/utils/profileDetails';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const DRAFT_STORAGE_KEY = 'bracelet-draft';
 const DRAFT_RESTORE_KEY = 'diy-bracelets-restore-draft-on-next-design-open';
@@ -253,7 +254,7 @@ function goBack() {
 							v-for="bead in designPreviewBeads(item)"
 							:key="bead.id"
 							class="bracelet-bead"
-							:src="bead.image"
+							:src="resolveStaticUrl(bead.image)"
 							mode="aspectFill"
 							:style="bead.style"
 						/>

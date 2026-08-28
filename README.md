@@ -25,12 +25,15 @@ pnpm build:h5
 pnpm build:mp-weixin
 ```
 
-生产小程序构建不会再使用仓库内置的云环境默认值。构建前必须二选一显式配置：
+生产小程序构建不会再使用仓库内置的云环境默认值。构建前必须配置：
 
 - `VITE_API_BASE=https://api.example.com`
-- `VITE_WXCLOUD_CONTAINER_ENV=...` 与 `VITE_WXCLOUD_CONTAINER_SERVICE=...`
+- `VITE_STATIC_BASE=https://static.example.com`：该 HTTPS 站点需发布 `dist/build/h5/static/` 的内容，并允许 3D 纹理跨域读取。
+- 可选：`VITE_WXCLOUD_CONTAINER_ENV=...` 与 `VITE_WXCLOUD_CONTAINER_SERVICE=...`，用于让 API 走 `wx.cloud.callContainer`；`VITE_API_BASE` 仍负责 `/uploads` 动态媒体地址。
 
-缺少目标、只填写一半云托管配置、启用 Mock 或使用非 HTTPS API 地址时，生产构建会直接失败，避免把包误连到错误环境。
+生产小程序只内置 tabBar 小图标，商品图、素材图与 3D 纹理从 `VITE_STATIC_BASE` 按需加载。这样可避免把约 90MB 原始资源打进代码包；`pnpm check:mp-size` 会依据[微信官方代码包体积说明](https://developers.weixin.qq.com/miniprogram/dev/framework/performance/tips/start_optimizeA.html)执行 2 MiB 门禁。API 和静态资源域名都需要加入微信公众平台的合法域名配置，静态资源源还应设置长期缓存和版本化发布。
+
+缺少 API 或静态资源目标、只填写一半云托管配置、启用 Mock，或使用非 HTTPS 地址时，生产构建会直接失败，避免把包误连到错误环境。
 
 过程视频默认隐藏。只有后端完成 Chromium、FFmpeg 与 H5 渲染页配置并设置 `DESIGN_PROCESS_VIDEO_ENABLED=true` 后，前端构建才应设置 `VITE_DESIGN_PROCESS_VIDEO_ENABLED=true`。渲染页通过短期内部令牌读取后端校验过的素材快照，不复用用户会话。
 
@@ -41,6 +44,7 @@ pnpm build:mp-weixin
 - `我的设计`、个人资料、购物车与过程视频接口会在请求前确保已有登录态；收到 401 时清除旧令牌并自动重新登录一次。
 - 小程序生产模式下，购物车、收货地址和订单均以服务端数据为准；购物车写入会串行合并，订单使用幂等键并以服务端重新计价结果为准。
 - 生产素材目录、上下架状态、规格和价格仅以后端已发布数据为准；接口失败时最多展示上次成功缓存并明确提示，不再混入本地演示价格。
+- 生产设计广场、设计大赛专区和详情仅展示后端已审核数据；本地 Mock 只在显式 H5 演示模式使用。用户投稿的名称、图片和价格不会写入公开设计构成，服务端会按已发布素材与规格重新生成快照。
 - 当前履约模式为“提交订单后客服确认并制作”，不代表在线支付成功。优惠券在服务端校验能力上线前不会进入生产结算，也不会在生产个人中心展示入口。
 - 切换微信用户时会清理上一用户的本地业务缓存，避免地址、订单或设计缓存交叉显示。
 - 生产昵称与“我的设计”以后端当前用户数据为准；写入失败会明确提示，不再把仅保存到本机的结果伪装成成功。手机号仅在收货地址中按履约需要保存，生产资料页不额外收集性别或账户手机号。

@@ -31,6 +31,7 @@ import { api } from '@/api';
 import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
 import { generateDesignProcessVideo, saveDesignProcessVideo } from '@/utils/designProcessVideo';
 import { DESIGN_PROCESS_VIDEO_ENABLED } from '@/config';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedDesignsStore = useSavedDesignsStore();
@@ -1879,7 +1880,7 @@ function hideDesignTabBar() {
 									v-for="(bead, index) in designConfirmPreviewBeads"
 									:key="`${bead.id}-${index}`"
 									class="design-confirm-bead"
-									:src="bead.image"
+									:src="resolveStaticUrl(bead.image)"
 									mode="aspectFill"
 									:style="designConfirmBeadStyle(index, designConfirmPreviewBeads.length)"
 								/>
@@ -1915,7 +1916,7 @@ function hideDesignTabBar() {
 						<view class="design-confirm-section-title">主要材质</view>
 						<view class="design-confirm-material-list">
 							<view v-for="row in designConfirmMaterialRows" :key="`${row.materialId}-${row.size}-${row.price}`" class="design-confirm-material">
-								<image class="design-confirm-material__img" :src="row.image" mode="aspectFill" />
+								<image class="design-confirm-material__img" :src="resolveStaticUrl(row.image)" mode="aspectFill" />
 								<view class="design-confirm-material__body">
 									<text class="design-confirm-material__name">{{ row.name }}</text>
 									<text class="design-confirm-material__spec">{{ row.size }}mm · {{ row.quantity }}颗 · ¥{{ row.amount.toFixed(1) }}</text>
@@ -1991,7 +1992,7 @@ function hideDesignTabBar() {
 					<template v-if="braceletCodeResolution">
 						<view class="bracelet-code-summary">
 							<view class="bracelet-code-ring">
-								<image v-for="(bead, index) in resolvedCodeBeads" :key="index" v-show="bead" class="bracelet-code-bead" :src="bead?.image" mode="aspectFill" :style="braceletCodePreviewStyle(index, resolvedCodeBeads.length)" />
+								<image v-for="(bead, index) in resolvedCodeBeads" :key="index" v-show="bead" class="bracelet-code-bead" :src="resolveStaticUrl(bead?.image || '')" mode="aspectFill" :style="braceletCodePreviewStyle(index, resolvedCodeBeads.length)" />
 								<view class="bracelet-code-ring__center"><text>{{ braceletCodeResolution.payload.wristCm }}cm</text><text>{{ braceletCodeResolution.payload.beads.length }}颗</text></view>
 							</view>
 							<view class="bracelet-code-stats">
@@ -2023,7 +2024,7 @@ function hideDesignTabBar() {
 					<view class="actual-photo-close" aria-label="关闭" @tap="closeMaterialPreview"><BrandIcon name="x" tone="muted" /></view>
 				</view>
 				<view class="actual-photo-frame">
-					<image v-if="materialPreview.image" class="actual-photo-img" :src="materialPreview.image" mode="aspectFit" />
+					<image v-if="materialPreview.image" class="actual-photo-img" :src="resolveStaticUrl(materialPreview.image)" mode="aspectFit" />
 					<view class="actual-photo-gloss" />
 				</view>
 				<view class="actual-photo-info">

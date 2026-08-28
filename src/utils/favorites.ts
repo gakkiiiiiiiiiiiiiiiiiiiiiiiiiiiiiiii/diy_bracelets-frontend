@@ -1,4 +1,5 @@
 import type { DesignDetail } from '@/api';
+import { USE_MOCK_API } from '@/config';
 import { mockDesignDetails } from '@/data/mock';
 
 export const FAVORITE_DESIGN_IDS_KEY = 'diy-bracelets-favorite-plaza';
@@ -60,7 +61,7 @@ export function loadFavoriteDesigns() {
 	const ids = loadFavoriteDesignIds();
 	const records = loadFavoriteDesignRecordMap();
 	return ids
-		.map((id) => records[id] ?? mockDesignDetails[id])
+		.map((id) => records[id] ?? (USE_MOCK_API ? mockDesignDetails[id] : undefined))
 		.filter((item): item is FavoriteDesignRecord => !!item);
 }
 

@@ -5,7 +5,7 @@
 import { ref, watch, onMounted, onUnmounted, nextTick, getCurrentInstance, type ComputedRef } from 'vue';
 import { createScopedThreejs } from 'threejs-miniprogram';
 import type { BraceletBead } from '@/types';
-import { RESOLVED_API_BASE } from '@/config';
+import { RESOLVED_API_BASE, STATIC_BASE } from '@/config';
 import { getCrystalMaterialRenderConfig, type CrystalPhysicalMaterialConfig } from '@/data/crystalMaterials';
 
 /** 手串圆环：初始半径约等于视口宽度的 1/4，随珠子数量增加而增大 */
@@ -807,7 +807,7 @@ export function useBracelet3dMp(
 	/** 小程序端纹理 URL：支持 http 或相对路径；/ 开头时用后端 API 基地址拼接 */
 	function resolveTextureUrlMp(url: string): string {
 		if (url.startsWith('http')) return url;
-		if (url.startsWith('/static/')) return url;
+		if (url.startsWith('/static/')) return STATIC_BASE ? STATIC_BASE.replace(/\/$/, '') + url : url;
 		if (RESOLVED_API_BASE && url.startsWith('/')) {
 			const base = RESOLVED_API_BASE.replace(/\/$/, '');
 			return base + url;

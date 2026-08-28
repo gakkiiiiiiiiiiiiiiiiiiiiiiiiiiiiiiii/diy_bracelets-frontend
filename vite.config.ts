@@ -25,6 +25,7 @@ function copyDirSync(src: string, dest: string) {
 }
 
 const apiTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3008'
+const staticAssetBase = process.env.VITE_STATIC_BASE || ''
 const useWxCloudContainer = process.env.VITE_USE_WXCLOUD_CONTAINER !== 'false'
 const wxCloudContainerEnv = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_ENV || '' : ''
 const wxCloudContainerService = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || '' : ''
@@ -42,16 +43,21 @@ if (isProductionMiniProgram) {
   if (process.env.VITE_USE_MOCK_API === 'true') {
     throw new Error('Production WeChat builds cannot enable VITE_USE_MOCK_API')
   }
-  if (!process.env.VITE_API_BASE && !(wxCloudContainerEnv && wxCloudContainerService)) {
+  if (!process.env.VITE_API_BASE) {
     throw new Error(
-      'Production WeChat builds require VITE_API_BASE or an explicit VITE_WXCLOUD_CONTAINER_ENV/VITE_WXCLOUD_CONTAINER_SERVICE pair',
+      'Production WeChat builds require VITE_API_BASE for uploaded media; cloud container settings may additionally route API calls',
     )
   }
-  if (process.env.VITE_API_BASE) {
-    const apiUrl = new URL(process.env.VITE_API_BASE)
-    if (apiUrl.protocol !== 'https:' || apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
-      throw new Error('VITE_API_BASE for a production WeChat build must be a clean HTTPS URL')
-    }
+  const apiUrl = new URL(process.env.VITE_API_BASE)
+  if (apiUrl.protocol !== 'https:' || apiUrl.username || apiUrl.password || apiUrl.search || apiUrl.hash) {
+    throw new Error('VITE_API_BASE for a production WeChat build must be a clean HTTPS URL')
+  }
+  if (!staticAssetBase) {
+    throw new Error('Production WeChat builds require VITE_STATIC_BASE for remote /static assets')
+  }
+  const staticUrl = new URL(staticAssetBase)
+  if (staticUrl.protocol !== 'https:' || staticUrl.username || staticUrl.password || staticUrl.search || staticUrl.hash) {
+    throw new Error('VITE_STATIC_BASE for a production WeChat build must be a clean HTTPS URL')
   }
 }
 
@@ -75,6 +81,7 @@ export default defineConfig({
     __IS_DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
     // 构建时注入，供 H5/小程序共用，避免小程序端使用 import.meta.env 触发 Node url 模块
     __API_BASE__: JSON.stringify(process.env.VITE_API_BASE || ''),
+    __STATIC_BASE__: JSON.stringify(staticAssetBase),
     __DEV_API_BASE__: JSON.stringify(process.env.VITE_PROXY_TARGET || apiTarget),
     __USE_MOCK_API__: JSON.stringify(useMockApi),
     __WXCLOUD_CONTAINER_ENV__: JSON.stringify(wxCloudContainerEnv),
@@ -120,7 +127,8 @@ export default defineConfig({
       },
     },
     uniPlugin(),
-    // 构建时复制根 static 目录，保证 H5 与微信小程序都能访问 /static/* 材质贴图。
+    // H5 与开发小程序保留完整静态资源；生产小程序只打包 tabBar 图标，
+    // 其余图片和 3D 纹理由 VITE_STATIC_BASE 提供，避免大图撑爆 2M 代码包。
     {
       name: 'copy-runtime-static-assets',
       configureServer() {
@@ -135,12 +143,23 @@ export default defineConfig({
         const h5BuildOutDir = path.resolve(__dirname, 'dist/build/h5')
         const outDir = path.resolve(__dirname, 'dist/dev/mp-weixin')
         const buildOutDir = path.resolve(__dirname, 'dist/build/mp-weixin')
-        for (const dir of [h5BuildOutDir, outDir, buildOutDir]) {
+        for (const dir of [h5BuildOutDir, outDir]) {
           if (fs.existsSync(dir)) {
             copyDirSync(staticDir, path.join(dir, 'static'))
             if (fs.existsSync(customTabBarDir)) copyDirSync(customTabBarDir, path.join(dir, 'custom-tab-bar'))
             if (fs.existsSync(sharedDir)) copyDirSync(sharedDir, path.join(dir, 'shared'))
           }
+        }
+        if (fs.existsSync(buildOutDir)) {
+          const packagedStaticDir = path.join(buildOutDir, 'static')
+          fs.rmSync(packagedStaticDir, { recursive: true, force: true })
+          copyDirSync(path.join(staticDir, 'tabbar'), path.join(packagedStaticDir, 'tabbar'))
+          const centerIcon = path.join(packagedStaticDir, 'tabbar', 'diy-center.png')
+          if (!fs.existsSync(centerIcon)) {
+            fs.copyFileSync(path.join(staticDir, 'tabbar', 'diy.png'), centerIcon)
+          }
+          if (fs.existsSync(customTabBarDir)) copyDirSync(customTabBarDir, path.join(buildOutDir, 'custom-tab-bar'))
+          if (fs.existsSync(sharedDir)) copyDirSync(sharedDir, path.join(buildOutDir, 'shared'))
         }
       },
     },

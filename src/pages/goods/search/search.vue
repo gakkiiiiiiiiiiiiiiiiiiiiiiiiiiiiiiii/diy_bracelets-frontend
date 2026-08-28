@@ -12,6 +12,7 @@ import {
 import { saveCheckoutDraft } from '@/utils/checkout';
 import type { CartItem } from '@/api';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 type ResultFilter = 'all' | 'goods' | 'services';
 type SortKey = 'recommend' | 'price-asc' | 'price-desc';
@@ -353,7 +354,7 @@ function productListImage(product: ShopGoodsProduct) {
 					<image
 						v-if="item.visual === 'bracelet'"
 						class="shortcut-img"
-						:src="item.image"
+						:src="resolveStaticUrl(item.image)"
 						mode="aspectFill"
 					/>
 					<view v-else class="shortcut-mark">{{ item.name.slice(0, 1) }}</view>

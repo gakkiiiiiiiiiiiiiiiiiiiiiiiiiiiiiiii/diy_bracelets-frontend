@@ -29,6 +29,7 @@ import {
 	orderEditableComposition,
 	orderImage,
 } from '@/utils/orderDisplay';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
@@ -423,14 +424,14 @@ function runOrderAction(action: OrderListActionKey, order: OrderRecord) {
 				</view>
 				<view class="order-main" @tap="showOrderDetail(order)">
 					<view class="order-img-wrap">
-						<image class="order-img" :src="orderImage(order)" mode="aspectFill" />
+						<image class="order-img" :src="resolveStaticUrl(orderImage(order))" mode="aspectFill" />
 						<view v-if="previewComposition(order).length" class="bead-strip">
 							<view
 								v-for="row in previewComposition(order)"
 								:key="`${order.id}-${row.materialId}-${row.size}`"
 								class="bead-mini"
 							>
-								<image class="bead-mini-img" :src="row.image" mode="aspectFill" />
+								<image class="bead-mini-img" :src="resolveStaticUrl(row.image)" mode="aspectFill" />
 							</view>
 						</view>
 					</view>

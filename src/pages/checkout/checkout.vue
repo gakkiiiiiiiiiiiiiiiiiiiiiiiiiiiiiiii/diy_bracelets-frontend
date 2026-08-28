@@ -16,6 +16,7 @@ import {
 	type CheckoutDraft,
 	usesRemoteCommerce,
 } from '@/utils/checkout';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 interface CouponRecord {
 	id: string;
@@ -409,7 +410,7 @@ function loadExistingOrdersWithout(orderId: string): OrderRecord[] {
 			<view class="success-section">
 				<view class="success-section-title">订单摘要</view>
 				<view v-if="successPrimaryItem" class="success-item">
-					<image class="success-item-img" :src="successPrimaryItem.image" mode="aspectFill" />
+					<image class="success-item-img" :src="resolveStaticUrl(successPrimaryItem.image)" mode="aspectFill" />
 					<view class="success-item-body">
 						<view class="success-item-name">{{ itemDisplayName(successPrimaryItem) }}</view>
 						<view class="success-item-sub">
@@ -461,7 +462,7 @@ function loadExistingOrdersWithout(orderId: string): OrderRecord[] {
 
 			<view class="section product-section">
 				<view v-for="item in items" :key="item.id" class="checkout-item">
-					<image class="item-img" :src="item.image" mode="aspectFill" />
+					<image class="item-img" :src="resolveStaticUrl(item.image)" mode="aspectFill" />
 					<view class="item-body">
 						<view class="item-name">{{ itemDisplayName(item) }}</view>
 						<view v-if="itemCompositionText(item)" class="item-summary">{{ itemCompositionText(item) }}</view>

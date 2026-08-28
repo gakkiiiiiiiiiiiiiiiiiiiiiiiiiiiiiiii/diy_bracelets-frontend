@@ -3,11 +3,12 @@ import { onMounted, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { api, isMockApiFallbackError, type DesignCompositionRow, type DesignDetail, type PlazaItem } from '@/api';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
+import { USE_MOCK_API } from '@/config';
 import { mockGoodsByTab, mockDesignDetails } from '@/data/mock';
 import { isFavoriteDesign, loadFavoriteDesignIds, removeFavoriteDesign, saveFavoriteDesign } from '@/utils/favorites';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
-type ApiTab = 'designer' | 'user';
-type PlazaTab = ApiTab | 'contest';
+type PlazaTab = 'designer' | 'user' | 'contest';
 interface PreviewBead {
 	id: string;
 	image: string;
@@ -35,7 +36,8 @@ const fallbackItems: Record<PlazaTab, PlazaItem[]> = {
 
 const activeTab = ref<PlazaTab>('designer');
 const loading = ref(false);
-const items = ref<PlazaItem[]>(fallbackItems.designer);
+const loadError = ref('');
+const items = ref<PlazaItem[]>(USE_MOCK_API ? fallbackItems.designer : []);
 const favoriteIds = ref<string[]>([]);
 const previewCache = new Map<string, PreviewBead[]>();
 
@@ -49,18 +51,18 @@ watch(activeTab, fetchItems);
 async function fetchItems() {
 	const tab = activeTab.value;
 	loading.value = true;
-	if (tab === 'contest') {
-		items.value = fallbackItems.contest;
-		loading.value = false;
-		return;
-	}
+	loadError.value = '';
+	items.value = [];
 
 	try {
 		const res = await api.getGoods(tab);
-		items.value = res?.items?.length ? res.items : fallbackItems[tab];
+		items.value = Array.isArray(res?.items) ? res.items : [];
 	} catch (e) {
-		if (!isMockApiFallbackError(e)) console.warn('[plaza] API getGoods failed:', e);
-		items.value = fallbackItems[tab];
+		if (USE_MOCK_API && isMockApiFallbackError(e)) items.value = fallbackItems[tab];
+		else {
+			console.warn('[plaza] API getGoods failed:', e);
+			loadError.value = '设计广场暂时无法加载，请检查网络后重试';
+		}
 	} finally {
 		loading.value = false;
 	}
@@ -88,17 +90,17 @@ function loadFavorites() {
 }
 
 function designDetailFor(item: PlazaItem): DesignDetail {
-	const localDetail = mockDesignDetails[item.id];
+	const localDetail = USE_MOCK_API ? mockDesignDetails[item.id] : undefined;
 	if (localDetail) return localDetail;
 	return {
 		id: item.id,
-		source: activeTab.value === 'user' ? 'user' : 'designer',
+		source: activeTab.value,
 		title: item.title,
 		author: item.author,
 		image: item.image,
 		images: [item.image],
 		usageCount: item.usageCount,
-		composition: [],
+		composition: item.composition || [],
 	};
 }
 
@@ -106,12 +108,20 @@ function isFavorite(item: PlazaItem) {
 	return favoriteIds.value.includes(item.id) || isFavoriteDesign(item.id);
 }
 
-function toggleFavorite(item: PlazaItem) {
-	const detail = designDetailFor(item);
+async function toggleFavorite(item: PlazaItem) {
 	const wasFavorite = isFavorite(item);
 	if (wasFavorite) {
 		removeFavoriteDesign(item.id);
 	} else {
+		let detail = designDetailFor(item);
+		if (!USE_MOCK_API) {
+			try {
+				detail = await api.getGoodsDetail(item.id);
+			} catch {
+				uni.showToast({ title: '设计详情加载失败，暂无法收藏', icon: 'none' });
+				return;
+			}
+		}
 		saveFavoriteDesign(detail);
 	}
 	loadFavorites();
@@ -119,7 +129,9 @@ function toggleFavorite(item: PlazaItem) {
 }
 
 function compositionFor(item: PlazaItem): DesignCompositionRow[] {
-	return mockDesignDetails[item.id]?.composition ?? [];
+	return item.composition?.length
+		? item.composition
+		: USE_MOCK_API ? mockDesignDetails[item.id]?.composition ?? [] : [];
 }
 
 function getPreviewBeads(item: PlazaItem): PreviewBead[] {
@@ -142,7 +154,7 @@ function getPreviewBeads(item: PlazaItem): PreviewBead[] {
 		const top = 160 + Math.sin(angle) * radiusY - size / 2;
 		return {
 			id: `${item.id}-${index}`,
-			image: source.image,
+			image: resolveStaticUrl(source.image),
 			style: {
 				left: `${left.toFixed(1)}rpx`,
 				top: `${top.toFixed(1)}rpx`,
@@ -253,7 +265,7 @@ function showCharm(item: PlazaItem, index: number) {
 						</template>
 						<view v-else class="single-preview">
 							<view class="image-halo" />
-							<image class="crystal-img" :src="item.image" mode="aspectFit" />
+							<image class="crystal-img" :src="resolveStaticUrl(item.image)" mode="aspectFit" />
 							<view class="brand-mark">
 								<view class="brand-name">珠岛</view>
 								<view class="brand-line">DIY PLATFORM</view>
@@ -268,8 +280,9 @@ function showCharm(item: PlazaItem, index: number) {
 			</view>
 
 			<view v-else class="empty">
-				<view class="empty-title">暂无设计</view>
-				<view class="empty-sub">稍后再来看看新的灵感作品</view>
+				<view class="empty-title">{{ loadError ? '加载失败' : '暂无设计' }}</view>
+				<view class="empty-sub">{{ loadError || '稍后再来看看新的灵感作品' }}</view>
+				<view v-if="loadError" class="empty-retry" @tap="fetchItems">重新加载</view>
 			</view>
 		</view>
 	</view>
@@ -703,6 +716,15 @@ function showCharm(item: PlazaItem, index: number) {
 
 .empty-sub {
 	margin-top: 10rpx;
+}
+
+.empty-retry {
+	display: inline-flex;
+	margin-top: 28rpx;
+	padding: 16rpx 34rpx;
+	border: 2rpx solid #d92733;
+	border-radius: 999rpx;
+	color: #d92733;
 }
 
 .skeleton .empty-art {

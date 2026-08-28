@@ -1,8 +1,9 @@
 /**
- * 后端 API 基础地址。未配置时前端使用 Mock 数据；配置后材料/分类从接口拉取，图片相对路径会拼接到该 base。
+ * 后端 API 与动态媒体基础地址。H5 演示可显式使用 Mock；生产小程序必须配置 HTTPS 地址。
  * __API_BASE__ 由 Vite define 在构建时注入（H5/小程序通用，避免小程序端 import.meta 触发 Node url 报错）。
  */
 declare const __API_BASE__: string | undefined
+declare const __STATIC_BASE__: string | undefined
 declare const __DEV_API_BASE__: string | undefined
 declare const __WXCLOUD_CONTAINER_ENV__: string | undefined
 declare const __WXCLOUD_CONTAINER_SERVICE__: string | undefined
@@ -18,6 +19,7 @@ const injectedApiBase =
   ''
 
 const injectedDevApiBase = (typeof __DEV_API_BASE__ !== 'undefined' ? __DEV_API_BASE__ : '') || ''
+const injectedStaticBase = (typeof __STATIC_BASE__ !== 'undefined' ? __STATIC_BASE__ : '') || ''
 const injectedWxCloudContainerEnv =
   (typeof __WXCLOUD_CONTAINER_ENV__ !== 'undefined' ? __WXCLOUD_CONTAINER_ENV__ : '') || ''
 const injectedWxCloudContainerService =
@@ -32,6 +34,7 @@ export const IS_MP_WEIXIN =
   // #endif
 
 export const API_BASE = injectedApiBase
+export const STATIC_BASE = injectedStaticBase
 export const DEV_API_BASE = injectedDevApiBase
 export const IS_DEV = typeof __IS_DEV__ !== 'undefined' ? __IS_DEV__ : false
 export const USE_MOCK_API =

@@ -406,8 +406,8 @@ export const api = {
     };
   },
   getHome: () => request<HomeData>(`/api/home`),
-  /** 设计广场列表，tab=designer|user */
-  getGoods: (tab?: 'designer' | 'user') =>
+  /** 设计广场列表，tab=designer|user|contest */
+  getGoods: (tab?: 'designer' | 'user' | 'contest') =>
     request<GoodsData>(`/api/goods${tab ? `?tab=${tab}` : ''}`),
   getGoodsDetail: (id: string) => request<DesignDetail>(`/api/goods/${id}`),
   /** 使用该设计：usageCount+1，返回设计详情 */
@@ -721,6 +721,7 @@ export interface PlazaItem {
   image: string;
   cta: string;
   usageCount: number;
+  composition?: DesignCompositionRow[];
 }
 
 export interface GoodsData {
@@ -741,7 +742,7 @@ export interface DesignCompositionRow {
 
 export interface DesignDetail {
   id: string;
-  source: 'designer' | 'user';
+  source: 'designer' | 'user' | 'contest';
   title: string;
   author: string;
   image: string;

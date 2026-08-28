@@ -14,6 +14,7 @@ import {
 } from '@/utils/checkout';
 import { designEntrySourceForCartItem, openDesignStudio } from '@/utils/designNavigation';
 import { cartItemSummaryText } from '@/utils/orderDisplay';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const items = ref<CartItem[]>([]);
 const selectedIds = ref<string[]>([]);
@@ -212,7 +213,7 @@ function goGoods() {
 
 		<view v-if="items.length === 0" class="empty">
 			<view class="empty-cart-art">
-				<image class="empty-cart-img" src="/static/images/cart-empty-source.png" mode="aspectFit" />
+				<image class="empty-cart-img" :src="resolveStaticUrl('/static/images/cart-empty-source.png')" mode="aspectFit" />
 			</view>
 			<view class="empty-text">购物车没有订单哟</view>
 			<view class="empty-actions">
@@ -240,14 +241,14 @@ function goGoods() {
 				:class="{ 'item--unselected': !selectedIds.includes(item.id) }"
 			>
 				<view class="check item-check" :class="{ active: selectedIds.includes(item.id) }" @tap="toggleSelect(item.id)" />
-				<image class="item-img" :src="item.image" mode="aspectFill" />
+				<image class="item-img" :src="resolveStaticUrl(item.image)" mode="aspectFill" />
 				<view class="item-info">
 					<view class="item-name">{{ itemDisplayName(item) }}</view>
 					<view v-if="itemSpecText(item) && !item.composition?.length" class="item-spec">规格：{{ itemSpecText(item) }}</view>
 					<view v-if="item.composition?.length" class="item-design">
 						<view class="item-beads">
 							<view v-for="row in item.composition.slice(0, 5)" :key="`${item.id}-${row.materialId}-${row.size}`" class="item-bead">
-								<image v-if="row.image" class="item-bead-img" :src="row.image" mode="aspectFill" />
+								<image v-if="row.image" class="item-bead-img" :src="resolveStaticUrl(row.image)" mode="aspectFill" />
 								<text v-if="row.quantity > 1" class="item-bead-count">×{{ row.quantity }}</text>
 							</view>
 						</view>

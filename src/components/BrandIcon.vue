@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 export type BrandIconName =
 	| 'arrow-left'
@@ -37,7 +38,7 @@ const props = withDefaults(
 
 const source = computed(() => {
 	const suffix = props.tone === 'brand' ? '' : `-${props.tone}`;
-	return `/static/brand-icons/${props.name}${suffix}.png`;
+	return resolveStaticUrl(`/static/brand-icons/${props.name}${suffix}.png`);
 });
 </script>
 

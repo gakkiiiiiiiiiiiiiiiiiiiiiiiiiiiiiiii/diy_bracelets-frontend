@@ -26,6 +26,7 @@ import {
 	orderEditableComposition,
 	orderImage,
 } from '@/utils/orderDisplay';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const orderId = ref('');
 const order = ref<OrderRecord | null>(null);
@@ -691,7 +692,7 @@ function goBack() {
 					<view class="section-count">共 {{ order.itemCount }} 件</view>
 				</view>
 				<view v-for="item in order.items" :key="item.id" class="order-item">
-					<image class="item-img" :src="item.image || orderImage(order)" mode="aspectFill" />
+					<image class="item-img" :src="resolveStaticUrl(item.image || orderImage(order))" mode="aspectFill" />
 					<view class="item-body">
 						<view class="item-type">{{ cartItemTypeText(item) }}</view>
 						<view class="item-name">{{ cartItemDisplayName(item) }}</view>

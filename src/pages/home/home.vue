@@ -3,10 +3,10 @@ import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { api, type DesignDetail, type HomeFeaturedWork, type HomeMaterialEntry } from '@/api';
-import { RESOLVED_API_BASE } from '@/config';
 import { useContentStore } from '@/stores/content';
 import { useMaterialsStore } from '@/stores/materials';
 import { openDesignStudio } from '@/utils/designNavigation';
+import { resolveStaticUrl as imageUrl } from '@/utils/staticUrl';
 
 const contentStore = useContentStore();
 const materialsStore = useMaterialsStore();
@@ -64,12 +64,6 @@ const carouselStyles = [
 	'transform:translate3d(-10rpx, -3rpx, 0) rotate(8deg) scale(.9)',
 	'transform:translate3d(6rpx, 7rpx, 0) rotate(-3deg) scale(1)',
 ];
-
-function imageUrl(path: string) {
-	if (!path || path.startsWith('http') || path.startsWith('data:')) return path;
-	const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
-	return `${base}${path.startsWith('/') ? path : `/${path}`}`;
-}
 
 const configuredHeroBracelets = computed<HeroBracelet[]>(() => {
 	const byId = new Map(inspirationItems.value.map((item) => [item.id, item]));
@@ -186,7 +180,7 @@ function openHeroBracelet(item: HeroBracelet) {
 							>
 								<image
 									class="bracelet-marquee__image"
-									:src="item.image"
+									:src="imageUrl(item.image)"
 									:style="item.style"
 									mode="aspectFit"
 								/>
@@ -229,7 +223,7 @@ function openHeroBracelet(item: HeroBracelet) {
 					@tap="openMaterial(item)"
 				>
 					<view class="material-entry__visual">
-						<image class="material-entry__image" :src="item.image" mode="aspectFit" />
+						<image class="material-entry__image" :src="imageUrl(item.image)" mode="aspectFit" />
 					</view>
 					<text class="material-entry__name">{{ item.name }}</text>
 					<text class="material-entry__caption">{{ item.caption }}</text>
@@ -258,7 +252,7 @@ function openHeroBracelet(item: HeroBracelet) {
 						hover-class="work-card--pressed"
 						@tap="openWork(work)"
 					>
-						<image class="work-card__image" :src="work.image" mode="aspectFill" />
+						<image class="work-card__image" :src="imageUrl(work.image)" mode="aspectFill" />
 						<view class="work-card__body">
 							<text class="work-card__title">{{ work.title }}</text>
 							<text class="work-card__caption">{{ work.caption }}</text>

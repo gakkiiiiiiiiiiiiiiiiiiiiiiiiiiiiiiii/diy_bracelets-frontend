@@ -5,6 +5,7 @@ import { useDesignStore } from '@/stores/design';
 import { useSavedDesignsStore, type SavedDesign } from '@/stores/savedDesigns';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { openDesignStudio } from '@/utils/designNavigation';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const savedStore = useSavedDesignsStore();
 const designStore = useDesignStore();
@@ -145,7 +146,7 @@ function continueDesign(item: SavedDesign) {
 									v-for="(image, index) in previewImages(item)"
 									:key="`${item.id}-${index}`"
 									class="mine-bead"
-									:src="image"
+									:src="resolveStaticUrl(image)"
 									mode="aspectFill"
 									:style="miniBeadStyle(index, previewImages(item).length)"
 								/>
@@ -172,7 +173,7 @@ function continueDesign(item: SavedDesign) {
 			>
 				<view class="entry-stone-wrap">
 					<view class="entry-stone" :class="`entry-stone--${card.tone}`">
-						<image class="entry-gem" :src="card.gem" mode="aspectFill" />
+						<image class="entry-gem" :src="resolveStaticUrl(card.gem)" mode="aspectFill" />
 						<view class="entry-stone-eye entry-stone-eye--left" />
 						<view class="entry-stone-eye entry-stone-eye--right" />
 						<view class="entry-stone-mouth" />
@@ -195,7 +196,7 @@ function continueDesign(item: SavedDesign) {
 				@tap="openEntry(item.id)"
 			>
 				<view class="secondary-gem" :class="`secondary-gem--${item.tone}`">
-					<image class="secondary-gem__img" :src="item.gem" mode="aspectFill" />
+					<image class="secondary-gem__img" :src="resolveStaticUrl(item.gem)" mode="aspectFill" />
 				</view>
 				<view class="entry-body">
 					<view class="entry-title">{{ item.title }}</view>

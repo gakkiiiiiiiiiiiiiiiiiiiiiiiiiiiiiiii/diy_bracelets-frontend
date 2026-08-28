@@ -3,18 +3,12 @@ import { onMounted, ref } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { api, type DesignDetail } from '@/api';
-import { RESOLVED_API_BASE } from '@/config';
+import { resolveStaticUrl as imageUrl } from '@/utils/staticUrl';
 
 const items = ref<DesignDetail[]>([]);
 const loading = ref(false);
 const loaded = ref(false);
 const previewCache = new Map<string, Array<{ image: string; style: Record<string, string> }>>();
-
-function imageUrl(path: string) {
-	if (!path || path.startsWith('http') || path.startsWith('data:')) return path;
-	const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
-	return `${base}${path.startsWith('/') ? path : `/${path}`}`;
-}
 
 async function load() {
 	if (loading.value) return;

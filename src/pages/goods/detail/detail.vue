@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { api, type DesignDetail } from '@/api';
+import { USE_MOCK_API } from '@/config';
 import { useDesignStore } from '@/stores/design';
 import { useMaterialsStore } from '@/stores/materials';
 import { useSavedDesignsStore } from '@/stores/savedDesigns';
@@ -19,6 +20,7 @@ import {
 import { cloneComposition, compositionBeadCount } from '@/utils/designComposition';
 import { openDesignStudio } from '@/utils/designNavigation';
 import { isFavoriteDesign, loadFavoriteDesignIds, loadFavoriteDesigns, removeFavoriteDesign, saveFavoriteDesign } from '@/utils/favorites';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 import type { CartItem } from '@/api';
 
 const designId = ref('');
@@ -26,6 +28,7 @@ const fromInspiration = ref(false);
 const detail = ref<DesignDetail | null>(null);
 const product = ref<ShopGoodsProduct | null>(null);
 const loading = ref(false);
+const loadError = ref('');
 const favoriteIds = ref<string[]>([]);
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
@@ -140,6 +143,7 @@ async function fetchDetail() {
 	if (!designId.value) return;
 	product.value = null;
 	detail.value = null;
+	loadError.value = '';
 	const localProduct = getShopProductById(designId.value);
 	if (localProduct) {
 		product.value = localProduct;
@@ -155,7 +159,9 @@ async function fetchDetail() {
 			? await api.getInspiration(designId.value)
 			: await api.getGoodsDetail(designId.value);
 	} catch (_e) {
-		detail.value = mockDesignDetails[designId.value] ?? loadFavoriteDesigns().find((item) => item.id === designId.value) ?? null;
+		const cached = loadFavoriteDesigns().find((item) => item.id === designId.value);
+		detail.value = (USE_MOCK_API ? mockDesignDetails[designId.value] : undefined) ?? cached ?? null;
+		if (!detail.value) loadError.value = '设计详情暂时无法加载，请检查网络后重试';
 	} finally {
 		loading.value = false;
 	}
@@ -531,10 +537,10 @@ function goBack() {
 					indicator-active-color="#fff"
 				>
 					<swiper-item v-for="img in detail.images" :key="img">
-						<image class="main-img" :src="img" mode="aspectFill" />
+						<image class="main-img" :src="resolveStaticUrl(img)" mode="aspectFill" />
 					</swiper-item>
 				</swiper>
-				<image v-else class="main-img" :src="detail.image" mode="aspectFill" />
+				<image v-else class="main-img" :src="resolveStaticUrl(detail.image)" mode="aspectFill" />
 			</view>
 			<view class="section design-title-section">
 				<view class="title-row">
@@ -549,7 +555,7 @@ function goBack() {
 								v-for="(row, index) in detail.composition"
 								:key="`${row.materialId}-${index}`"
 								class="detail-bracelet-bead"
-								:src="row.image"
+								:src="resolveStaticUrl(row.image)"
 								mode="aspectFill"
 								:style="detailPreviewBeadStyle(index, detail.composition.length)"
 							/>
@@ -619,7 +625,10 @@ function goBack() {
 				</button>
 			</view>
 		</template>
-		<view v-else class="empty">未找到该设计</view>
+		<view v-else class="empty">
+			<view>{{ loadError || '未找到该设计' }}</view>
+			<view v-if="loadError" class="empty-retry" @tap="fetchDetail">重新加载</view>
+		</view>
 
 		<view v-if="supportOpen" class="support-mask" @tap="closeSupport">
 			<view class="support-sheet" @tap.stop>
@@ -731,6 +740,15 @@ function goBack() {
 	text-align: center;
 	padding: 48rpx;
 	color: #999;
+}
+
+.empty-retry {
+	display: inline-flex;
+	margin-top: 24rpx;
+	padding: 14rpx 30rpx;
+	border: 2rpx solid #d92733;
+	border-radius: 999rpx;
+	color: #d92733;
 }
 
 .shop-hero {

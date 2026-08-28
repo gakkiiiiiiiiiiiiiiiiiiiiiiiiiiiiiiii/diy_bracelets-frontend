@@ -4,6 +4,7 @@ import { onHide, onShow } from '@dcloudio/uni-app';
 import MiniProgramCapsule from '@/components/MiniProgramCapsule.vue';
 import { useContentStore } from '@/stores/content';
 import { openDesignStudio } from '@/utils/designNavigation';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 interface SampleBead {
 	id: string;
@@ -99,15 +100,15 @@ function contactService() {
 			</view>
 			<view class="hero-visual">
 				<view class="hero-twig" />
-				<image class="hero-bead hero-bead--main" :src="sampleBeads[1].image" mode="aspectFill" />
-				<image class="hero-bead hero-bead--small" :src="sampleBeads[0].image" mode="aspectFill" />
+				<image class="hero-bead hero-bead--main" :src="resolveStaticUrl(sampleBeads[1].image)" mode="aspectFill" />
+				<image class="hero-bead hero-bead--small" :src="resolveStaticUrl(sampleBeads[0].image)" mode="aspectFill" />
 				<view class="hero-badge">买前必看</view>
 			</view>
 		</view>
 
 		<view class="sample-strip">
 			<view v-for="bead in sampleBeads" :key="bead.id" class="sample-card">
-				<image class="sample-img" :src="bead.image" mode="aspectFill" />
+				<image class="sample-img" :src="resolveStaticUrl(bead.image)" mode="aspectFill" />
 				<view class="sample-name">{{ bead.name }}</view>
 				<view class="sample-tag">{{ bead.tag }}</view>
 			</view>

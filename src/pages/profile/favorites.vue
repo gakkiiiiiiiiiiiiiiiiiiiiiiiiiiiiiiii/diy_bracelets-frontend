@@ -8,6 +8,7 @@ import { useMaterialsStore } from '@/stores/materials';
 import { loadFavoriteDesigns, removeFavoriteDesign } from '@/utils/favorites';
 import { summarizeComposition } from '@/utils/designComposition';
 import { openDesignStudio } from '@/utils/designNavigation';
+import { resolveStaticUrl } from '@/utils/staticUrl';
 
 const favoriteItems = ref<DesignDetail[]>([]);
 const designStore = useDesignStore();
@@ -139,7 +140,7 @@ function previewBeads(item: DesignDetail) {
 							v-for="bead in previewBeads(item)"
 							:key="bead.id"
 							class="bead"
-							:src="bead.image"
+							:src="resolveStaticUrl(bead.image)"
 							mode="aspectFill"
 							:style="bead.style"
 						/>
