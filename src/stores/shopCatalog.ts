@@ -51,9 +51,10 @@ function mergeAuthority(items: ShopProductAuthority[]): ShopGoodsProduct[] {
 
 export const useShopCatalogStore = defineStore('shopCatalog', () => {
 	const cached = readCache();
-	const products = ref<ShopGoodsProduct[]>(cached?.length ? mergeAuthority(cached) : cloneLocalProducts());
-	const source = ref<'mock' | 'api' | 'cache' | 'fallback'>(
-		USE_MOCK_API ? 'mock' : cached?.length ? 'cache' : 'fallback',
+	const cachedProducts = cached?.length ? mergeAuthority(cached) : [];
+	const products = ref<ShopGoodsProduct[]>(USE_MOCK_API ? cloneLocalProducts() : cachedProducts);
+	const source = ref<'mock' | 'api' | 'cache' | 'unavailable'>(
+		USE_MOCK_API ? 'mock' : cachedProducts.length ? 'cache' : 'unavailable',
 	);
 	const loaded = ref(USE_MOCK_API);
 	const loading = ref(false);
@@ -76,10 +77,10 @@ export const useShopCatalogStore = defineStore('shopCatalog', () => {
 			})
 			.catch((error) => {
 				const hasAuthoritativeData = source.value === 'api' || source.value === 'cache';
-				source.value = hasAuthoritativeData ? 'cache' : 'fallback';
+				source.value = hasAuthoritativeData ? 'cache' : 'unavailable';
 				loadError.value = hasAuthoritativeData
 					? '商品目录同步失败，正在使用上次成功数据'
-					: '商品目录暂时无法同步，结算时将由服务端重新确认';
+					: '商品目录暂时无法同步，请检查网络后重试';
 				console.warn('[shop-catalog] sync failed', error);
 			})
 			.finally(() => {

@@ -79,6 +79,8 @@ const productRows = computed(() => {
 });
 
 const showDiscovery = computed(() => !queryText.value.trim() && !category.value);
+const catalogPending = computed(() => shopCatalog.loading && shopCatalog.products.length === 0);
+const catalogUnavailable = computed(() => shopCatalog.source === 'unavailable' && shopCatalog.loaded);
 const discoverableCategories = computed(() => shopGoodsCategories.filter((item) => item.showOnGoodsHome !== false));
 const searchKeyword = computed(() => queryText.value.trim());
 const resultSummary = computed(() => {
@@ -95,18 +97,21 @@ const resultSubText = computed(() => {
 });
 const showRefineBar = computed(() => !category.value && !showDiscovery.value);
 const emptyTitle = computed(() => {
+	if (catalogUnavailable.value) return '商品目录暂时不可用';
 	if (hasRefineOnlyEmpty.value) return '当前筛选没有匹配项';
 	if (category.value) return `${category.value.name}暂时没有上新`;
 	if (searchKeyword.value) return `没有找到“${searchKeyword.value}”`;
 	return '暂时没有可展示商品';
 });
 const emptySub = computed(() => {
+	if (catalogUnavailable.value) return '为避免显示未经服务端确认的价格，当前不展示本地演示商品';
 	if (hasRefineOnlyEmpty.value) return '清空筛选后，可继续查看当前搜索下的全部好物';
 	if (category.value) return '可以先看看热门好物，或回到搜索页换个分类';
 	if (searchKeyword.value) return '换个关键词试试，或者从热门搜索里继续找';
 	return '先从热门搜索或商品分类开始逛逛';
 });
 const emptySuggestions = computed(() => {
+	if (catalogUnavailable.value) return [];
 	const normalized = new Set([searchKeyword.value, category.value?.name].filter(Boolean));
 	return hotTerms.filter((term) => !normalized.has(term)).slice(0, 4);
 });
@@ -282,6 +287,10 @@ function resetRefine() {
 	sortKey.value = 'recommend';
 }
 
+function retryCatalog() {
+	void shopCatalog.fetchFromApi(true);
+}
+
 function moneyText(value: number) {
 	return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -315,6 +324,10 @@ function productListImage(product: ShopGoodsProduct) {
 				@confirm="confirmSearch"
 			/>
 			<view v-if="queryText" class="search-clear" @tap="clearSearch">×</view>
+		</view>
+		<view v-if="shopCatalog.loadError" class="catalog-notice">
+			<view class="catalog-notice-text">{{ shopCatalog.loadError }}</view>
+			<view class="catalog-notice-action" @tap="retryCatalog">重新同步</view>
 		</view>
 
 		<template v-if="showDiscovery">
@@ -403,7 +416,8 @@ function productListImage(product: ShopGoodsProduct) {
 			</scroll-view>
 		</view>
 
-		<view v-if="productRows.length" class="product-list">
+		<view v-if="catalogPending" class="catalog-loading">正在同步商品目录...</view>
+		<view v-else-if="productRows.length" class="product-list">
 			<view
 				v-for="product in productRows"
 				:key="product.id"
@@ -418,9 +432,9 @@ function productListImage(product: ShopGoodsProduct) {
 				<image class="product-img" :src="productListImage(product)" mode="aspectFill" />
 			</view>
 		</view>
-		<view v-if="productRows.length" class="loaded">已加载全部数据</view>
+		<view v-if="!catalogPending && productRows.length" class="loaded">已加载全部数据</view>
 
-		<view v-else-if="!showDiscovery" class="empty">
+		<view v-else-if="!catalogPending && !showDiscovery" class="empty">
 			<view class="empty-mark">
 				<view class="empty-lens" />
 				<view class="empty-dot empty-dot--a" />
@@ -505,6 +519,38 @@ function productListImage(product: ShopGoodsProduct) {
 	margin-bottom: 28rpx;
 	box-sizing: border-box;
 	box-shadow: 0 8rpx 18rpx rgba(217, 39, 51, 0.14);
+}
+
+.catalog-notice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18rpx;
+	margin: -8rpx 0 24rpx;
+	padding: 18rpx 20rpx;
+	border: 1rpx solid rgba(217, 39, 51, 0.18);
+	border-radius: 12rpx;
+	background: #fff5f5;
+	color: #852128;
+	font-size: 24rpx;
+	line-height: 1.45;
+}
+
+.catalog-notice-text {
+	flex: 1;
+}
+
+.catalog-notice-action {
+	flex: none;
+	color: #c91f2d;
+	font-weight: 800;
+}
+
+.catalog-loading {
+	padding: 72rpx 0;
+	text-align: center;
+	color: #7b7f89;
+	font-size: 25rpx;
 }
 
 .section-title {

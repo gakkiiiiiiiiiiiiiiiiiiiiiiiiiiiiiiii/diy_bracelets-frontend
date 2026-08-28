@@ -150,11 +150,21 @@ async function fetchDetail() {
 	loadError.value = '';
 	const localProduct = shopCatalog.getById(designId.value);
 	if (localProduct) {
+		loading.value = false;
 		product.value = localProduct;
 		detail.value = null;
 		selectedSize.value = localProduct.sizes[0] ?? '';
 		buyQty.value = 1;
 		productNote.value = '';
+		return;
+	}
+	if (designId.value.startsWith('shop-')) {
+		if (!shopCatalog.loaded) {
+			loading.value = true;
+			return;
+		}
+		loading.value = false;
+		loadError.value = shopCatalog.loadError || '商品已下架或暂不可用';
 		return;
 	}
 	loading.value = true;
@@ -169,6 +179,10 @@ async function fetchDetail() {
 	} finally {
 		loading.value = false;
 	}
+}
+
+function retryProductCatalog() {
+	void shopCatalog.fetchFromApi(true).then(() => fetchDetail());
 }
 
 watch([designId, fromInspiration], ([id]) => {
@@ -408,6 +422,10 @@ function goBack() {
 			</view>
 			<view class="nav-title">{{ detailPageTitle }}</view>
 			<view class="nav-side nav-side--right" />
+		</view>
+		<view v-if="shopCatalog.loadError" class="catalog-notice">
+			<view class="catalog-notice-text">{{ shopCatalog.loadError }}</view>
+			<view class="catalog-notice-action" @tap="retryProductCatalog">重新同步</view>
 		</view>
 
 		<view v-if="loading" class="loading">加载中...</view>
@@ -753,6 +771,31 @@ function goBack() {
 	border: 2rpx solid #d92733;
 	border-radius: 999rpx;
 	color: #d92733;
+}
+
+.catalog-notice {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18rpx;
+	margin: 18rpx 22rpx 0;
+	padding: 18rpx 20rpx;
+	border: 1rpx solid rgba(217, 39, 51, 0.18);
+	border-radius: 12rpx;
+	background: #fff5f5;
+	color: #852128;
+	font-size: 24rpx;
+	line-height: 1.45;
+}
+
+.catalog-notice-text {
+	flex: 1;
+}
+
+.catalog-notice-action {
+	flex: none;
+	color: #c91f2d;
+	font-weight: 800;
 }
 
 .shop-hero {
