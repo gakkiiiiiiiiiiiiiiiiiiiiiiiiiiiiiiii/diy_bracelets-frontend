@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { onLaunch } from '@dcloudio/uni-app';
+import { ensureUserSession } from '@/api';
+
+onLaunch(() => {
+  void ensureUserSession().catch((error) => {
+    console.warn('[auth] 微信登录初始化失败，将在访问用户数据时重试', error);
+  });
+});
 </script>
 
 <template>

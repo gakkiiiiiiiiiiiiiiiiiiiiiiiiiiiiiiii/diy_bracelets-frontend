@@ -12,7 +12,10 @@ import {
 } from '@/config';
 
 const base = (RESOLVED_API_BASE || '').replace(/\/$/, '');
+const USER_TOKEN_STORAGE_KEY = 'diy-bracelets-user-token';
+const USER_TOKEN_EXPIRY_STORAGE_KEY = 'diy-bracelets-user-token-expires-at';
 let wxCloudInited = false;
+let loginPromise: Promise<void> | null = null;
 
 declare const wx: any;
 
@@ -28,6 +31,16 @@ export class MockApiFallbackError extends Error {
   }
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    path: string,
+    readonly statusCode: number,
+  ) {
+    super(`API ${path} ${statusCode}`);
+    this.name = 'ApiRequestError';
+  }
+}
+
 export function isMockApiFallbackError(err: unknown): err is MockApiFallbackError {
   return !!err && typeof err === 'object' && (err as MockApiFallbackError).isMockApiFallback === true;
 }
@@ -37,16 +50,32 @@ function normalizeResponseData<T>(data: unknown): T {
 }
 
 function getAuthHeader(): Record<string, string> {
-  const token =
-    uni.getStorageSync('token') ||
-    uni.getStorageSync('accessToken') ||
-    uni.getStorageSync('Authorization');
+  const token = uni.getStorageSync(USER_TOKEN_STORAGE_KEY);
 
   if (!token) return {};
   const tokenText = String(token);
   return {
     Authorization: tokenText.startsWith('Bearer ') ? tokenText : `Bearer ${tokenText}`,
   };
+}
+
+function hasValidStoredSession(): boolean {
+  const token = uni.getStorageSync(USER_TOKEN_STORAGE_KEY);
+  const expiresAt = uni.getStorageSync(USER_TOKEN_EXPIRY_STORAGE_KEY);
+  return Boolean(token) && new Date(String(expiresAt)).getTime() > Date.now() + 60_000;
+}
+
+function clearStoredSession() {
+  uni.removeStorageSync(USER_TOKEN_STORAGE_KEY);
+  uni.removeStorageSync(USER_TOKEN_EXPIRY_STORAGE_KEY);
+}
+
+function requiresUserSession(path: string, method: ApiMethod): boolean {
+  return path.startsWith('/api/my-designs') ||
+    path.startsWith('/api/cart') ||
+    path.startsWith('/api/profile') ||
+    path.startsWith('/api/design-process-videos') ||
+    (path === '/api/inspirations' && method === 'POST');
 }
 
 function ensureWxCloudInit() {
@@ -99,7 +128,7 @@ function requestByWxCloudContainer<T>(
             statusCode,
             data: res?.data,
           });
-          reject(new Error(`API ${path} ${statusCode}`));
+          reject(new ApiRequestError(path, statusCode));
         }
       },
       fail: (err: unknown) => {
@@ -116,7 +145,7 @@ function requestByWxCloudContainer<T>(
 }
 
 /** 请求 URL：base 为空时用相对路径 path（H5 开发时代理转发）；base 有值时拼完整地址（小程序需配置完整域名） */
-function request<T>(
+function requestTransport<T>(
   path: string,
   method: ApiMethod = 'GET',
   body?: object,
@@ -171,7 +200,7 @@ function request<T>(
             reject(new Error('接口返回非 JSON'));
           }
         } else {
-          const err = new Error(`API ${path} ${res.statusCode}`);
+          const err = new ApiRequestError(path, res.statusCode);
           console.warn('[api] request failed with non-2xx status', {
             path,
             url,
@@ -196,6 +225,55 @@ function request<T>(
   });
 }
 
+export function ensureUserSession(): Promise<void> {
+  if (!IS_MP_WEIXIN || USE_MOCK_API) return Promise.resolve();
+  if (hasValidStoredSession()) return Promise.resolve();
+  if (loginPromise) return loginPromise;
+
+  clearStoredSession();
+  loginPromise = new Promise<string>((resolve, reject) => {
+    uni.login({
+      provider: 'weixin',
+      success: (result) => result.code ? resolve(result.code) : reject(new Error('微信登录未返回 code')),
+      fail: reject,
+    });
+  })
+    .then((code) => requestTransport<WechatLoginResponse>('/api/auth/wechat', 'POST', { code }))
+    .then((session) => {
+      uni.setStorageSync(USER_TOKEN_STORAGE_KEY, session.accessToken);
+      uni.setStorageSync(USER_TOKEN_EXPIRY_STORAGE_KEY, session.expiresAt);
+    })
+    .finally(() => {
+      loginPromise = null;
+    });
+  return loginPromise;
+}
+
+function request<T>(
+  path: string,
+  method: ApiMethod = 'GET',
+  body?: object,
+  canRetryAuth = true,
+): Promise<T> {
+  const execute = () => requestTransport<T>(path, method, body);
+  if (!requiresUserSession(path, method)) return execute();
+
+  return ensureUserSession()
+    .then(execute)
+    .catch((error) => {
+      if (
+        canRetryAuth &&
+        IS_MP_WEIXIN &&
+        error instanceof ApiRequestError &&
+        error.statusCode === 401
+      ) {
+        clearStoredSession();
+        return ensureUserSession().then(() => request<T>(path, method, body, false));
+      }
+      throw error;
+    });
+}
+
 function publishedContent<T extends object>(config: PageConfigResponse<T>): Partial<T> | null {
   return config.isPublished && config.publishedContent ? config.publishedContent : null;
 }
@@ -210,6 +288,16 @@ export interface DesignProcessVideoJob {
   height: number;
   error: string | null;
   steps: DesignProcessVideoStepPayload[];
+}
+
+export interface WechatLoginResponse {
+  accessToken: string;
+  expiresAt: string;
+  user: {
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
 }
 
 export interface DesignProcessVideoStepPayload {

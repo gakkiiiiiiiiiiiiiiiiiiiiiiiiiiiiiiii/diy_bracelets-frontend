@@ -25,6 +25,13 @@ pnpm build:h5
 pnpm build:mp-weixin
 ```
 
+## 微信登录与用户数据
+
+- 小程序启动时通过 `uni.login` 获取一次性 code，并提交到后端 `POST /api/auth/wechat`。
+- 前端只保存后端签发的随机会话令牌和过期时间；微信 `AppSecret`、OpenID、`session_key` 均不会进入前端源码或构建产物。
+- `我的设计`、个人资料、购物车与过程视频接口会在请求前确保已有登录态；收到 401 时清除旧令牌并自动重新登录一次。
+- 小程序上线前必须在 backend 配置 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`，并配置合法的 HTTPS API 域名或微信云托管服务。
+
 ## 目录说明
 
 - `src/pages/design/` - 设计页（画布 + 材料区）
