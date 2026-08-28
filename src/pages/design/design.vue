@@ -30,6 +30,7 @@ import type { BraceletCodeResolution, CartItem, ResolvedBraceletBead } from '@/a
 import { api } from '@/api';
 import type { DesignProcessVideoResult } from '@/utils/designProcessVideo';
 import { generateDesignProcessVideo, saveDesignProcessVideo } from '@/utils/designProcessVideo';
+import { DESIGN_PROCESS_VIDEO_ENABLED } from '@/config';
 const designStore = useDesignStore();
 const materialsStore = useMaterialsStore();
 const savedDesignsStore = useSavedDesignsStore();
@@ -51,6 +52,13 @@ function readVideoRenderJobId() {
 	// #ifdef H5
 	const query = window.location.hash.split('?')[1] || '';
 	return new URLSearchParams(query).get('videoRenderJobId') || '';
+	// #endif
+	return '';
+}
+function readVideoRenderToken() {
+	// #ifdef H5
+	const query = window.location.hash.split('?')[1] || '';
+	return new URLSearchParams(query).get('videoRenderToken') || '';
 	// #endif
 	return '';
 }
@@ -154,7 +162,7 @@ async function runVideoPageReplay() {
 	return;
 	// #endif
 	if (!videoRenderJobId.value) return;
-	const job = await api.getDesignProcessVideo(videoRenderJobId.value);
+	const job = await api.getDesignProcessVideoForRender(videoRenderJobId.value, readVideoRenderToken());
 	const replaySteps = job.steps.map((step) => ({ step, beads: toVideoBeads(step) }));
 	const totalFrames = 1 + replaySteps.slice(1).reduce((sum, item) => sum + videoStepFrameCount(item.step.action), 0);
 	document.documentElement.dataset.videoFrameTotal = String(totalFrames);
@@ -1411,6 +1419,7 @@ async function generateProcessVideo() {
 			steps,
 			palette: materialsStore.filteredMaterialSpecCards.slice(0, 6).map((card) => ({
 				materialId: card.material.id,
+				specId: card.spec.specId,
 				name: card.material.name,
 				image: card.material.image,
 				size: card.spec.size,
@@ -1920,7 +1929,7 @@ function hideDesignTabBar() {
 						<text>{{ designConfirmNoteText }}</text>
 					</view>
 
-					<view v-if="entrySource === 'bracelet'" class="design-process-video">
+					<view v-if="entrySource === 'bracelet' && DESIGN_PROCESS_VIDEO_ENABLED" class="design-process-video">
 						<view class="design-process-video__head">
 							<view>
 								<text class="design-process-video__eyebrow">设计回忆</text>

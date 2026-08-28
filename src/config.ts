@@ -8,6 +8,7 @@ declare const __WXCLOUD_CONTAINER_ENV__: string | undefined
 declare const __WXCLOUD_CONTAINER_SERVICE__: string | undefined
 declare const __USE_MOCK_API__: boolean | undefined
 declare const __IS_DEV__: boolean | undefined
+declare const __DESIGN_PROCESS_VIDEO_ENABLED__: boolean | undefined
 
 const injectedApiBase =
   (typeof __API_BASE__ !== 'undefined' ? __API_BASE__ : '') ||
@@ -39,6 +40,8 @@ export const WXCLOUD_CONTAINER_ENV = injectedWxCloudContainerEnv
 export const WXCLOUD_CONTAINER_SERVICE = injectedWxCloudContainerService
 export const USE_WXCLOUD_CONTAINER =
   IS_MP_WEIXIN && !!WXCLOUD_CONTAINER_ENV && !!WXCLOUD_CONTAINER_SERVICE
+export const DESIGN_PROCESS_VIDEO_ENABLED =
+  typeof __DESIGN_PROCESS_VIDEO_ENABLED__ !== 'undefined' && __DESIGN_PROCESS_VIDEO_ENABLED__
 
 /**
  * H5 可继续使用相对路径 + Vite 代理。

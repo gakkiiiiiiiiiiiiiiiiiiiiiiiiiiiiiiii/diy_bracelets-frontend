@@ -28,6 +28,7 @@ const apiTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3008'
 const useWxCloudContainer = process.env.VITE_USE_WXCLOUD_CONTAINER !== 'false'
 const wxCloudContainerEnv = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_ENV || '' : ''
 const wxCloudContainerService = useWxCloudContainer ? process.env.VITE_WXCLOUD_CONTAINER_SERVICE || '' : ''
+const designProcessVideoEnabled = process.env.VITE_DESIGN_PROCESS_VIDEO_ENABLED === 'true'
 const useMockApi =
   process.env.VITE_USE_MOCK_API === 'true' ||
   (!process.env.VITE_API_BASE && process.env.VITE_USE_MOCK_API !== 'false')
@@ -78,6 +79,7 @@ export default defineConfig({
     __USE_MOCK_API__: JSON.stringify(useMockApi),
     __WXCLOUD_CONTAINER_ENV__: JSON.stringify(wxCloudContainerEnv),
     __WXCLOUD_CONTAINER_SERVICE__: JSON.stringify(wxCloudContainerService),
+    __DESIGN_PROCESS_VIDEO_ENABLED__: JSON.stringify(designProcessVideoEnabled),
   },
   plugins: [
     // 优先注册，使 /static/ 请求先被处理（材料卡图片、3D 纹理）

@@ -126,6 +126,7 @@ function requestByWxCloudContainer<T>(
   path: string,
   method: ApiMethod,
   body?: object,
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   ensureWxCloudInit();
 
@@ -147,6 +148,7 @@ function requestByWxCloudContainer<T>(
         'X-WX-SERVICE': WXCLOUD_CONTAINER_SERVICE,
         'content-type': 'application/json',
         ...getAuthHeader(),
+        ...extraHeaders,
       },
       success: (res: any) => {
         const statusCode = res?.statusCode ?? 200;
@@ -183,9 +185,10 @@ function requestTransport<T>(
   path: string,
   method: ApiMethod = 'GET',
   body?: object,
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   if (USE_WXCLOUD_CONTAINER && !path.startsWith('http')) {
-    return requestByWxCloudContainer<T>(path, method, body);
+    return requestByWxCloudContainer<T>(path, method, body, extraHeaders);
   }
 
   if (USE_MOCK_API && path.startsWith('/api/')) {
@@ -216,8 +219,8 @@ function requestTransport<T>(
   const uniMethod: UniRequestMethod = method === 'PATCH' ? 'POST' : method;
   const header =
     method !== 'GET' && body != null
-      ? { 'Content-Type': 'application/json', ...getAuthHeader() }
-      : getAuthHeader();
+      ? { 'Content-Type': 'application/json', ...getAuthHeader(), ...extraHeaders }
+      : { ...getAuthHeader(), ...extraHeaders };
   if (method === 'PATCH') header['X-HTTP-Method-Override'] = 'PATCH';
 
   return new Promise((resolve, reject) => {
@@ -356,6 +359,7 @@ export interface DesignProcessVideoStepPayload {
 
 export interface DesignProcessVideoPaletteItem {
   materialId: string;
+  specId?: string;
   name: string;
   image: string;
   size: number;
@@ -428,6 +432,10 @@ export const api = {
     request<DesignProcessVideoJob>(`/api/design-process-videos`, 'POST', body),
   getDesignProcessVideo: (id: string) =>
     request<DesignProcessVideoJob>(`/api/design-process-videos/${id}`),
+  getDesignProcessVideoForRender: (id: string, token: string) =>
+    requestTransport<DesignProcessVideoJob>(`/api/design-process-videos/${id}/render`, 'GET', undefined, {
+      'X-Video-Render-Token': token,
+    }),
   getCart: () => request<CartData>(`/api/cart`),
   replaceCart: (items: CartItem[]) =>
     request<CartData>(`/api/cart`, 'PUT', { items: items.map(cartItemInput) }),

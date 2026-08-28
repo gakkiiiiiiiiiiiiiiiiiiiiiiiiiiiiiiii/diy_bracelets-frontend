@@ -32,6 +32,8 @@ pnpm build:mp-weixin
 
 缺少目标、只填写一半云托管配置、启用 Mock 或使用非 HTTPS API 地址时，生产构建会直接失败，避免把包误连到错误环境。
 
+过程视频默认隐藏。只有后端完成 Chromium、FFmpeg 与 H5 渲染页配置并设置 `DESIGN_PROCESS_VIDEO_ENABLED=true` 后，前端构建才应设置 `VITE_DESIGN_PROCESS_VIDEO_ENABLED=true`。渲染页通过短期内部令牌读取后端校验过的素材快照，不复用用户会话。
+
 ## 微信登录与用户数据
 
 - 小程序启动时通过 `uni.login` 获取一次性 code，并提交到后端 `POST /api/auth/wechat`。
