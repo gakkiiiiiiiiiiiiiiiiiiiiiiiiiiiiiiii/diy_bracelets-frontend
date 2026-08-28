@@ -36,6 +36,22 @@ pnpm build:mp-weixin
 
 缺少 API、静态资源目标或有效 AppID，只填写一半云托管配置、启用 Mock，或使用非 HTTPS 地址时，生产构建会直接失败，避免把包误连到错误环境。
 
+## H5 与静态资源容器
+
+仓库提供可复用的 Nginx 生产镜像，同时承载 H5 渲染页和小程序所需的 `/static` 图片、3D 纹理。构建时必须显式传入现有 HTTPS API：
+
+```bash
+docker build \
+  --build-arg VITE_API_BASE=https://api.example.com \
+  -t diy-bracelets-frontend .
+docker run --rm -p 8080:8080 diy-bracelets-frontend
+curl --fail http://127.0.0.1:8080/health
+```
+
+- `/static/*` 返回跨域资源头，允许小程序和 Three.js 从 `VITE_STATIC_BASE` 加载公开纹理。
+- 哈希化 `/assets/*` 使用长期不可变缓存；文件名未哈希的 `/static/*` 只缓存一天，避免素材替换后长期陈旧。
+- 部署时将该容器的 HTTPS 域名同时用作 `VITE_STATIC_BASE`；如果启用过程视频，也可作为 backend 的 `VIDEO_WEB_RENDER_URL` 来源。
+
 过程视频默认隐藏。只有后端完成 Chromium、FFmpeg 与 H5 渲染页配置并设置 `DESIGN_PROCESS_VIDEO_ENABLED=true` 后，前端构建才应设置 `VITE_DESIGN_PROCESS_VIDEO_ENABLED=true`。渲染页通过短期内部令牌读取后端校验过的素材快照，不复用用户会话。
 
 ## 微信登录与用户数据
