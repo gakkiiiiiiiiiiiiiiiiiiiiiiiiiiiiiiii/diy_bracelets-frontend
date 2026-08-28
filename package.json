@@ -2,7 +2,7 @@
 	"name": "diy-bracelets",
 	"version": "1.0.0",
 	"type": "module",
-	"packageManager": "pnpm@9.7.1",
+	"packageManager": "pnpm@10.17.0",
 	"scripts": {
 		"dev:h5": "npx uni -p h5",
 		"dev:mp-weixin": "VITE_USE_WXCLOUD_CONTAINER=false VITE_PROXY_TARGET=http://localhost:3008 npx uni -p mp-weixin",
@@ -11,39 +11,41 @@
 	},
 	"dependencies": {
 		"@dcloudio/uni-app": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-app-harmony": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-app-plus": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/uni-app-vue": "3.0.0-alpha-5000120260211001",
 		"@dcloudio/uni-components": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/uni-h5": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-alipay": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-baidu": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-harmony": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-jd": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-kuaishou": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-lark": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-qq": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-toutiao": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/uni-mp-weixin": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-mp-xhs": "3.0.0-alpha-5010120260525001",
-		"@dcloudio/uni-quickapp-webview": "3.0.0-alpha-5010120260525001",
-		"pinia": "^2.1.7",
+		"pinia": "2.1.7",
 		"three": "^0.169.0",
 		"threejs-miniprogram": "^0.0.8",
-		"vue": "^3.5.29",
-		"vue-i18n": "^9.1.9"
+		"vue": "3.4.21",
+		"vue-i18n": "^9.14.5"
 	},
 	"devDependencies": {
-		"@dcloudio/types": "^3.4.29",
+		"@dcloudio/types": "3.4.31",
 		"@dcloudio/uni-automator": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/uni-cli-shared": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/uni-stacktracey": "3.0.0-alpha-5010120260525001",
 		"@dcloudio/vite-plugin-uni": "3.0.0-alpha-5010120260525001",
-		"@types/node": "^20.11.24",
+		"@types/node": "^20.19.43",
 		"@types/three": "0.169.0",
-		"@vue/runtime-core": "^3.4.21",
-		"sass": "^1.72.0",
-		"typescript": "^5.4.2",
-		"vite": "^5.2.8"
+		"@vue/runtime-core": "3.4.21",
+		"sass": "^1.103.1",
+		"typescript": "^5.9.3",
+		"vite": "6.4.3"
+	},
+	"pnpm": {
+		"overrides": {
+			"@babel/core": "7.29.7",
+			"@intlify/core-base@9.1.9": "9.14.5",
+			"@intlify/message-resolver@9.1.9": "9.1.11",
+			"@intlify/shared@9.1.9": "9.14.5",
+			"adm-zip@0.5.16": "0.6.0",
+			"esbuild@<=0.24.2": "0.25.12",
+			"jpeg-js@<0.4.4": "0.4.4",
+			"phin@<3.7.1": "3.7.1",
+			"postcss@<=8.5.22": "8.5.26",
+			"ws@>=8.0.0 <8.21.0": "8.21.3"
+		}
 	}
 }
