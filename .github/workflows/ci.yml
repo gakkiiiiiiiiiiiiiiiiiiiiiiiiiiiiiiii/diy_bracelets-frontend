@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+
+      - name: Install pnpm
+        run: npm install --global pnpm@10.17.0 --ignore-scripts
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build H5
+        run: pnpm build:h5
+
+      - name: Build WeChat mini program
+        run: pnpm build:mp-weixin
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=moderate
